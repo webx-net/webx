@@ -2,7 +2,7 @@
 
 <br>
 
-<img src="assets/logo.png" height="56px" />
+<img src="assets/logo.png" height="80px" />
 <hr>
 
 This is the official repository for the WebX web server project.
