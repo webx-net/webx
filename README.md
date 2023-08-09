@@ -3,9 +3,8 @@
 <img src="assets/logo.png" height="80px" />
 
 This is the official repository for the WebX web server project.
-A framework for building minimal but powerful backends for web applications using **HTMX** for the frontend. The goal is to reduce the boilerplate while still providing the flexibility to build complex applications.
-WebX is a web server written in Rust that is designed to be fast, lightweight, and easy to use.
-[Get started](#getting-started) or [read more](#why-webx?) about the project below.
+A framework for building minimal but powerful backends for web applications.\
+↪ [Get started](#getting-started) or [read more](#why-webx) about the project below.
 
 > **⚠️ WebX is still in early development and is not ready for use in production.**
 
@@ -15,7 +14,7 @@ WebX is a web server written in Rust that is designed to be fast, lightweight, a
 - [ ] WebX Language
     - [ ] Routing
     - [ ] JSX support
-    - [ ] TypeScript support
+    - [ ] TypeScript integration
     - [ ] ORM
         - [ ] Model definitions
         - [ ] Queries
@@ -116,12 +115,12 @@ get /todos/(id: number) -> initServices(), auth($.userService, id), isAdmin($.us
 <br>
 
 ## Why Web<font color="#3d72d7">X</font>?
-**Our vision** is to reduce the complexity of building backends and APIs.\
-Don't waste time on boilerplate code.
-WebX is designed to be **simple**, **minimal**, **easy to learn**, and **intuitive** while still being **versatile** and **flexible**.
+**Our vision** is to reduce the boilerplate and complexity of building backends and APIs.\
+↪ WebX is designed to be **simple**, **minimal**, **easy to learn**, and **intuitive** while still being **versatile** and **flexible**.
 It is capable of building complex applications **quickly** while still being **lightweight🪶** and **blazingly fast🔥**.
 
 > **Backends shouldn't be bloated and complex**, but focus on what's most important.
+> ↪ Jump straight to ***the goodi-goodi parts*** and get [started using](#getting-started) **WebX** today!
 
 ### ❤️ Perfect match for <b><<font color="#3d72d7">/</font>> htm<font color="#3d72d7">x</font></b>
 WebX is designed to be a minimalistic web framework that is easy to learn and use.
