@@ -119,7 +119,8 @@ get /todos/(id: number) -> initServices(), auth($.userService, id), isAdmin($.us
 ▸ WebX is designed to be **simple**, **minimal**, **easy to learn**, and **intuitive** while still being **versatile** and **flexible**.
 It is capable of building complex applications **quickly** while still being **lightweight🪶** and **blazingly fast🔥**.
 
-> **Backends shouldn't be bloated and complex**, but focus on what's most important.\
+> **Backends shouldn't be bloated and complex**, but focus on what's most important.
+> Don't reinvent the wheel for every new project,\
 > ▸ Jump straight to ***the goodi-goodi parts*** and get [started using](#getting-started) **WebX** today!
 
 ### ❤️ Perfect match for <b><<font color="#3d72d7">/</font>> htm<font color="#3d72d7">x</font></b>
