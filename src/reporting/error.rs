@@ -3,6 +3,7 @@ use colored::*;
 // Error codes:
 pub static ERROR_READ_WEBX_FILES: i32 = 1;
 pub static ERROR_READ_PROJECT_CONFIG: i32 = 2;
+pub static ERROR_CIRCULAR_DEPENDENCY: i32 = 3;
 
 fn error_generic(message: String, error_name: &str) {
     eprintln!("{} {}", error_name.red(), message);
@@ -19,8 +20,4 @@ pub fn error(message: String) {
 
 pub fn exit_error(message: String, code: i32) -> ! {
     exit_error_generic(message, code, "Error");
-}
-
-pub fn exit_fatal(message: String) -> ! {
-    exit_error_generic(message, 1, "Fatal error");
 }

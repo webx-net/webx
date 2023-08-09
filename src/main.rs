@@ -1,10 +1,11 @@
 mod engine;
 mod project;
 mod reporting;
+mod file;
 
 use clap::{Arg, Command, ArgAction};
 use colored::*;
-use reporting::error::{exit_error, error};
+use reporting::error::error;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const NAME: &str = "webx";

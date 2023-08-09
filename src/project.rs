@@ -1,10 +1,17 @@
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
 
-use crate::reporting::warning::warning;
+use crate::{
+    file::webx::WebXFile,
+    reporting::{
+        error::{exit_error, ERROR_CIRCULAR_DEPENDENCY},
+        warning::warning,
+    },
+};
 
 /// The configuration for a WebX project.
 ///
@@ -93,15 +100,16 @@ pub struct CacheConfig {
 }
 
 /// Parse the project configuration from a given filepath.
-/// 
+///
 /// ## Arguments
 /// - `config` - The path to the project configuration file.
-/// 
+///
 /// ## Returns
 /// The project configuration.
 pub fn load_project_config(config_file: &PathBuf) -> ProjectConfig {
     let txt = fs::read_to_string(config_file).expect("Failed to open project configuration.");
-    let config: ProjectConfig = serde_json::from_str(&txt).expect("Failed to parse project configuration.");
+    let config: ProjectConfig =
+        serde_json::from_str(&txt).expect("Failed to parse project configuration.");
     config
 }
 
@@ -111,7 +119,7 @@ pub fn load_project_config(config_file: &PathBuf) -> ProjectConfig {
 /// - `src` - The path to the source directory.
 ///
 /// ## Returns
-/// A vector of paths to all .webx files in the project's source directory.
+/// A vector of canonical paths to all .webx files in the project's source directory.
 ///
 /// ## Errors
 /// If the source directory does not exist, an error is returned.
@@ -128,7 +136,7 @@ pub fn locate_webx_files(src: &Path) -> Result<Vec<PathBuf>, String> {
             // Recursively find all .webx files in the directory.
             files.append(&mut locate_webx_files(&path).unwrap());
         } else if path.is_file() {
-            files.push(path);
+            files.push(path.canonicalize().map_err(|e| e.to_string())?);
         } else {
             panic!(
                 "The path '{}' is neither a file nor a directory.",
@@ -139,12 +147,50 @@ pub fn locate_webx_files(src: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
-/// Create a new WebX project in the given directory.
+type DependencyTree = HashMap<PathBuf, Vec<PathBuf>>;
+
+pub fn detect_circular_dependencies(tree: &DependencyTree) -> Vec<PathBuf> {
+    let mut circular_dependencies = Vec::new();
+    for (_, dependents) in tree {
+        for dependent in dependents {
+            if tree.contains_key(dependent) {
+                circular_dependencies.push(dependent.clone());
+            }
+        }
+    }
+    circular_dependencies
+}
+
+/// Construct a dependency tree from a list of WebX files.
+/// The tree is a hashmap where the keys are the dependencies and the values are the files that
+/// depend on them.
+/// If a circular dependency is detected, an error is returned.
 /// 
+/// ## Arguments
+/// - `files` - The list of WebX files.
+/// 
+/// ## Returns
+/// The dependency tree.
+pub fn construct_dependency_tree(files: &Vec<&WebXFile>) -> DependencyTree {
+    let mut tree = DependencyTree::new();
+    for file in files.iter() {
+        // Insert dependencies into the tree as keys and the file path as the value.
+        for dependency in file.includes.iter() {
+            let dependency_target = file.path.join(dependency);
+            tree.entry(dependency_target)
+                .or_insert(Vec::new())
+                .push(file.path.clone());
+        }
+    }
+    tree
+}
+
+/// Create a new WebX project in the given directory.
+///
 /// ## Arguments
 /// - `root_dir` - The path to the root directory of the project.
 /// - `override_existing` - Whether or not to override an existing project.
-/// 
+///
 /// ## File Structure
 /// The following files are added to the root directory:
 /// ```text
@@ -156,7 +202,7 @@ pub fn locate_webx_files(src: &Path) -> Result<Vec<PathBuf>, String> {
 /// The `webx.config.json` file contains the default configuration for the project.
 /// The `webx/` directory contains all of the WebX source files.
 /// The `index.webx` file contains some default example code.
-/// 
+///
 /// ## Warning
 /// If a `webx.config.json` file already exists in the root directory,
 /// and `override_existing` is set to `false`, then a warning is printed and
@@ -243,5 +289,9 @@ location /todo {
 
     fs::create_dir_all(&src_dir).expect("Failed to create source directory.");
     fs::write(&index_file, DEFAULT_INDEX_FILE_CONTENTS).expect("Failed to create index file.");
-    fs::write(&config_file, serde_json::to_string_pretty(&default_config).unwrap()).expect("Failed to create config file.");
+    fs::write(
+        &config_file,
+        serde_json::to_string_pretty(&default_config).unwrap(),
+    )
+    .expect("Failed to create config file.");
 }
