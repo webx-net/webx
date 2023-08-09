@@ -1,16 +1,16 @@
-> **⚠️ This project is in development and is not ready for use in production.**
-
-<br>
-
 <img src="assets/logo.png" height="80px" />
 <hr>
 
 This is the official repository for the WebX web server project.
 A framework for building minimal but powerful backends for web applications using **HTMX** for the frontend. The goal is to reduce the boilerplate while still providing the flexibility to build complex applications.
 WebX is a web server written in Rust that is designed to be fast, lightweight, and easy to use.
+[Get started](#getting-started) or [read more](#why-webx?) about the project below.
 
+> **⚠️ WebX is still in early development and is not ready for use in production.**
 
-## Features
+<br>
+
+## Features & Roadmap
 - [ ] WebX Language
     - [ ] Routing
     - [ ] JSX support
@@ -42,12 +42,17 @@ WebX is a web server written in Rust that is designed to be fast, lightweight, a
 - [ ] Input sanitization (safe defaults)
 - [ ] Output sanitization (safe defaults)
 
-Do you have any suggestions for additional features? Create an issue or a pull request!
+Do you have any suggestions for additional features?
+Create an issue or a pull request!
+[Read more](#contributing) about contributing below.
 
-## Installation
+<br>
+
+## Getting started
+### Installation
 Download the latest release with prebuilt binaries from the [releases page](https://github.com/WilliamRagstad/WebX/releases) and extract it to a folder of your choice.
 
-## Usage
+### Usage
 To start the web server for a project, use:
 ```sh
 webx run
@@ -58,8 +63,10 @@ To run the project in production mode, use:
 webx run --prod
 ```
 
+<br>
+
 ## Examples
-The following is an example of a simple WebX application:
+The following is an example of a simple WebX todo list application.
 ```typescript
 model User {
   id: number @primary @autoincrement;
@@ -105,3 +112,24 @@ get /todos/(id: number) -> initServices(), auth($.userService, id), isAdmin($.us
 } -> renderTodos($.todos, $.user)
 ```
 
+<br>
+
+## Why Web<font color="#3d72d7">X</font>?
+**Our vision** is to reduce the complexity of building backends and APIs.\
+Don't waste time on boilerplate code.
+WebX is designed to be **simple**, **minimal**, **easy to learn**, and **intuitive** while still being **versatile** and **flexible**.
+It is capable of building complex applications **quickly** while still being **lightweight🪶** and **blazingly fast🔥**.
+
+> **Backends shouldn't be bloated and complex**, but focus on what's most important.
+
+### ❤️ Perfect match for <b><<font color="#3d72d7">/</font>> htm<font color="#3d72d7">x</font></b>
+WebX is designed to be a minimalistic web framework that is easy to learn and use.
+It is ***intended*** to be used with **HTMX**, which is a great alternative to frameworks like React, Vue, and Angular (or other stacks).
+HTMX allows you to build dynamic web applications without having to learn a new language or framework for the frontend.
+WebX is designed to be versatile and flexible, and it is easy to build backends for complex applications quickly.
+
+<br>
+
+## Contributing
+Contributions are welcome!
+If you have any suggestions or find any bugs, please create an issue or a pull request.
