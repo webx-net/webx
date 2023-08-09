@@ -205,11 +205,8 @@ handler renderTodo(todo: Todo) -> HTML <h1>
     {todo.title}
 </h1>
 
-handler renderIndex(todos: Todo[]) -> HTML {
-    return (<div>
-        <h1>Welcome!</h1>
-        <ul>{todos.map(renderTodo)}</ul>
-    </div>);
+handler renderAllTodos(todos: Todo[]) -> HTML {
+    return (<ul>{todos.map(renderTodo)}</ul>);
 }
 
 get /about <div>
@@ -217,9 +214,9 @@ get /about <div>
     <p>This is an example WebX project.</p>
 </div>
 
-location /todos {
-    // Display the list of todos as HTML.
-    get / -> renderIndex(todos)
+location /todo {
+    // Display the global list of todos as HTML.
+    get /list -> renderAllTodos(todos)
 
     // Add a new todo to the list with the given title.
     // { title: "My Todo" }
