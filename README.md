@@ -50,7 +50,7 @@ Create an issue or a pull request!
 
 ## Getting started
 ### Installation
-Download the latest release with prebuilt binaries from the [releases page](https://github.com/WilliamRagstad/WebX/releases) and extract it to a folder of your choice.
+Download the latest prebuilt binaries from the [releases page](https://github.com/WilliamRagstad/WebX/releases) and extract it to a folder of your choice.
 
 ### Usage
 To start the web server for a project, use:
