@@ -1,5 +1,6 @@
+
+<br>
 <img src="assets/logo.png" height="80px" />
-<hr>
 
 This is the official repository for the WebX web server project.
 A framework for building minimal but powerful backends for web applications using **HTMX** for the frontend. The goal is to reduce the boilerplate while still providing the flexibility to build complex applications.
