@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Document</title>
+    <script src="https://unpkg.com/htmx.org@1.9.4"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>A Web<font color="#2262dc">X</font> todo list</h1>
+        <p>Welcome! Here is a list of things to do:</p>
+        <ul hx-get="/todo/list">Loading...</ul>
+        <form hx-post="/todo/add">
+            <input name="item" placeholder="Add a new item" type="text" required>
+            <button>Add</button>
+        </form>
+    </div>
+</body>
+<style>
+    body {
+        font-family: Roboto, sans-serif;
+        margin: 0;
+        height: 100vh;
+        background: #f9f9f9;
+    }
+    .container {
+        padding: 1em 4em;
+        max-width: 30em;
+        margin: 0 auto;
+        height: 100%;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        background: white;
+    }
+    ul {
+        list-style: none;
+        padding: 0;
+    }
+    li {
+        padding: 0.5em;
+        border-bottom: 1px solid #ccc;
+    }
+    input {
+        padding: 0.5em;
+        border: 1px solid #ccc;
+        border-radius: 0.25em;
+    }
+    button {
+        padding: 0.5em;
+        border: 1px solid #ccc;
+        border-radius: 0.25em;
+        background: #eee;
+    }
+</style>
+</html>

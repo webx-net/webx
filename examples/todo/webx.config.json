@@ -1,0 +1,16 @@
+{
+  "name": "My todo WebX Project",
+  "version": "1.0.0",
+  "description": "An example WebX project.",
+  "port": 8080,
+  "host": "localhost",
+  "src": "./webx/",
+  "logLevel": null,
+  "migrationsPath": null,
+  "cors": {
+    "allowOrigin": "*"
+  },
+  "rateLimit": null,
+  "database": null,
+  "cache": null
+}

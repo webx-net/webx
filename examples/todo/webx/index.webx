@@ -1,0 +1,50 @@
+// This is an example WebX todo app project.
+{
+    // Global in-memory database of todos for this example.
+    const todos = [];
+}
+
+model Todo {
+    title: String,
+    completed: Boolean
+}
+
+handler renderTodo(todo: Todo) -> HTML <h1>
+    <input type="checkbox" checked={todo.completed} />
+    {todo.title}
+</h1>
+
+handler renderAllTodos(todos: Todo[]) -> HTML {
+    return (<ul>{todos.map(renderTodo)}</ul>);
+}
+
+get /about <div>
+    <h1>About</h1>
+    <p>This is an example WebX project.</p>
+</div>
+
+location /todo {
+    // Display the global list of todos as HTML.
+    get /list -> renderAllTodos(todos)
+
+    // Add a new todo to the list with the given title.
+    // { title: "My Todo" }
+    // returns HTML
+    post /add json(title: String) {
+        const newTodo = { title, completed: false };
+        todos.push(newTodo);
+    } -> renderTodo(newTodo)
+
+    // Toggle the completed status of the todo with the given id.
+    // { id: 0 }
+    // returns HTML
+    post /toggle json(id: Int) {
+        const todo = todos.find(t => t.id === id);
+        if (todo) {
+            todo.completed = !todo.completed;
+            return renderTodo(todo);
+        } else {
+            return error("Todo not found.");
+        }
+    }
+}
