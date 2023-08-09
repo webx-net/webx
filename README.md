@@ -11,33 +11,46 @@ A framework for building minimal but powerful backends for web applications.\
 <br>
 
 ## Features & Roadmap
-- [ ] WebX Language
-    - [ ] Routing
-    - [ ] JSX support
-    - [ ] TypeScript integration
-    - [ ] ORM
-        - [ ] Model definitions
-        - [ ] Queries
-        - [ ] Migrations
-    - [ ] Validation
-    - [ ] Handlers
-    - [ ] Middleware
-    - [ ] Error handling
-    - [ ] Templating
-    - [ ] Authentication
-    - [ ] Authorization
-    - [ ] Built-in services
-        - [ ] Sessions
-        - [ ] Caching
-        - [ ] Static file serving
-        - [ ] WebSockets
-- [X] Blazingly fast 🔥 and lightweight
-- [X] Simple, easy to learn and intuitive syntax
-- [ ] Batteries included 🔋 (stdlib)
+Below is a high-level overview of the existing (implemented) and planned features of the WebX technology (in no particular order).
+- [X] Blazingly fast 🔥
+- [X] Lightweight 🪶
+- [X] Simple and intuitive 🧠
+- [X] Command line interface (CLI)
+- [ ] WebX DSL (Domain Specific Language)
+  - [X] Project structure
+  - [ ] Parser module
+  - [ ] Engine module
+  - [ ] Comments
+  - [ ] Routing
+  - [ ] SSR JSX support
+  - [ ] TypeScript integration
+    - [ ] WebAssembly support
+    - [ ] Unified type definitions
+  - [ ] Built-in ORM (Prism like)
+    - [ ] Model definitions
+    - [ ] Queries
+    - [ ] Migrations
+  - [ ] Validation
+  - [ ] Handlers
+  - [ ] Middleware
+  - [ ] Error handling
+  - [ ] Templating
+  - [ ] Authentication
+  - [ ] Authorization
+  - [ ] Built-in services
+    - [ ] Sessions
+    - [ ] Caching
+    - [ ] Static file serving
+    - [ ] WebSockets
+- [ ] Package management (NPM like)
+- [ ] Integrated testing framework/suite
+- [ ] Batteries included 🔋 (large stdlib)
+- [ ] Language server protocol
+- [ ] VSC extension (syntax highlighting, snippets, etc.)
 - [ ] Hot reloading
 - [ ] Production mode
-- [ ] Automatic SSL and HTTPS
-- [ ] Database support (PostgreSQL, MySQL, SQLite)
+- [ ] TLS/SSL/HTTPS support
+- [ ] Database drivers (PostgreSQL, MySQL, SQLite)
 - [ ] DDOS protection 🛡️
 - [ ] Input sanitization (safe defaults)
 - [ ] Output sanitization (safe defaults)
