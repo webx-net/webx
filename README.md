@@ -81,10 +81,12 @@ webx run --prod
 ## Examples
 The following is an example of a simple WebX todo list application.
 ```typescript
+include "../common.webx"
+
 model User {
   id: number @primary @autoincrement;
   name: string[maxLength(50))]
-  email: string?; // optional
+  email: string?;
   isAdmin: boolean;
 }
 
@@ -118,7 +120,6 @@ handler renderTodos(todos: Todo[], user: User): HTML {
     </div>);
 }
 
-// Endpoint: GET /todos/<user id>
 get /todos/(id: number) -> initServices(), auth($.userService, id), isAdmin($.user) {
     const todos = $.todoService.getAllTodosForUser($.user.id);
     return { todos };
