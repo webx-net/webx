@@ -1,5 +1,7 @@
 use std::{path::PathBuf, io::{BufReader, Read, Seek, SeekFrom}};
-use crate::{file::webx::WebXFile, reporting::error::{exit_error, ERROR_PARSE_IO, ERROR_SYNTAX}};
+use crate::{file::webx::WebXFile, reporting::error::{exit_error, ERROR_PARSE_IO, ERROR_SYNTAX, exit_error_unexpected_char, exit_error_unexpected, exit_error_expected_any_of_but_found, exit_error_expected_but_found}};
+
+use super::webx::WebXScope;
 
 struct WebXFileParser<'a> {
     file: &'a PathBuf,
@@ -50,18 +52,21 @@ impl<'a> WebXFileParser<'a> {
     /// 
     /// # Errors
     /// If EOF is reached, or the next character is not the expected one, an error is returned and the program exits.
-    fn expect_specific(&mut self, c: char) {
-        let nc = self.next();
+    fn expect_specific(&mut self, nc: Option<char>, expected: char) {
         if nc.is_none() {
-            exit_error(format!("Unexpected EOF, expected '{}' at line {}, column {}", c, self.line, self.column), ERROR_SYNTAX);
-        } else if nc.unwrap() != c {
-            exit_error(format!("Expected '{}' but found '{}' at line {}, column {}", c, nc.unwrap(), self.line, self.column), ERROR_SYNTAX);
+            exit_error_unexpected("EOF".to_string(), self.line, self.column, ERROR_SYNTAX);
+        } else if nc.unwrap() != expected {
+            exit_error_expected_but_found(expected.to_string(), nc.unwrap().to_string(), self.line, self.column, ERROR_SYNTAX);
         }
     }
 
-    fn expect_specific_str(&mut self, s: &str) {
-        for c in s.chars() {
-            self.expect_specific(c);
+    fn expect_next_specific(&mut self, expected: char) {
+        self.expect_specific(self.next(), expected);
+    }
+
+    fn expect_specific_str(&mut self, expected: &str) {
+        for c in expected.chars() {
+            self.expect_specific(self.next(), c);
         }
     }
 
@@ -70,20 +75,34 @@ impl<'a> WebXFileParser<'a> {
     /// 
     /// # Errors
     /// If EOF is reached, or the next character is not one of the expected ones, an error is returned and the program exits.
-    fn expect_any_of(&mut self, cs: Vec<char>) -> char {
-        let nc = self.next();
+    fn expect_any_of(&mut self, nc: Option<char>, cs: Vec<char>) -> char {
         if nc.is_none() {
-            exit_error(format!("Unexpected EOF, expected any of {:?} at line {}, column {}", cs, self.line, self.column), ERROR_SYNTAX);
+            exit_error_unexpected("EOF".to_string(), self.line, self.column, ERROR_SYNTAX);
         }
         let nc = nc.unwrap();
         if !cs.contains(&nc) {
-            exit_error(format!("Expected any of {:?} but found '{}' at line {}, column {}", cs, nc.unwrap(), self.line, self.column), ERROR_SYNTAX);
+            exit_error_expected_any_of_but_found(format!("{:?}", cs), nc, self.line, self.column, ERROR_SYNTAX);
         }
         nc
     }
 
+    fn expect_next_any_of(&mut self, cs: Vec<char>) -> char {
+        self.expect_any_of(self.next(), cs)
+    }
+
+    fn next_skip_whitespace(&mut self, skip_newlines: bool) -> Option<char> {
+        loop {
+            let c = self.next();
+            if c.is_none() { break; }
+            let c = c.unwrap();
+            if c == ' ' || c == '\t' || (skip_newlines && c == '\n') { continue; }
+            return Some(c); // Return the first non-whitespace character.
+        }
+        None
+    }
+
     fn parse_comment(&mut self) {
-        match self.expect_any_of(vec!['/', '*']) {
+        match self.expect_next_any_of(vec!['/', '*']) {
             '/' => {
                 loop {
                     let c = self.next();
@@ -105,46 +124,87 @@ impl<'a> WebXFileParser<'a> {
         }
     }
 
-    fn parse_location_scope(&mut self) {
-        self.expect_specific_str("ocation");
-        loop {
-            let c = self.next();
-            if c.is_none() { break; }
-            if c.unwrap() == '}' { break; }
-        }
-    }
-
-    fn parse_scope(&mut self) {
-        
-    }
-
-    fn parse_module(&mut self) -> Result<WebXFile, String> {
-        let mut module = WebXFile {
-            path: self.file.clone(),
-            includes: vec![],
-            scopes: vec![],
-        };
-
-        // Keywords: handler, include, location, module, { } and all HTTP methods.
-        // Only expect a keyword at the start of a line, whitespace, or // comments.
-        // Pass to dedicated parser function, otherwise error.
-
+    fn parse_string(&mut self) -> String {
+        let mut s = String::new();
         loop {
             let c = self.next();
             if c.is_none() { break; }
             let c = c.unwrap();
-            match c {
-                ' ' | '\t' | '\n' => (), // Ignore whitespace.
+            if c == '"' { break; }
+            s.push(c);
+        }
+        s
+    }
+
+    /// Parse an include statement.
+    /// 
+    /// # Example
+    /// ```
+    /// include "path/to/file.webx";
+    /// ```
+    fn parse_include(&mut self, includes: &Vec<String>) {
+        self.expect_specific_str("nclude");
+        self.expect_next_specific('"');
+        let path = self.parse_string();
+        self.expect_any_of(self.next_skip_whitespace(false), vec!['\n', ';']);
+        includes.push(path);
+    }
+
+    fn parse_location(&mut self) -> Result<WebXScope, String> {
+        self.expect_specific_str("ocation");
+        self.expect_specific(self.next_skip_whitespace(false), '{');
+        self.parse_scope(false)
+    }
+
+    /// Parse either the global module scope, or a location scope.
+    /// The function parses all basic components making up a webx
+    /// module scope such as includes, nested locations, handlers,
+    /// routes, and models.
+    /// 
+    /// # Arguments
+    /// * `is_global` - Whether the scope is global or not.
+    fn parse_scope(&mut self, is_global: bool) -> Result<WebXScope, String> {
+        let mut scope = WebXScope {
+            global_ts: String::new(),
+            includes: vec![],
+            models: vec![],
+            handlers: vec![],
+            routes: vec![],
+            scopes: vec![],
+        };
+        loop {
+            let c = self.next_skip_whitespace(true);
+            if c.is_none() {
+                // EOF is only allowed if the scope is global.
+                if is_global { break; }
+                else { exit_error_unexpected("EOF".to_string(), self.line, self.column, ERROR_SYNTAX); }
+            }
+            // Keywords: handler, include, location, module, { } and all HTTP methods.
+            // Only expect a keyword at the start of a line, whitespace, or // comments.
+            // Pass to dedicated parser function, otherwise error.
+            match c.unwrap() {
+                '}' => {
+                    if is_global { exit_error_unexpected_char('}', self.line, self.column, ERROR_SYNTAX); }
+                    else { break; }
+                },
                 '/' => self.parse_comment(),
-                '{' => self.parse_location_scope(),
-                'i' => self.parse_include(),
-                'l' => self.parse_location(),
-                'm' => self.parse_module_keyword(),
+                'i' => self.parse_include(&scope.includes),
+                'l' => scope.scopes.push(self.parse_location()?),
+                'm' => self.parse_model(),
                 'h' => self.parse_handler(),
+                'r' => self.parse_route(),
+                't' => self.parse_type(),
+                _ => exit_error_unexpected_char(c.unwrap(), self.line, self.column, ERROR_SYNTAX),
             }
         }
+        Ok(scope)
+    }
 
-        Ok(module)
+    fn parse_module(&mut self) -> Result<WebXFile, String> {
+        Ok(WebXFile {
+            path: self.file.clone(),
+            module_scope: self.parse_scope(true)?,
+        })
     }
 }
 

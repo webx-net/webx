@@ -6,15 +6,14 @@ use std::path::PathBuf;
 pub struct WebXFile {
     /// The path to the file.
     pub path: PathBuf,
-    /// The dependencies of the file.
-    pub includes: Vec<String>,
-    /// Scopes defined in the file.
-    /// Created by root and the `location` keyword.
-    pub scopes: Vec<WebXScope>,
+    /// Global webx module scope.
+    pub module_scope: WebXScope,
 }
 
 #[derive(Debug)]
 pub struct WebXScope {
+    /// The dependencies of the scope.
+    pub includes: Vec<String>,
     /// Global TypeScript code block
     pub global_ts: String,
     /// ORM Model definitions
@@ -23,6 +22,9 @@ pub struct WebXScope {
     pub handlers: Vec<WebXHandler>,
     /// Route endpoints
     pub routes: Vec<WebXRoute>,
+    /// Nested scopes.
+    /// Created by root and the `location` keyword.
+    pub scopes: Vec<WebXScope>,
 }
 
 #[derive(Debug)]
