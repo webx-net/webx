@@ -6,12 +6,27 @@
 
 model Todo {
     title: String,
-    completed: Boolean
+    completed: Boolean,
+    createdAt: Date,
+}
+
+handler getTimeDiff(then: Date) -> String {
+    const diff = new Date().getTime() - then.getTime();
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) { return `${days} days ago`; }
+    else if (hours > 0) { return `${hours} hours ago`; }
+    else if (minutes > 0) { return `${minutes} minutes ago`; }
+    else if (seconds > 0) { return `${seconds} seconds ago`; }
+    else { return "just now"; }
 }
 
 handler renderTodo(todo: Todo) -> HTML <h1>
     <input type="checkbox" checked={todo.completed} />
-    {todo.title}
+    {todo.title} - {getTimeDiff(todo.createdAt)}
 </h1>
 
 handler renderAllTodos(todos: Todo[]) -> HTML {
@@ -31,7 +46,11 @@ location /todo {
     // { title: "My Todo" }
     // returns HTML
     post /add json(title: String) {
-        const newTodo = { title, completed: false };
+        const newTodo = {
+            title,
+            completed: false,
+            createdAt: new Date()
+        };
         todos.push(newTodo);
     } -> renderTodo(newTodo)
 
