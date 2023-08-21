@@ -3,57 +3,173 @@
 <img src="assets/logo.png" height="80px" />
 
 This is the official repository for the WebX web server project.
-A framework for building minimal but powerful backends for web applications.\
+A framework for building minimal but powerful **web app backends**, **REST APIs** and **hypermedia systems**.\
 ▸ [Get started](#getting-started) or [read more](#why-webx) about the project below.
 
 > **⚠️ WebX is still in early development and is not ready for use in production.**
 
-<br>
 
 ## Features & Roadmap
 Below is a high-level overview of the existing (implemented) and planned features of the WebX technology (in no particular order).
-- [X] Blazingly fast 🔥
-- [X] Lightweight 🪶
-- [X] Simple and intuitive 🧠
-- [X] Command line interface (CLI)
-- [ ] WebX DSL (Domain Specific Language)
-  - [X] Project structure
-  - [ ] Parser module
-  - [ ] Engine module
-  - [ ] Comments
-  - [ ] Routing
-  - [ ] SSR JSX support
-  - [ ] TypeScript integration
-    - [ ] WebAssembly support
-    - [ ] Unified type definitions
-  - [ ] Built-in ORM (Prism like)
-    - [ ] Model definitions
-    - [ ] Queries
+
+- [X] Blazingly Fast 🔥
+- [X] Lightweight and Minimalistic 🪶
+- [X] Versatile, flexible and powerful 🤸
+- [X] Simple to use and easy to learn 🧠
+- [ ] Built-in services (native modules)
+  - [ ] Authentication integration
+  - [ ] Sessions
+  - [ ] Caching
+  - [ ] WebSockets
+- [ ] Batteries included 🔋
+  - [ ] Static file serving (HTML, CSS, JS, JSX, HS, images, files, etc.)
+  - [ ] DDOS protection 🛡️
+  - [ ] Hot reloading 🔥
+  - [ ] Integrated testing framework/suite
+  - [ ] Language server protocol
+  - [ ] Package manager (NPM like, for WebX handlers and modules)
+  - [ ] VSC extension (syntax highlighting, snippets, etc.)
+  - [ ] Database drivers (PostgreSQL, MySQL, SQLite)
+
+
+<details><summary>WebX DSL (Domain Specific Language)</summary>
+
+  - [X] Parser
+    - [X] AST for WebX modules
+  - [X] Comments
+  - [ ] Model definitions (ORM, Prism like)
+    - [ ] Fields
+    - [ ] Types
+    - [ ] Constraints
+    - [ ] Relations
     - [ ] Migrations
-  - [ ] Validation
-  - [ ] Handlers
-  - [ ] Middleware
-  - [ ] Error handling
-  - [ ] Templating
-  - [ ] Authentication
-  - [ ] Authorization
-  - [ ] Built-in services
+    - [ ] Queries (CRUD operations)
+  - [ ] Native SSR (HTML templating)
+    - [ ] JSX support
+    - [ ] HyperScript support
+  - [ ] TypeScript support
+    - [ ] WebAssembly AoT compilation
+    - [ ] Unified type definitions (shared between client and server)
+  - [ ] Validation (Serialize/Deserialize for req/res data)
+    - [ ] Input sanitization (safe defaults)
+    - [ ] Output sanitization (safe defaults)
+    - [ ] Type checking
+    - [ ] Constraints
+    - [ ] Relations
+    - [ ] Formats:
+      - [ ] JSON
+      - [ ] JSON5
+      - [ ] XML
+      - [ ] HTML
+      - [ ] CSV
+      - [ ] YAML
+      - [ ] TOML
+    - [ ] Custom formats (plugins)
+  - [ ] Route definitions
+    - [X] HTTP methods
+    - [ ] Path parameters (URL/segments/)
+    - [ ] Query parameters (?key=value)
+    - [ ] Request Body parameters (POST/PUT/PATCH)
+    - [ ] Headers
+    - [ ] Status codes
+    - [ ] Cookies
     - [ ] Sessions
     - [ ] Caching
-    - [ ] Static file serving
-    - [ ] WebSockets
-- [ ] Package management (NPM like)
-- [ ] Integrated testing framework/suite
-- [ ] Batteries included 🔋 (large stdlib)
-- [ ] Language server protocol
-- [ ] VSC extension (syntax highlighting, snippets, etc.)
-- [ ] Hot reloading
-- [ ] Production mode
-- [ ] TLS/SSL/HTTPS support
-- [ ] Database drivers (PostgreSQL, MySQL, SQLite)
-- [ ] DDOS protection 🛡️
-- [ ] Input sanitization (safe defaults)
-- [ ] Output sanitization (safe defaults)
+    - [ ] Data serialization (JSON, XML, etc.)
+    - [ ] Data deserialization and validation
+    - [ ] Return result destructuring (for handlers)
+    - [ ] Dependency injection (between handlers)
+```typescript
+get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin(user) { ... }
+```
+  - [ ] Handlers (middleware)
+    - [ ] Design choices
+      - [ ] Async vs sync
+      - [ ] Return types (explicit)
+      - [ ] Error handling (opinionated!)
+      - [ ] Dependency injection
+      - [ ] Return result destructuring
+    - [ ] Request handlers, used for:
+      - Data manipulation
+      - Business logic
+      - Authentication
+      - Authorization
+      - Logging
+      - Caching
+      - Sessions
+      - Database
+      - Integrated Services
+    - [ ] Response handlers, used for:
+      - Templating
+      - Error handling
+      - Logging
+      - Caching
+  - [ ] Error handling
+    - [ ] Server errors
+    - [ ] Client errors
+    - [ ] Network errors
+    - [ ] Database errors
+    - [ ] External service errors
+    - [ ] Logging
+
+</details>
+<details><summary>WebX CLI tool</summary>
+  
+  - [ ] Project
+    - [X] Scaffolding (init new project)
+    - [ ] Configuration
+  - [ ] Build
+    - [ ] Static files
+    - [ ] TypeScript to WebAssembly
+  - [ ] Run
+    - [ ] Development mode
+    - [ ] Production mode
+  - [ ] Test
+    - [ ] Unit tests
+    - [ ] Integration tests
+    - [ ] End-to-end tests
+  - [ ] Deploy (to cloud)
+  - [ ] Documentation (auto-generated)
+  - [ ] Publish (to package registry)
+  - [ ] Versioning
+  - [ ] Linting
+  - [ ] Formatting
+  - [ ] Security configuration
+    - [ ] Rate limiting
+    - [ ] TLS/SSL/HTTPS
+    - [ ] Protection and mitigation against:
+      - [ ] DDOS
+      - [ ] CORS
+      - [ ] CSRF
+      - [ ] XSS
+      - [ ] SQL injection
+
+</details>
+<details><summary>WebX Runtime</summary>
+
+  - [ ] Web server
+    - [ ] HTTP/1.1
+    - [ ] HTTP/2
+    - [ ] HTTP/3
+    - [ ] HTTP/3 server push
+    - [ ] TLS/SSL/HTTPS
+    - [ ] Multiplexing
+  - [ ] Web framework
+    - [ ] REST API
+    - [ ] GraphQL API
+    - [ ] Hypermedia API
+    - [ ] WebSockets API
+  - [ ] Database drivers
+    - [ ] PostgreSQL
+    - [ ] MySQL
+    - [ ] SQLite
+    - [ ] MariaDB
+    - [ ] MongoDB
+    - [ ] Redis
+
+</details>
+
+<br>
 
 Do you have any suggestions for additional features?
 Create an issue or a pull request!
@@ -128,7 +244,7 @@ get /todos/(id: number) -> initServices(), auth($.userService, id), isAdmin($.us
 
 <br>
 
-## Why Web<font color="#3d72d7">X</font>?
+## Why <b>Web<font color="#3d72d7">X</font></b>?
 **Our vision** is to reduce the boilerplate and complexity of building backends and APIs.\
 ▸ WebX is designed to be **simple**, **minimal**, **easy to learn**, and **intuitive** while still being **versatile** and **flexible**.
 It is capable of building complex applications **quickly** while still being **lightweight🪶** and **blazingly fast🔥**.
@@ -141,7 +257,12 @@ It is capable of building complex applications **quickly** while still being **l
 WebX is designed to be a minimalistic web framework that is easy to learn and use.
 It is ***intended*** to be used with **HTMX**, which is a great alternative to frameworks like React, Vue, and Angular (or other stacks).
 HTMX allows you to build dynamic web applications without having to learn a new language or framework for the frontend.
-WebX is designed to be versatile and flexible, and it is easy to build backends for complex applications quickly.
+WebX is designed to be versatile and flexible, and it is easy to build backends for complex applications quickly.\
+▸ [Read more about HTMX](https://htmx.org/)
+### What about <b><font color="#3d72d7">///_h</font>yper<font color="#3d72d7">s</font>cript</b>?
+HyperScript is a front-end JavaScript DSL for creating and manipulating HTML DOM elements. It is lightweight, tightly coupled with your HTML code, and is easy to learn.\
+*While JSX is the default JS+HTML DSL* in Webx, HyperScript is supported **natively** by WebX and can also be configured to be used in the project settings.\
+▸ [Read more about HyperScript](https://hyperscript.org/)
 
 <br>
 
