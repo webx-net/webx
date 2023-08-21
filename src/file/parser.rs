@@ -1,27 +1,31 @@
 use std::{path::PathBuf, io::{BufReader, Read, Seek, SeekFrom}};
 use crate::{file::webx::WebXFile, reporting::error::{exit_error, ERROR_PARSE_IO, ERROR_SYNTAX, exit_error_unexpected_char, exit_error_unexpected, exit_error_expected_any_of_but_found, exit_error_expected_but_found}};
 
-use super::webx::WebXScope;
+use super::webx::{WebXScope, WebXModel};
 
 struct WebXFileParser<'a> {
     file: &'a PathBuf,
     content: &'a String,
-    reader: BufReader<&'static [u8]>,
+    reader: BufReader<&'a [u8]>,
     line: usize,
     column: usize,
     index: u64,
+    peeked: Option<char>,
 }
 
 impl<'a> WebXFileParser<'a> {
     fn new(file: &'a PathBuf, content: &'a String) -> WebXFileParser<'a> {
-        WebXFileParser {
+        let mut p = WebXFileParser {
             file,
             content,
             reader: BufReader::new(content.as_bytes()),
             line: 0,
             column: 0,
             index: 0,
-        }
+            peeked: None,
+        };
+        p.peeked = p.__raw_next();
+        p
     }
 
     /// Returns the next character in the file, or None if EOF is reached.
@@ -29,7 +33,7 @@ impl<'a> WebXFileParser<'a> {
     /// 
     /// # Errors
     /// If the file cannot be read, an error is returned and the program exits.
-    fn next(&mut self) -> Option<char> {
+    fn __raw_next(&mut self) -> Option<char> {
         let mut buf = [0; 1];
         let bytes_read = match self.reader.read(&mut buf) {
             Ok(n) => n,
@@ -47,6 +51,13 @@ impl<'a> WebXFileParser<'a> {
         Some(c)
     }
 
+    fn peek(&self) -> Option<char> { self.peeked }
+    fn next(&mut self) -> Option<char> {
+        let c = self.peeked;
+        self.peeked = self.__raw_next();
+        c
+    }
+
     /// Expect a specific character to be next in the file.
     /// Increments the line and column counters.
     /// 
@@ -61,12 +72,14 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn expect_next_specific(&mut self, expected: char) {
-        self.expect_specific(self.next(), expected);
+        let nc = self.next();
+        self.expect_specific(nc, expected);
     }
 
     fn expect_specific_str(&mut self, expected: &str) {
         for c in expected.chars() {
-            self.expect_specific(self.next(), c);
+            let nc = self.next();
+            self.expect_specific(nc, c);
         }
     }
 
@@ -87,7 +100,8 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn expect_next_any_of(&mut self, cs: Vec<char>) -> char {
-        self.expect_any_of(self.next(), cs)
+        let nc = self.next();
+        self.expect_any_of(nc, cs)
     }
 
     fn next_skip_whitespace(&mut self, skip_newlines: bool) -> Option<char> {
@@ -99,6 +113,18 @@ impl<'a> WebXFileParser<'a> {
             return Some(c); // Return the first non-whitespace character.
         }
         None
+    }
+
+    fn read_until(&mut self, c: char) -> String {
+        let mut s = String::new();
+        loop {
+            let nc = self.next();
+            if nc.is_none() { break; }
+            let nc = nc.unwrap();
+            if nc == c { break; }
+            s.push(nc);
+        }
+        s
     }
 
     fn parse_comment(&mut self) {
@@ -121,6 +147,7 @@ impl<'a> WebXFileParser<'a> {
                     }
                 }
             },
+            _ => unreachable!(),
         }
     }
 
@@ -142,18 +169,39 @@ impl<'a> WebXFileParser<'a> {
     /// ```
     /// include "path/to/file.webx";
     /// ```
-    fn parse_include(&mut self, includes: &Vec<String>) {
+    fn parse_include(&mut self) -> String {
         self.expect_specific_str("nclude");
         self.expect_next_specific('"');
         let path = self.parse_string();
-        self.expect_any_of(self.next_skip_whitespace(false), vec!['\n', ';']);
-        includes.push(path);
+        let nc = self.next_skip_whitespace(false);
+        self.expect_any_of(nc, vec!['\n', ';']);
+        path
     }
 
     fn parse_location(&mut self) -> Result<WebXScope, String> {
         self.expect_specific_str("ocation");
-        self.expect_specific(self.next_skip_whitespace(false), '{');
+        let nc = self.next_skip_whitespace(false);
+        self.expect_specific(nc, '{');
         self.parse_scope(false)
+    }
+
+    fn parse_model(&mut self) -> WebXModel {
+        self.expect_specific_str("odel");
+        let name = self.read_until('{');
+        let fields = self.read_until('}');
+        WebXModel { name, fields }
+    }
+
+    fn parse_handler(&mut self) {
+        todo!("parse_handler")
+    }
+
+    fn parse_route(&mut self) {
+        todo!("parse_route")
+    }
+
+    fn parse_type(&mut self) {
+        todo!("parse_type")
     }
 
     /// Parse either the global module scope, or a location scope.
@@ -188,9 +236,9 @@ impl<'a> WebXFileParser<'a> {
                     else { break; }
                 },
                 '/' => self.parse_comment(),
-                'i' => self.parse_include(&scope.includes),
+                'i' => scope.includes.push(self.parse_include()),
                 'l' => scope.scopes.push(self.parse_location()?),
-                'm' => self.parse_model(),
+                'm' => scope.models.push(self.parse_model()),
                 'h' => self.parse_handler(),
                 'r' => self.parse_route(),
                 't' => self.parse_type(),
