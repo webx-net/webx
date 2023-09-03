@@ -236,38 +236,42 @@ pub fn create_new_project(name: String, root_dir: &PathBuf, override_existing: b
     };
 
     const DEFAULT_INDEX_FILE_CONTENTS: &str = r#"// This is an example WebX todo app project.
-{
+global {
     // Global in-memory database of todos for this example.
     const todos = [];
 }
 
 model Todo {
     title: String,
-    completed: Boolean
+    completed: Boolean,
+    createdAt: Date,
 }
 
-handler renderTodo(todo: Todo) -> HTML <h1>
+handler renderTodo(todo: Todo) (<h1>
     <input type="checkbox" checked={todo.completed} />
-    {todo.title}
-</h1>
+    {todo.title} - {getTimeDiff(todo.createdAt)}
+</h1>)
 
-handler renderAllTodos(todos: Todo[]) -> HTML {
-    return (<ul>{todos.map(renderTodo)}</ul>);
+handler renderAllTodos(todos: Todo[])
+(<ul class="todos">{todos.map(renderTodo)}</ul>)
+
+handler auth(user_id: Int) {
+    if (user_id === 0) return error("You are not logged in.");
 }
 
-get /about <div>
+get about/ (<div>
     <h1>About</h1>
     <p>This is an example WebX project.</p>
-</div>
+</div>)
 
 location /todo {
     // Display the global list of todos as HTML.
-    get /list -> renderAllTodos(todos)
+    get /(user_id: Int)/list -> auth(user_id), renderAllTodos(todos)
 
     // Add a new todo to the list with the given title.
     // { title: "My Todo" }
     // returns HTML
-    post /add json(title: String) {
+    post (user_id: Int)/add json(title: String) -> auth(user_id) {
         const newTodo = { title, completed: false };
         todos.push(newTodo);
     } -> renderTodo(newTodo)
@@ -275,15 +279,14 @@ location /todo {
     // Toggle the completed status of the todo with the given id.
     // { id: 0 }
     // returns HTML
-    post /toggle json(id: Int) {
-        const todo = todos.find(t => t.id === id);
+    post (user_id: Int)/toggle json(todo_id: Int) -> auth(user_id) {
+        const todo = todos.find(t => t.id === todo_id);
         if (todo) {
             todo.completed = !todo.completed;
-            return renderTodo(todo);
         } else {
             return error("Todo not found.");
         }
-    }
+    } -> renderTodo(todo)
 }
 "#;
 
