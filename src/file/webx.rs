@@ -95,6 +95,8 @@ pub struct WebXRoute {
     pub method: WebXRouteMethod,
     /// The path of the route.
     pub path: String,
+    /// Request body format.
+    pub body_format: Option<String>,
     /// The pre-handler functions of the route.
     pub pre_handlers: Vec<String>,
     /// The code block of the route.
