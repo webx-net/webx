@@ -171,7 +171,7 @@ pub fn detect_circular_dependencies(tree: &DependencyTree) -> Vec<PathBuf> {
 /// 
 /// ## Returns
 /// The dependency tree.
-pub fn construct_dependency_tree(files: &Vec<&WebXFile>) -> DependencyTree {
+pub fn construct_dependency_tree(files: &Vec<WebXFile>) -> DependencyTree {
     let mut tree = DependencyTree::new();
     for file in files.iter() {
         // Insert dependencies into the tree as keys and the file path as the value.

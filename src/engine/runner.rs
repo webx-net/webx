@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::file::parser::parse_webx_file;
+use crate::file::webx::WebXFile;
 use crate::project::{locate_webx_files, load_project_config, construct_dependency_tree, detect_circular_dependencies};
 use crate::reporting::error::{exit_error, ERROR_READ_WEBX_FILES, ERROR_CIRCULAR_DEPENDENCY};
 
@@ -26,7 +27,7 @@ pub fn run(root: &Path, prod: bool) {
             ERROR_READ_WEBX_FILES,
         );
     }
-    let webx_modules = webx_modules.iter().map(|m| m.as_ref().unwrap()).collect::<Vec<_>>();
+    let webx_modules = webx_modules.into_iter().map(|m| m.unwrap()).collect::<Vec<_>>();
     let dependency_tree = construct_dependency_tree(&webx_modules);
     let circular_dependencies = detect_circular_dependencies(&dependency_tree);
     if !circular_dependencies.is_empty() {
@@ -39,6 +40,7 @@ pub fn run(root: &Path, prod: bool) {
         );
     }
 
+    println!("Webx modules: {:?}", webx_modules.iter().map(WebXFile::module_name).collect::<Vec<_>>().join(", "));
     println!("Running web server in {} mode", if prod { "production" } else { "development" });
     println!("Directory: {}", root.display());
 }
