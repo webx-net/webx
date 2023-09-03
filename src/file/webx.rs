@@ -100,7 +100,7 @@ pub struct WebXRoute {
     /// The pre-handler functions of the route.
     pub pre_handlers: Vec<String>,
     /// The code block of the route.
-    pub code: Option<String>,
+    pub body: Option<String>,
     /// The post-handler functions of the route.
     pub post_handlers: Vec<String>,
 }
