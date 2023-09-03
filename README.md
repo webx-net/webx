@@ -199,6 +199,10 @@ The following is an example of a simple WebX todo list application.
 ```typescript
 include "../common.webx"
 
+global {
+  const db = new Database("sqlite://db.sqlite");
+}
+
 model User {
   id: number @primary @autoincrement;
   name: string[maxLength(50))]
@@ -212,19 +216,21 @@ model Todo {
   userId: number @foreign(User.id);
 }
 
-handler initServices() { 
-  userService: new UserService(),
-  todoService: new TodoService()
+handler initServices() {
+  return {
+    userService: new UserService(db),
+    todoService: new TodoService(db)
+  };
 }
 
 handler auth(userService: UserService, id: number) {
-  user: userService.getCurrentUser(id)
+  const user = userService.getCurrentUser(id);
+  if (!user) error("User not found.");
+  return { user };
 }
 
 handler isAdmin(user: User) {
-  if (!user.isAdmin()) {
-    return error("User is not an admin.");
-  }
+  if (!user.isAdmin()) error("User is not an admin.");
 }
 
 handler renderTodos(todos: Todo[], user: User): HTML {
