@@ -236,10 +236,10 @@ handler renderTodos(todos: Todo[], user: User): HTML {
     </div>);
 }
 
-get /todos/(id: number) -> initServices(), auth($.userService, id), isAdmin($.user) {
-    const todos = $.todoService.getAllTodosForUser($.user.id);
+get /todos/(id: number) -> initServices:s, auth(s.userService, id):a, isAdmin(a.user) {
+    const todos = s.todoService.getAllTodosForUser(a.user.id);
     return { todos };
-} -> renderTodos($.todos, $.user)
+} -> renderTodos(todos, a.user)
 ```
 
 <br>
