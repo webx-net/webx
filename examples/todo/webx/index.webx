@@ -1,7 +1,19 @@
+// test
+
+post list/all/(data : Int)/data json(a: b, c : D) -> renderAllTodos(todos, test): out, hc() : u
+
+post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
+    const a = [5];
+    if true { console.log(text); }
+}
+
 // This is an example WebX todo app project.
-{
+global {
     // Global in-memory database of todos for this example.
-    const todos = [];
+    const todos: [number] = [7, 3, 1];
+    function test(): number { return todos[2]; }
+    let a = test();
+    console.log(a);
 }
 
 model Todo {
@@ -10,43 +22,42 @@ model Todo {
     createdAt: Date,
 }
 
-handler getTimeDiff(then: Date) -> String {
-    const diff = new Date().getTime() - then.getTime();
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) { return `${days} days ago`; }
-    else if (hours > 0) { return `${hours} hours ago`; }
-    else if (minutes > 0) { return `${minutes} minutes ago`; }
-    else if (seconds > 0) { return `${seconds} seconds ago`; }
-    else { return "just now"; }
-}
-
-handler renderTodo(todo: Todo) -> HTML <h1>
+handler renderTodo(todo: Todo) (<h1>
     <input type="checkbox" checked={todo.completed} />
     {todo.title} - {getTimeDiff(todo.createdAt)}
-</h1>
+</h1>)
 
-handler renderAllTodos(todos: Todo[]) -> HTML {
-    return (<ul>{todos.map(renderTodo)}</ul>);
+handler renderAllTodos(todos: Todo) (
+    <ul class="test" onClick={authenticate}>{todos.map(renderTodo)}</ul>
+)
+
+handler authenticate(user_id: Number) {
+    if (user_id === 1) {
+        return Guard::Allow;
+    } else {
+        return Guard::Deny;
+    }
 }
 
-get /about <div>
+post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
+    const a = [5];
+    if true { console.log(text); }
+}
+
+get /about (<div>
     <h1>About</h1>
     <p>This is an example WebX project.</p>
-</div>
+</div>)
 
-location /todo {
+location todos {
     // Display the global list of todos as HTML.
-    get /list -> renderAllTodos(todos)
+    get list/all/(data : Int)/data -> renderAllTodos(todos), renderAllTodos(todos)
 
     // Add a new todo to the list with the given title.
     // { title: "My Todo" }
     // returns HTML
-    post /add json(title: String) {
-        const newTodo = {
+    post add/ json(title: String) {
+        let newTodo = {
             title,
             completed: false,
             createdAt: new Date()
@@ -65,5 +76,5 @@ location /todo {
         } else {
             return error("Todo not found.");
         }
-    }
+    } -> renderTodo(todo)
 }
