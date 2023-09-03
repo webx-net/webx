@@ -10,6 +10,35 @@ pub struct WebXFile {
     pub module_scope: WebXScope,
 }
 
+impl WebXFile {
+    /// "/path/to/file.webx" -> "path/to"
+    pub fn parent(&self) -> String {
+        let cwd = std::env::current_dir().unwrap().canonicalize().unwrap();
+        let path = self.path.canonicalize().unwrap();
+        let stripped = path.strip_prefix(&cwd).expect(&format!("Failed to strip prefix of {:?}", path));
+        stripped.parent().unwrap().to_str().unwrap().replace("\\", "/")
+    }
+
+    /// "/path/to/file.webx" -> "file"
+    pub fn name(&self) -> &str {
+        match self.path.file_name() {
+            Some(name) => match name.to_str() {
+                Some(name) => match name.split('.').next() {
+                    Some(name) => name,
+                    None => panic!("Failed to extract file module name of {:?}", self.path),
+                },
+                None => panic!("Failed to convert file name to string of {:?}", self.path),
+            },
+            None => panic!("Failed to get file name of {:?}", self.path),
+        }
+    }
+
+    /// "/path/to/file.webx" -> "path/to/file"
+    pub fn module_name(&self) -> String {
+        format!("{}/{}", self.parent(), self.name())
+    }
+}
+
 #[derive(Debug)]
 pub struct WebXScope {
     /// The dependencies of the scope.
@@ -49,32 +78,15 @@ pub struct WebXHandler {
 
 #[derive(Debug)]
 pub enum WebXRouteMethod {
+    CONNECT,
+    DELETE,
     GET,
+    HEAD,
+    OPTIONS,
+    PATCH,
     POST,
     PUT,
-    PATCH,
-    DELETE,
-    OPTIONS,
-    HEAD,
-    CONNECT,
     TRACE,
-    ANY,
-}
-
-pub fn route_from_str(method: String) -> Result<WebXRouteMethod, String> {
-    match method.to_uppercase().as_str() {
-        "GET" => Ok(WebXRouteMethod::GET),
-        "POST" => Ok(WebXRouteMethod::POST),
-        "PUT" => Ok(WebXRouteMethod::PUT),
-        "PATCH" => Ok(WebXRouteMethod::PATCH),
-        "DELETE" => Ok(WebXRouteMethod::DELETE),
-        "OPTIONS" => Ok(WebXRouteMethod::OPTIONS),
-        "HEAD" => Ok(WebXRouteMethod::HEAD),
-        "CONNECT" => Ok(WebXRouteMethod::CONNECT),
-        "TRACE" => Ok(WebXRouteMethod::TRACE),
-        "ANY" => Ok(WebXRouteMethod::ANY),
-        _ => Err(format!("Invalid route method: {}", method)),
-    }
 }
 
 #[derive(Debug)]
