@@ -39,10 +39,10 @@ handler authenticate(user_id: Number) {
     }
 }
 
-post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
+post /about/(id: Num) form(text: String) {
     const a = [5];
     if true { console.log(text); }
-}
+} -> renderAllTodos(a, b, c)
 
 get /about (<div>
     <h1>About</h1>
