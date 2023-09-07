@@ -284,10 +284,7 @@ impl<'a> WebXFileParser<'a> {
     /// User
     /// ```
     fn parse_body_format(&mut self) -> Option<String> {
-        match self.peek().unwrap() {
-            c if c.is_alphabetic() => self.parse_body_format(),
-            _ => None,
-        }
+        Some(self.read_until(')'))
     }
 
     fn parse_handler_calls(&mut self) -> Vec<String> {
