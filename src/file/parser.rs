@@ -76,16 +76,17 @@ impl<'a> WebXFileParser<'a> {
     /// 
     /// # Errors
     /// If EOF is reached, or the next character is not the expected one, an error is returned and the program exits.
-    fn expect_specific(&mut self, nc: Option<char>, expected: char) {
+    fn expect_specific(&mut self, nc: Option<char>, expected: char) -> char {
         let nc = self.expect_not_eof(nc);
         if nc != expected {
             exit_error_expected_but_found(expected.to_string(), nc.to_string(), self.line, self.column, ERROR_SYNTAX);
         }
+        nc
     }
 
-    fn expect_next_specific(&mut self, expected: char) {
+    fn expect_next_specific(&mut self, expected: char) -> char {
         let nc = self.next();
-        self.expect_specific(nc, expected);
+        self.expect_specific(nc, expected)
     }
 
     fn expect_specific_str(&mut self, expected: &str, already_read: usize) {
@@ -114,6 +115,16 @@ impl<'a> WebXFileParser<'a> {
         self.expect_any_of(nc, cs)
     }
 
+    fn skip_whitespace(&mut self, skip_newlines: bool) {
+        loop {
+            let c = self.peek();
+            if c.is_none() { break; }
+            let c = c.unwrap();
+            if c == ' ' || c == '\t' || (skip_newlines && c == '\n') { self.next(); }
+            else { break; }
+        }
+    }
+
     fn next_skip_whitespace(&mut self, skip_newlines: bool) -> Option<char> {
         loop {
             let c = self.next();
@@ -128,11 +139,12 @@ impl<'a> WebXFileParser<'a> {
     fn read_until_any_of(&mut self, cs: Vec<char>) -> String {
         let mut s = String::new();
         loop {
-            let nc = self.next();
+            let nc = self.peek();
             if nc.is_none() { break; }
             let nc = nc.unwrap();
             if cs.contains(&nc) { break; }
             s.push(nc);
+            self.next(); // consume
         }
         s
     }
@@ -178,6 +190,18 @@ impl<'a> WebXFileParser<'a> {
             },
             _ => unreachable!(),
         }
+    }
+
+    fn parse_identifier(&mut self) -> String {
+        let mut s = String::new();
+        loop {
+            let c = self.peek();
+            if c.is_none() { break; }
+            let c = c.unwrap();
+            if c.is_alphanumeric() || c == '_' { s.push(self.expect()); }
+            else { break; }
+        }
+        s
     }
 
     fn parse_string(&mut self) -> String {
@@ -234,7 +258,9 @@ impl<'a> WebXFileParser<'a> {
     /// ```
     fn parse_url_path_variable(&mut self) -> String {
         let name = self.read_until(':').trim().to_string();
+        self.expect_next_specific(':');
         let type_ = self.read_until(')').trim().to_string();
+        self.expect_next_specific(')');
         format!("({}:{})", name, type_)
     }
 
@@ -284,17 +310,47 @@ impl<'a> WebXFileParser<'a> {
     /// User
     /// ```
     fn parse_body_format(&mut self) -> Option<String> {
-        Some(self.read_until(')'))
+        self.skip_whitespace(true);
+        let mut result = self.read_until(')');
+        result.push(self.expect_next_specific(')'));
+        Some(result)
+    }
+
+    fn parse_handler_call(&mut self) -> String {
+        // parse "handler(arg1, arg2, ...): output"
+        let mut call = self.read_until(')');
+        call.push(self.expect_next_specific(')'));
+        // Optional output value
+        self.skip_whitespace(true);
+        let nc = self.peek();
+        if nc.is_some() && nc.unwrap() == ':' {
+            call.push(self.next().unwrap());
+            self.skip_whitespace(true);
+            call.push_str(self.parse_identifier().as_str());
+        }
+        call
     }
 
     fn parse_handler_calls(&mut self) -> Vec<String> {
-        todo!("parse_handler_calls")
+        let mut calls = vec![];
+        loop {
+            self.skip_whitespace(true);
+            calls.push(self.parse_handler_call());
+            self.skip_whitespace(true);
+            let nc = self.peek();
+            if nc.is_none() { break; }
+            let nc = nc.unwrap();
+            if nc != ',' { break; }
+            self.next();
+        }
+        calls
     }
 
     fn parse_route_handlers(&mut self) -> Vec<String> {
-        match self.next_skip_whitespace(true) {
+        self.skip_whitespace(true);
+        match self.peek() {
             Some('-') => {
-                self.expect_specific_str("->", 1);
+                self.expect_specific_str("->", 0);
                 self.parse_handler_calls()
             },
             _ => vec![]
@@ -363,7 +419,8 @@ impl<'a> WebXFileParser<'a> {
             // Keywords: handler, include, location, module, { } and all HTTP methods.
             // Only expect a keyword at the start of a line, whitespace, or // comments.
             // Pass to dedicated parser function, otherwise error.
-            match c.unwrap() {
+            let c = c.unwrap();
+            match c {
                 '}' => {
                     if is_global { exit_error_unexpected_char('}', self.line, self.column, ERROR_SYNTAX); }
                     else { break; }
@@ -422,7 +479,7 @@ impl<'a> WebXFileParser<'a> {
                     self.expect_specific_str("trace", 1);
                     scope.routes.push(self.parse_route(WebXRouteMethod::TRACE)?);
                 }
-                _ => exit_error_unexpected_char(c.unwrap(), self.line, self.column, ERROR_SYNTAX),
+                _ => exit_error_unexpected_char(c, self.line, self.column, ERROR_SYNTAX),
             }
         }
         Ok(scope)
