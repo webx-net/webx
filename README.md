@@ -16,18 +16,18 @@ Below is a high-level overview of the existing (implemented) and planned feature
 - [X] Lightweight and minimalistic 🪶
 - [X] Versatile, flexible, and powerful 🤸
 - [X] Easy to use and learn 🧠
-- [ ] Built-in services (native modules)
-  - [ ] Authentication integration
-  - [ ] Sessions
-  - [ ] Caching
-  - [ ] WebSockets
-- [ ] Batteries included 🔋
+- [ ] Batteries included (stdlib) 🔋
   - [ ] Static file serving
   - [ ] DDOS protection 🛡️
   - [ ] Hot reloading 🔥
-  - [ ] Integrated testing framework/suite
+  - [ ] Testing framework/suite
   - [ ] Package manager (NPM-like, for WebX handlers, modules, and drivers)
-  - [ ] Database drivers (PostgreSQL, MySQL, SQLite)
+  - [ ] Built-in modules and services for:
+    - [ ] Database integration (PostgreSQL, MySQL, and SQLite drivers)
+    - [ ] Authentication integration
+    - [ ] Sessions
+    - [ ] Caching
+    - [ ] WebSockets
   - [X] [VSC extension](https://github.com/webx-net/webx-extension) (syntax highlighting, snippets, etc.)
 
 
