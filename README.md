@@ -16,20 +16,23 @@ Below is a high-level overview of the existing (implemented) and planned feature
 - [X] Lightweight and minimalistic 🪶
 - [X] Versatile, flexible, and powerful 🤸
 - [X] Easy to use and learn 🧠
-- [ ] Batteries included (stdlib) 🔋
-  - [ ] Static file serving
-  - [ ] DDOS protection 🛡️
-  - [ ] Hot reloading 🔥
-  - [ ] Testing framework/suite
-  - [ ] Package manager (NPM-like, for WebX handlers, modules, and drivers)
-  - [ ] Built-in modules and services for:
-    - [ ] Database integration (PostgreSQL, MySQL, and SQLite drivers)
-    - [ ] Authentication integration
-    - [ ] Sessions
-    - [ ] Caching
-    - [ ] WebSockets
-  - [X] [VSC extension](https://github.com/webx-net/webx-extension) (syntax highlighting, snippets, etc.)
 
+<details><summary>Batteries included 🔋</summary>
+  
+- [ ] Static file serving
+- [ ] DDOS protection 🛡️
+- [ ] Hot reloading 🔥
+- [ ] Testing framework/suite
+- [ ] Package manager (NPM-like, for WebX handlers, modules, and drivers)
+- [ ] Built-in modules and services (stdlib):
+  - [ ] Database integration (PostgreSQL, MySQL, and SQLite drivers)
+  - [ ] Authentication integration
+  - [ ] Sessions
+  - [ ] Caching
+  - [ ] WebSockets
+- [X] [VSC extension](https://github.com/webx-net/webx-extension) (syntax highlighting, snippets, etc.)
+
+</details>
 
 <details><summary>WebX DSL (Domain Specific Language)</summary>
 
