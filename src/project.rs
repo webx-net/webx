@@ -165,10 +165,10 @@ pub fn detect_circular_dependencies(tree: &DependencyTree) -> Vec<PathBuf> {
 /// The tree is a hashmap where the keys are the dependencies and the values are the files that
 /// depend on them.
 /// If a circular dependency is detected, an error is returned.
-/// 
+///
 /// ## Arguments
 /// - `files` - The list of WebX files.
-/// 
+///
 /// ## Returns
 /// The dependency tree.
 pub fn construct_dependency_tree(files: &Vec<WebXFile>) -> DependencyTree {

@@ -15,8 +15,15 @@ impl WebXFile {
     pub fn parent(&self) -> String {
         let cwd = std::env::current_dir().unwrap().canonicalize().unwrap();
         let path = self.path.canonicalize().unwrap();
-        let stripped = path.strip_prefix(&cwd).expect(&format!("Failed to strip prefix of {:?}", path));
-        stripped.parent().unwrap().to_str().unwrap().replace("\\", "/")
+        let stripped = path
+            .strip_prefix(&cwd)
+            .expect(&format!("Failed to strip prefix of {:?}", path));
+        stripped
+            .parent()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .replace("\\", "/")
     }
 
     /// "/path/to/file.webx" -> "file"

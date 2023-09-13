@@ -1,7 +1,18 @@
-use std::{path::PathBuf, io::{BufReader, Read}};
-use crate::{file::webx::WebXFile, reporting::error::{exit_error, ERROR_PARSE_IO, ERROR_SYNTAX, exit_error_unexpected_char, exit_error_unexpected, exit_error_expected_any_of_but_found, exit_error_expected_but_found}};
+use crate::{
+    file::webx::WebXFile,
+    reporting::error::{
+        exit_error, exit_error_expected_any_of_but_found, exit_error_expected_but_found,
+        exit_error_unexpected, exit_error_unexpected_char, ERROR_PARSE_IO, ERROR_SYNTAX,
+    },
+};
+use std::{
+    io::{BufReader, Read},
+    path::PathBuf,
+};
 
-use super::webx::{WebXScope, WebXModel, WebXRouteMethod, WebXRoute, WebXHandler, WebXBody, WebXBodyType};
+use super::webx::{
+    WebXBody, WebXBodyType, WebXHandler, WebXModel, WebXRoute, WebXRouteMethod, WebXScope,
+};
 
 struct WebXFileParser<'a> {
     file: &'a PathBuf,
@@ -10,7 +21,7 @@ struct WebXFileParser<'a> {
     line: usize,
     column: usize,
     peeked_index: u64, // "next index"
-    next_index: u64, // "current index"
+    next_index: u64,   // "current index"
     peeked: Option<char>,
 }
 
@@ -41,16 +52,25 @@ impl<'a> WebXFileParser<'a> {
 
     /// Returns the next character in the file, or None if EOF is reached.
     /// Increments the line and column counters.
-    /// 
+    ///
     /// # Errors
     /// If the file cannot be read, an error is returned and the program exits.
     fn __raw_next(&mut self) -> Option<char> {
         let mut buf = [0; 1];
         let bytes_read = match self.reader.read(&mut buf) {
             Ok(n) => n,
-            Err(e) => exit_error(format!("Failed to read file '{}' due to, {}", self.file.display(), e), ERROR_PARSE_IO),
+            Err(e) => exit_error(
+                format!(
+                    "Failed to read file '{}' due to, {}",
+                    self.file.display(),
+                    e
+                ),
+                ERROR_PARSE_IO,
+            ),
         };
-        if bytes_read == 0 { return None; }
+        if bytes_read == 0 {
+            return None;
+        }
         let c = buf[0] as char;
         self.peeked_index += 1;
         // Index of the character returned by the next call to `next`.
@@ -58,11 +78,15 @@ impl<'a> WebXFileParser<'a> {
         Some(c)
     }
 
-    fn peek(&self) -> Option<char> { self.peeked }
+    fn peek(&self) -> Option<char> {
+        self.peeked
+    }
     fn next(&mut self) -> Option<char> {
         let c = self.peeked;
         self.peeked = self.__raw_next();
-        if let Some(c) = c { self.__update_line_column(c); }
+        if let Some(c) = c {
+            self.__update_line_column(c);
+        }
         c
     }
     fn expect(&mut self, context: &str) -> char {
@@ -71,19 +95,34 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn expect_not_eof(&mut self, nc: Option<char>, context: &str) -> char {
-        if nc.is_none() { exit_error_unexpected("EOF".to_string(), context, self.line, self.column, ERROR_SYNTAX); }
+        if nc.is_none() {
+            exit_error_unexpected(
+                "EOF".to_string(),
+                context,
+                self.line,
+                self.column,
+                ERROR_SYNTAX,
+            );
+        }
         nc.unwrap()
     }
 
     /// Expect a specific character to be next in the file.
     /// Increments the line and column counters.
-    /// 
+    ///
     /// # Errors
     /// If EOF is reached, or the next character is not the expected one, an error is returned and the program exits.
     fn expect_specific(&mut self, nc: Option<char>, expected: char, context: &str) -> char {
         let nc = self.expect_not_eof(nc, context);
         if nc != expected {
-            exit_error_expected_but_found(format!("'{}'", expected), nc.to_string(), context, self.line, self.column, ERROR_SYNTAX);
+            exit_error_expected_but_found(
+                format!("'{}'", expected),
+                nc.to_string(),
+                context,
+                self.line,
+                self.column,
+                ERROR_SYNTAX,
+            );
         }
         nc
     }
@@ -96,20 +135,34 @@ impl<'a> WebXFileParser<'a> {
     fn expect_specific_str(&mut self, expected: &str, already_read: usize, context: &str) {
         for c in expected.chars().skip(already_read) {
             if self.expect(context) != c {
-                exit_error_expected_but_found(expected.to_string(), c.to_string(), context, self.line, self.column, ERROR_SYNTAX);
+                exit_error_expected_but_found(
+                    expected.to_string(),
+                    c.to_string(),
+                    context,
+                    self.line,
+                    self.column,
+                    ERROR_SYNTAX,
+                );
             }
         }
     }
 
     /// Expect any of the given characters to be next in the file.
     /// Increments the line and column counters.
-    /// 
+    ///
     /// # Errors
     /// If EOF is reached, or the next character is not one of the expected ones, an error is returned and the program exits.
     fn expect_any_of(&mut self, nc: Option<char>, cs: Vec<char>, context: &str) -> char {
         let nc = self.expect_not_eof(nc, context);
         if !cs.contains(&nc) {
-            exit_error_expected_any_of_but_found(format!("{:?}", cs), nc, context, self.line, self.column, ERROR_SYNTAX);
+            exit_error_expected_any_of_but_found(
+                format!("{:?}", cs),
+                nc,
+                context,
+                self.line,
+                self.column,
+                ERROR_SYNTAX,
+            );
         }
         nc
     }
@@ -122,19 +175,28 @@ impl<'a> WebXFileParser<'a> {
     fn skip_whitespace(&mut self, skip_newlines: bool) {
         loop {
             let c = self.peek();
-            if c.is_none() { break; }
+            if c.is_none() {
+                break;
+            }
             let c = c.unwrap();
-            if c == ' ' || c == '\t' || (skip_newlines && c == '\n') { self.next(); }
-            else { break; }
+            if c == ' ' || c == '\t' || (skip_newlines && c == '\n') {
+                self.next();
+            } else {
+                break;
+            }
         }
     }
 
     fn next_skip_whitespace(&mut self, skip_newlines: bool) -> Option<char> {
         loop {
             let c = self.next();
-            if c.is_none() { break; }
+            if c.is_none() {
+                break;
+            }
             let c = c.unwrap();
-            if c == ' ' || c == '\t' || (skip_newlines && c == '\n') { continue; }
+            if c == ' ' || c == '\t' || (skip_newlines && c == '\n') {
+                continue;
+            }
             return Some(c); // Return the first non-whitespace character.
         }
         None
@@ -144,9 +206,13 @@ impl<'a> WebXFileParser<'a> {
         let mut s = String::new();
         loop {
             let nc = self.peek();
-            if nc.is_none() { break; }
+            if nc.is_none() {
+                break;
+            }
             let nc = nc.unwrap();
-            if cs.contains(&nc) { break; }
+            if cs.contains(&nc) {
+                break;
+            }
             s.push(nc);
             self.next(); // consume
         }
@@ -162,11 +228,18 @@ impl<'a> WebXFileParser<'a> {
         let mut depth = 1;
         loop {
             let nc = self.next();
-            if nc.is_none() { break; }
+            if nc.is_none() {
+                break;
+            }
             let nc = nc.unwrap();
-            if nc == start { depth += 1; }
-            else if nc == end { depth -= 1; }
-            if depth == 0 { break; }
+            if nc == start {
+                depth += 1;
+            } else if nc == end {
+                depth -= 1;
+            }
+            if depth == 0 {
+                break;
+            }
             s.push(nc);
         }
         s
@@ -174,21 +247,27 @@ impl<'a> WebXFileParser<'a> {
 
     fn parse_comment(&mut self) {
         match self.expect_next_any_of(vec!['/', '*'], "parsing the beginning of a comment") {
-            '/' => {
-                loop {
-                    let c = self.next();
-                    if c.is_none() { break; }
-                    if c.unwrap() == '\n' { break; }
+            '/' => loop {
+                let c = self.next();
+                if c.is_none() {
+                    break;
+                }
+                if c.unwrap() == '\n' {
+                    break;
                 }
             },
-            '*' => {
-                loop {
+            '*' => loop {
+                let c = self.next();
+                if c.is_none() {
+                    break;
+                }
+                if c.unwrap() == '*' {
                     let c = self.next();
-                    if c.is_none() { break; }
-                    if c.unwrap() == '*' {
-                        let c = self.next();
-                        if c.is_none() { break; }
-                        if c.unwrap() == '/' { break; }
+                    if c.is_none() {
+                        break;
+                    }
+                    if c.unwrap() == '/' {
+                        break;
                     }
                 }
             },
@@ -200,10 +279,15 @@ impl<'a> WebXFileParser<'a> {
         let mut s = String::new();
         loop {
             let c = self.peek();
-            if c.is_none() { break; }
+            if c.is_none() {
+                break;
+            }
             let c = c.unwrap();
-            if c.is_alphanumeric() || c == '_' { s.push(self.expect("parsing an identifier")); }
-            else { break; }
+            if c.is_alphanumeric() || c == '_' {
+                s.push(self.expect("parsing an identifier"));
+            } else {
+                break;
+            }
         }
         s
     }
@@ -216,16 +300,20 @@ impl<'a> WebXFileParser<'a> {
         let mut s = String::new();
         loop {
             let c = self.next();
-            if c.is_none() { break; }
+            if c.is_none() {
+                break;
+            }
             let c = c.unwrap();
-            if c == '"' { break; }
+            if c == '"' {
+                break;
+            }
             s.push(c);
         }
         s
     }
 
     /// Parse an include statement.
-    /// 
+    ///
     /// ## Example
     /// ```
     /// include "path/to/file.webx";
@@ -266,15 +354,23 @@ impl<'a> WebXFileParser<'a> {
         let mut pairs = vec![];
         loop {
             let pair = self.parse_type_pair();
-            if pair.0.is_empty() { break; } // Empty name means end of type pairs.
+            if pair.0.is_empty() {
+                break;
+            } // Empty name means end of type pairs.
             pairs.push(pair);
             let nc = self.peek();
-            if nc.is_none() { break; }
+            if nc.is_none() {
+                break;
+            }
             let nc = nc.unwrap();
-            if nc != ',' { break; } // No comma means end of type pairs.
+            if nc != ',' {
+                break;
+            } // No comma means end of type pairs.
             self.next(); // Consume the comma.
             self.skip_whitespace(true);
-            if allow_stray_comma && !char::is_alphabetic(self.peek().unwrap()) { break; } // Allow stray comma.
+            if allow_stray_comma && !char::is_alphabetic(self.peek().unwrap()) {
+                break;
+            } // Allow stray comma.
         }
         pairs
     }
@@ -295,20 +391,26 @@ impl<'a> WebXFileParser<'a> {
         match self.peek() {
             Some('{') => {
                 self.next();
-                Some(WebXBody { body_type: WebXBodyType::TS, body: self.parse_block('{', '}').trim().to_string() })
-            },
+                Some(WebXBody {
+                    body_type: WebXBodyType::TS,
+                    body: self.parse_block('{', '}').trim().to_string(),
+                })
+            }
             Some('(') => {
                 self.next();
-                Some(WebXBody { body_type: WebXBodyType::TSX, body: self.parse_block('(', ')').trim().to_string() })
-            },
+                Some(WebXBody {
+                    body_type: WebXBodyType::TSX,
+                    body: self.parse_block('(', ')').trim().to_string(),
+                })
+            }
             _ => None,
         }
     }
 
     /// Parses a handler statement.
-    /// 
+    ///
     /// ## Example
-    /// ```ignore	
+    /// ```ignore
     /// handler name(arg1: string, arg2: number) {
     ///    // ...
     /// }
@@ -327,14 +429,22 @@ impl<'a> WebXFileParser<'a> {
         let params = self.parse_type_pairs(false);
         self.expect_next_specific(')', context);
         let body = self.parse_code_body();
-        if body.is_none() { exit_error_unexpected("handler body".to_string(), context, self.line, self.column, ERROR_SYNTAX); }
+        if body.is_none() {
+            exit_error_unexpected(
+                "handler body".to_string(),
+                context,
+                self.line,
+                self.column,
+                ERROR_SYNTAX,
+            );
+        }
         let body = body.unwrap();
         WebXHandler { name, params, body }
     }
 
     /// Parse a URL path variable segment.
-    /// **Obs: This function does not parse the opening parenthesis.** 
-    /// 
+    /// **Obs: This function does not parse the opening parenthesis.**
+    ///
     /// ## Example:
     /// ```ignore
     /// (arg: string)?
@@ -355,7 +465,7 @@ impl<'a> WebXFileParser<'a> {
     /// - Optional path segments
     /// - Wildcard path segments
     /// - Regex path segments
-    /// 
+    ///
     /// ## Example:
     /// ```ignore
     /// /path/to/(arg: string)?/*
@@ -364,16 +474,21 @@ impl<'a> WebXFileParser<'a> {
         let context = "parsing a URL path";
         let mut path = String::new();
         let c = self.next_skip_whitespace(true);
-        if c.is_none() { exit_error_expected_but_found("endpoint path".to_string(), "EOF".to_string(), context, self.line, self.column, ERROR_SYNTAX); }
+        if c.is_none() {
+            exit_error_expected_but_found(
+                "endpoint path".to_string(),
+                "EOF".to_string(),
+                context,
+                self.line,
+                self.column,
+                ERROR_SYNTAX,
+            );
+        }
         let mut c = c.unwrap();
         loop {
             match c {
                 '(' => path.push_str(&self.parse_url_path_variable()),
-                c if c.is_alphanumeric()
-                        || c == '/'
-                        || c == '_'
-                        || c == '*'
-                        => path.push(c),
+                c if c.is_alphanumeric() || c == '/' || c == '_' || c == '*' => path.push(c),
                 _ => break,
             }
             c = self.next().unwrap();
@@ -387,7 +502,7 @@ impl<'a> WebXFileParser<'a> {
     ///     - <name>(<field>: <type>, <field>: <type>, ...)
     /// - user-defined model name
     ///     - <name>
-    /// 
+    ///
     /// ## Example:
     /// ```ignore
     /// json(text: string, n: number)
@@ -402,7 +517,9 @@ impl<'a> WebXFileParser<'a> {
             let mut result = self.read_until(')');
             result.push(self.expect_next_specific(')', context));
             Some(result)
-        } else { None }
+        } else {
+            None
+        }
     }
 
     fn parse_handler_call(&mut self) -> String {
@@ -433,14 +550,18 @@ impl<'a> WebXFileParser<'a> {
                     calls.push(self.parse_handler_call());
                     self.skip_whitespace(true);
                     let nc = self.peek();
-                    if nc.is_none() { break; }
+                    if nc.is_none() {
+                        break;
+                    }
                     let nc = nc.unwrap();
-                    if nc != ',' { break; }
+                    if nc != ',' {
+                        break;
+                    }
                     self.next();
                 }
                 calls
-            },
-            _ => vec![]
+            }
+            _ => vec![],
         }
     }
 
@@ -453,7 +574,7 @@ impl<'a> WebXFileParser<'a> {
     /// - Response body
     ///     - TypeScript code (TS): Using `{}` delimiters
     ///     - HTML template (TSX): Using `()` delimiters
-    /// 
+    ///
     /// ## Example:
     /// ```ignore
     /// get /path/to/route (<h1>My page</h1>)
@@ -476,7 +597,7 @@ impl<'a> WebXFileParser<'a> {
     /// The function parses all basic components making up a webx
     /// module scope such as includes, nested locations, handlers,
     /// routes, and models.
-    /// 
+    ///
     /// # Arguments
     /// * `is_global` - Whether the scope is global or not.
     fn parse_scope(&mut self, is_global: bool) -> Result<WebXScope, String> {
@@ -493,8 +614,17 @@ impl<'a> WebXFileParser<'a> {
             let c = self.next_skip_whitespace(true);
             if c.is_none() {
                 // EOF is only allowed if the scope is global.
-                if is_global { break; }
-                else { exit_error_unexpected("EOF".to_string(), context, self.line, self.column, ERROR_SYNTAX); }
+                if is_global {
+                    break;
+                } else {
+                    exit_error_unexpected(
+                        "EOF".to_string(),
+                        context,
+                        self.line,
+                        self.column,
+                        ERROR_SYNTAX,
+                    );
+                }
             }
             // Keywords: handler, include, location, module, { } and all HTTP methods.
             // Only expect a keyword at the start of a line, whitespace, or // comments.
@@ -502,9 +632,18 @@ impl<'a> WebXFileParser<'a> {
             let c = c.unwrap();
             match c {
                 '}' => {
-                    if is_global { exit_error_unexpected_char('}', context, self.line, self.column, ERROR_SYNTAX); }
-                    else { break; }
-                },
+                    if is_global {
+                        exit_error_unexpected_char(
+                            '}',
+                            context,
+                            self.line,
+                            self.column,
+                            ERROR_SYNTAX,
+                        );
+                    } else {
+                        break;
+                    }
+                }
                 '/' => self.parse_comment(),
                 'i' => scope.includes.push(self.parse_include()),
                 'l' => scope.scopes.push(self.parse_location()?),
@@ -513,53 +652,80 @@ impl<'a> WebXFileParser<'a> {
                     'a' => {
                         self.expect_specific_str("handler", 2, context);
                         scope.handlers.push(self.parse_handler());
-                    },
+                    }
                     'e' => {
                         self.expect_specific_str("head", 2, context);
                         scope.routes.push(self.parse_route(WebXRouteMethod::HEAD)?);
-                    },
-                    c => exit_error_expected_any_of_but_found("handler or head".to_string(), c, context, self.line, self.column, ERROR_SYNTAX),
+                    }
+                    c => exit_error_expected_any_of_but_found(
+                        "handler or head".to_string(),
+                        c,
+                        context,
+                        self.line,
+                        self.column,
+                        ERROR_SYNTAX,
+                    ),
                 },
                 'g' => match self.expect(context) {
                     'e' => {
                         self.expect_specific_str("get", 2, context);
                         scope.routes.push(self.parse_route(WebXRouteMethod::GET)?);
-                    },
+                    }
                     'l' => {
                         self.expect_specific_str("global", 2, context);
                         self.skip_whitespace(true);
                         self.expect_next_specific('{', context);
                         scope.global_ts = self.parse_block('{', '}');
-                    },
-                    c => exit_error_expected_any_of_but_found("get or global".to_string(), c, context, self.line, self.column, ERROR_SYNTAX),
+                    }
+                    c => exit_error_expected_any_of_but_found(
+                        "get or global".to_string(),
+                        c,
+                        context,
+                        self.line,
+                        self.column,
+                        ERROR_SYNTAX,
+                    ),
                 },
                 'p' => match self.expect(context) {
                     'o' => {
                         self.expect_specific_str("post", 2, context);
                         scope.routes.push(self.parse_route(WebXRouteMethod::POST)?);
-                    },
+                    }
                     'u' => {
                         self.expect_specific_str("put", 2, context);
                         scope.routes.push(self.parse_route(WebXRouteMethod::PUT)?);
-                    },
+                    }
                     'a' => {
                         self.expect_specific_str("patch", 2, context);
                         scope.routes.push(self.parse_route(WebXRouteMethod::PATCH)?);
-                    },
-                    c => exit_error_expected_any_of_but_found("post, put or patch".to_string(), c, context, self.line, self.column, ERROR_SYNTAX),
+                    }
+                    c => exit_error_expected_any_of_but_found(
+                        "post, put or patch".to_string(),
+                        c,
+                        context,
+                        self.line,
+                        self.column,
+                        ERROR_SYNTAX,
+                    ),
                 },
                 'd' => {
                     self.expect_specific_str("delete", 1, context);
-                    scope.routes.push(self.parse_route(WebXRouteMethod::DELETE)?);
-                },
+                    scope
+                        .routes
+                        .push(self.parse_route(WebXRouteMethod::DELETE)?);
+                }
                 'c' => {
                     self.expect_specific_str("connect", 1, context);
-                    scope.routes.push(self.parse_route(WebXRouteMethod::CONNECT)?);
-                },
+                    scope
+                        .routes
+                        .push(self.parse_route(WebXRouteMethod::CONNECT)?);
+                }
                 'o' => {
                     self.expect_specific_str("options", 1, context);
-                    scope.routes.push(self.parse_route(WebXRouteMethod::OPTIONS)?);
-                },
+                    scope
+                        .routes
+                        .push(self.parse_route(WebXRouteMethod::OPTIONS)?);
+                }
                 't' => {
                     self.expect_specific_str("trace", 1, context);
                     scope.routes.push(self.parse_route(WebXRouteMethod::TRACE)?);
