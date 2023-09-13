@@ -5,7 +5,17 @@ use std::{
 
 pub type WXType = String;
 
-pub type WXTypedIdentifier = (String, WXType);
+#[derive(Clone)]
+pub struct WXTypedIdentifier {
+    pub name: String,
+    pub type_: WXType
+}
+
+impl fmt::Debug for WXTypedIdentifier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.name, self.type_)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum WXUrlPathSegment {
@@ -24,7 +34,7 @@ impl fmt::Debug for WXUrlPath {
             .map(|segment| {
                 match segment {
                     WXUrlPathSegment::Literal(literal) => literal,
-                    WXUrlPathSegment::Parameter((name, type_)) => format!("({}: {})", name, type_),
+                    WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => format!("({}: {})", name, type_),
                     WXUrlPathSegment::Regex(regex) => format!("({})", regex)
                 }
             })
@@ -164,16 +174,41 @@ impl fmt::Debug for WXBody {
     }
 }
 
-#[derive(Debug)]
-pub struct WXRouteReqBodyDefinition {
-    pub markup_type: String,
-    pub structure: Vec<WXTypedIdentifier>,
-}
-
-#[derive(Debug)]
 pub enum WXRouteReqBody {
     ModelReference(String),
-    Definition(WXRouteReqBodyDefinition),
+    Definition(String, Vec<WXTypedIdentifier>),
+}
+
+impl fmt::Debug for WXRouteReqBody {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            WXRouteReqBody::ModelReference(name) => write!(f, "{}", name),
+            WXRouteReqBody::Definition(name, fields) => {
+                write!(f, "{}(", name)?;
+                for (i, field) in fields.iter().enumerate() {
+                    if i > 0 { write!(f, ", ")?; }
+                    field.fmt(f)?;
+                }
+                write!(f, ")")
+            }
+        }
+    }
+}
+
+pub struct WXRouteHandler {
+    pub name: String,
+    pub args: Vec<String>,
+    pub output: Option<String>,
+}
+
+impl fmt::Debug for WXRouteHandler {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}({})", self.name, self.args.join(", "))?;
+        if let Some(output) = &self.output {
+            write!(f, " : {}", output)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -185,9 +220,9 @@ pub struct WXRoute {
     /// Request body format.
     pub body_format: Option<WXRouteReqBody>,
     /// The pre-handler functions of the route.
-    pub pre_handlers: Vec<String>,
+    pub pre_handlers: Vec<WXRouteHandler>,
     /// The code block of the route.
     pub body: Option<WXBody>,
     /// The post-handler functions of the route.
-    pub post_handlers: Vec<String>,
+    pub post_handlers: Vec<WXRouteHandler>,
 }

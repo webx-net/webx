@@ -11,7 +11,7 @@ use std::{
 };
 
 use super::webx::{
-    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteMethod, WXScope, WXUrlPath, WXROOT_PATH, WXUrlPathSegment, WXRouteReqBody, WXRouteReqBodyDefinition,
+    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteMethod, WXScope, WXUrlPath, WXROOT_PATH, WXUrlPathSegment, WXRouteReqBody, WXRouteHandler, WXTypedIdentifier,
 };
 
 struct WebXFileParser<'a> {
@@ -338,7 +338,7 @@ impl<'a> WebXFileParser<'a> {
         self.parse_scope(false, path)
     }
 
-    fn parse_type_pair(&mut self) -> (String, String) {
+    fn parse_type_pair(&mut self) -> WXTypedIdentifier {
         let context = "parsing a type pair";
         self.skip_whitespace(true);
         let name = self.parse_identifier();
@@ -347,25 +347,19 @@ impl<'a> WebXFileParser<'a> {
         self.skip_whitespace(true);
         let type_ = self.parse_type();
         self.skip_whitespace(true);
-        (name, type_)
+        WXTypedIdentifier { name, type_ }
     }
 
-    fn parse_type_pairs(&mut self, allow_stray_comma: bool) -> Vec<(String, String)> {
+    fn parse_type_pairs(&mut self, allow_stray_comma: bool) -> Vec<WXTypedIdentifier> {
         let mut pairs = vec![];
         loop {
             let pair = self.parse_type_pair();
-            if pair.0.is_empty() {
-                break;
-            } // Empty name means end of type pairs.
+            if pair.name.is_empty() { break; } // Empty name means end of type pairs.
             pairs.push(pair);
             let nc = self.peek();
-            if nc.is_none() {
-                break;
-            }
+            if nc.is_none() { break; }
             let nc = nc.unwrap();
-            if nc != ',' {
-                break;
-            } // No comma means end of type pairs.
+            if nc != ',' { break; } // No comma means end of type pairs.
             self.next(); // Consume the comma.
             self.skip_whitespace(true);
             if allow_stray_comma && !char::is_alphabetic(self.peek().unwrap()) {
@@ -373,6 +367,28 @@ impl<'a> WebXFileParser<'a> {
             } // Allow stray comma.
         }
         pairs
+    }
+
+    fn parse_arguments(&mut self, end: char) -> Vec<String> {
+        let mut args = vec![];
+        loop {
+            self.skip_whitespace(true);
+            let arg = self.read_until_any_of(vec![',', end]).trim().to_string();
+            if arg.is_empty() {
+                break; // Empty name means end of arguments.
+            }
+            args.push(arg);
+            let nc = self.peek();
+            if nc.is_none() {
+                break;
+            }
+            let nc = nc.unwrap();
+            if nc != ',' {
+                break; // No comma means end of arguments.
+            }
+            self.next(); // Consume the comma.
+        }
+        args
     }
 
     fn parse_model(&mut self) -> WXModel {
@@ -522,10 +538,7 @@ impl<'a> WebXFileParser<'a> {
                 self.expect(context); // Consume the '('.
                 let fields = self.parse_type_pairs(true);
                 self.expect_next_specific(')', context);
-                Some(WXRouteReqBody::Definition(WXRouteReqBodyDefinition {
-                    markup_type: name,
-                    structure: fields,
-                }))
+                Some(WXRouteReqBody::Definition(name, fields))
             } else {
                 // User-defined model name reference.
                 Some(WXRouteReqBody::ModelReference(name))
@@ -535,23 +548,25 @@ impl<'a> WebXFileParser<'a> {
         }
     }
 
-    fn parse_handler_call(&mut self) -> String {
+    fn parse_handler_call(&mut self) -> WXRouteHandler {
         let context = "parsing a handler call";
-        // parse "handler(arg1, arg2, ...): output"
-        let mut call = self.read_until(')');
-        call.push(self.expect_next_specific(')', context));
-        // Optional output value
+        let name = self.parse_identifier();
+        self.expect_next_specific('(', context);
+        let args = self.parse_arguments(')');
+        self.expect_next_specific(')', context);
         self.skip_whitespace(true);
         let nc = self.peek();
-        if nc.is_some() && nc.unwrap() == ':' {
-            call.push(self.next().unwrap());
+        let output = if nc.is_some() && nc.unwrap() == ':' {
+            self.expect_next_specific(':', context);
             self.skip_whitespace(true);
-            call.push_str(self.parse_identifier().as_str());
-        }
-        call
+            Some(self.parse_identifier())
+        } else {
+            None
+        };
+        WXRouteHandler { name, args, output }
     }
 
-    fn parse_route_handlers(&mut self) -> Vec<String> {
+    fn parse_route_handlers(&mut self) -> Vec<WXRouteHandler> {
         let context = "parsing route handlers";
         self.skip_whitespace(true);
         match self.peek() {
