@@ -12,7 +12,8 @@ pub enum WXUrlPathSegment {
 }
 
 pub type WXUrlPath = Vec<WXUrlPathSegment>;
-pub const WXRootPath: WXUrlPath = WXUrlPath::new();
+
+pub const WXROOT_PATH: WXUrlPath = WXUrlPath::new();
 
 /// # WebX file format
 /// A module for working with WebX files.
