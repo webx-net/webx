@@ -73,7 +73,7 @@ pub struct WebXHandler {
     /// The parameters of the handler.
     pub params: Vec<TypedIdentifier>,
     /// The typescript body of the handler.
-    pub body: String,
+    pub body: WebXBody,
 }
 
 #[derive(Debug)]
@@ -90,6 +90,20 @@ pub enum WebXRouteMethod {
 }
 
 #[derive(Debug)]
+pub enum WebXBodyType {
+    TS,
+    TSX,
+    JSON,
+    TEXT,
+}
+
+#[derive(Debug)]
+pub struct WebXBody {
+    pub body_type: WebXBodyType,
+    pub body: String,
+}
+
+#[derive(Debug)]
 pub struct WebXRoute {
     /// HTTP method of the route.
     pub method: WebXRouteMethod,
@@ -100,7 +114,7 @@ pub struct WebXRoute {
     /// The pre-handler functions of the route.
     pub pre_handlers: Vec<String>,
     /// The code block of the route.
-    pub body: Option<String>,
+    pub body: Option<WebXBody>,
     /// The post-handler functions of the route.
     pub post_handlers: Vec<String>,
 }

@@ -1,7 +1,7 @@
 use std::{path::PathBuf, io::{BufReader, Read}};
 use crate::{file::webx::WebXFile, reporting::error::{exit_error, ERROR_PARSE_IO, ERROR_SYNTAX, exit_error_unexpected_char, exit_error_unexpected, exit_error_expected_any_of_but_found, exit_error_expected_but_found}};
 
-use super::webx::{WebXScope, WebXModel, WebXRouteMethod, WebXRoute, WebXHandler};
+use super::webx::{WebXScope, WebXModel, WebXRouteMethod, WebXRoute, WebXHandler, WebXBody, WebXBodyType};
 
 struct WebXFileParser<'a> {
     file: &'a PathBuf,
@@ -290,16 +290,16 @@ impl<'a> WebXFileParser<'a> {
         WebXModel { name, fields }
     }
 
-    fn parse_code_body(&mut self) -> Option<String> {
+    fn parse_code_body(&mut self) -> Option<WebXBody> {
         self.skip_whitespace(true);
         match self.peek() {
             Some('{') => {
                 self.next();
-                Some(self.parse_block('{', '}'))
+                Some(WebXBody { body_type: WebXBodyType::TS, body: self.parse_block('{', '}').trim().to_string() })
             },
             Some('(') => {
                 self.next();
-                Some(self.parse_block('(', ')'))
+                Some(WebXBody { body_type: WebXBodyType::TSX, body: self.parse_block('(', ')').trim().to_string() })
             },
             _ => None,
         }
