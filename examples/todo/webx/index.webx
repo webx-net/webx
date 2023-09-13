@@ -22,10 +22,12 @@ model Todo {
     createdAt: Date,
 }
 
-handler renderTodo(todo: Todo) (<h1>
-    <input type="checkbox" checked={todo.completed} />
-    {todo.title} - {getTimeDiff(todo.createdAt)}
-</h1>)
+handler renderTodo(todo: Todo) (<li>
+    <h1>
+        <input type="checkbox" checked={todo.completed} />
+        {todo.title} - {getTimeDiff(todo.createdAt)}
+    </h1>
+</li>)
 
 handler renderAllTodos(todos: Todo) (
     <ul class="test" onClick={authenticate}>{todos.map(renderTodo)}</ul>
