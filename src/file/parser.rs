@@ -11,7 +11,7 @@ use std::{
 };
 
 use super::webx::{
-    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteMethod, WXScope, WXUrlPath, WXROOT_PATH, WXUrlPathSegment,
+    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteMethod, WXScope, WXUrlPath, WXROOT_PATH, WXUrlPathSegment, WXRouteReqBody, WXRouteReqBodyDefinition,
 };
 
 struct WebXFileParser<'a> {
@@ -510,14 +510,26 @@ impl<'a> WebXFileParser<'a> {
     /// form(name: string, age: number)
     /// User
     /// ```
-    fn parse_body_format(&mut self) -> Option<String> {
+    fn parse_body_format(&mut self) -> Option<WXRouteReqBody> {
         let context = "parsing a request body format";
         self.skip_whitespace(true);
         let nc = self.peek();
         if nc.is_some() && char::is_alphabetic(nc.unwrap()) {
-            let mut result = self.read_until(')');
-            result.push(self.expect_next_specific(')', context));
-            Some(result)
+            let name = self.parse_identifier();
+            let nc = self.peek();
+            if nc.is_some() && nc.unwrap() == '(' {
+                // Custom format with fields.
+                self.expect(context); // Consume the '('.
+                let fields = self.parse_type_pairs(true);
+                self.expect_next_specific(')', context);
+                Some(WXRouteReqBody::Definition(WXRouteReqBodyDefinition {
+                    markup_type: name,
+                    structure: fields,
+                }))
+            } else {
+                // User-defined model name reference.
+                Some(WXRouteReqBody::ModelReference(name))
+            }
         } else {
             None
         }

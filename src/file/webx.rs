@@ -165,13 +165,25 @@ impl fmt::Debug for WXBody {
 }
 
 #[derive(Debug)]
+pub struct WXRouteReqBodyDefinition {
+    pub markup_type: String,
+    pub structure: Vec<WXTypedIdentifier>,
+}
+
+#[derive(Debug)]
+pub enum WXRouteReqBody {
+    ModelReference(String),
+    Definition(WXRouteReqBodyDefinition),
+}
+
+#[derive(Debug)]
 pub struct WXRoute {
     /// HTTP method of the route.
     pub method: WXRouteMethod,
     /// The path of the route.
     pub path: WXUrlPath,
     /// Request body format.
-    pub body_format: Option<String>,
+    pub body_format: Option<WXRouteReqBody>,
     /// The pre-handler functions of the route.
     pub pre_handlers: Vec<String>,
     /// The code block of the route.
