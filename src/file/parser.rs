@@ -243,8 +243,10 @@ impl<'a> WebXFileParser<'a> {
     fn parse_location(&mut self) -> Result<WebXScope, String> {
         let context = "while parsing a location statement";
         self.expect_specific_str("location", 1, context);
-        let nc = self.next_skip_whitespace(false);
-        self.expect_specific(nc, '{', context);
+        self.skip_whitespace(true);
+        let path = self.parse_url_path();
+        self.skip_whitespace(true);
+        self.expect_next_specific('{', context);
         self.parse_scope(false)
     }
 
