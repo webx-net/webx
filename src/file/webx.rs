@@ -135,7 +135,6 @@ pub enum WXRouteMethod {
     TRACE,
 }
 
-#[derive(Debug)]
 pub enum WXBodyType {
     TS,
     TSX,
@@ -143,10 +142,26 @@ pub enum WXBodyType {
     TEXT,
 }
 
-#[derive(Debug)]
+impl ToString for WXBodyType {
+    fn to_string(&self) -> String {
+        match self {
+            WXBodyType::TS => "ts".to_string(),
+            WXBodyType::TSX => "tsx".to_string(),
+            WXBodyType::JSON => "json".to_string(),
+            WXBodyType::TEXT => "text".to_string(),
+        }
+    }
+}
+
 pub struct WXBody {
     pub body_type: WXBodyType,
     pub body: String,
+}
+
+impl fmt::Debug for WXBody {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "```{}\n{}\n```", self.body_type.to_string(), self.body)
+    }
 }
 
 #[derive(Debug)]

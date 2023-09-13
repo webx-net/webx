@@ -392,14 +392,14 @@ impl<'a> WebXFileParser<'a> {
                 self.next();
                 Some(WXBody {
                     body_type: WXBodyType::TS,
-                    body: self.parse_block('{', '}').trim().to_string(),
+                    body: self.parse_block('{', '}'),
                 })
             }
             Some('(') => {
                 self.next();
                 Some(WXBody {
                     body_type: WXBodyType::TSX,
-                    body: self.parse_block('(', ')').trim().to_string(),
+                    body: self.parse_block('(', ')'),
                 })
             }
             _ => None,
