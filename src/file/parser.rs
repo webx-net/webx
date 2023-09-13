@@ -397,9 +397,12 @@ impl<'a> WebXFileParser<'a> {
     fn parse_body_format(&mut self) -> Option<String> {
         let context = "while parsing a request body format";
         self.skip_whitespace(true);
-        let mut result = self.read_until(')');
-        result.push(self.expect_next_specific(')', context));
-        Some(result)
+        let nc = self.peek();
+        if nc.is_some() && char::is_alphabetic(nc.unwrap()) {
+            let mut result = self.read_until(')');
+            result.push(self.expect_next_specific(')', context));
+            Some(result)
+        } else { None }
     }
 
     fn parse_handler_call(&mut self) -> String {
