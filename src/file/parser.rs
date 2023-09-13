@@ -444,6 +444,8 @@ impl<'a> WebXFileParser<'a> {
                     },
                     'l' => {
                         self.expect_specific_str("global", 2);
+                        self.skip_whitespace(true);
+                        self.expect_next_specific('{');
                         scope.global_ts = self.parse_block('{', '}');
                     },
                     c => exit_error_expected_any_of_but_found("get or global".to_string(), c, self.line, self.column, ERROR_SYNTAX),
