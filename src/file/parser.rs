@@ -421,28 +421,24 @@ impl<'a> WebXFileParser<'a> {
         call
     }
 
-    fn parse_handler_calls(&mut self) -> Vec<String> {
-        let mut calls = vec![];
-        loop {
-            self.skip_whitespace(true);
-            calls.push(self.parse_handler_call());
-            self.skip_whitespace(true);
-            let nc = self.peek();
-            if nc.is_none() { break; }
-            let nc = nc.unwrap();
-            if nc != ',' { break; }
-            self.next();
-        }
-        calls
-    }
-
     fn parse_route_handlers(&mut self) -> Vec<String> {
         let context = "while parsing route handlers";
         self.skip_whitespace(true);
         match self.peek() {
             Some('-') => {
                 self.expect_specific_str("->", 0, context);
-                self.parse_handler_calls()
+                let mut calls = vec![];
+                loop {
+                    self.skip_whitespace(true);
+                    calls.push(self.parse_handler_call());
+                    self.skip_whitespace(true);
+                    let nc = self.peek();
+                    if nc.is_none() { break; }
+                    let nc = nc.unwrap();
+                    if nc != ',' { break; }
+                    self.next();
+                }
+                calls
             },
             _ => vec![]
         }
