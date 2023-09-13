@@ -240,8 +240,21 @@ impl<'a> WebXFileParser<'a> {
 
     fn parse_model(&mut self) -> WebXModel {
         self.expect_specific_str("model", 1);
-        let name = self.read_until('{');
-        let fields = self.read_until('}');
+        let name = self.read_until('{').trim().to_string();
+        self.expect_next_specific('{');
+        let fields = self.parse_block('{', '}')
+            .split(',')
+            .map(|f| {
+                if let Some(idx) = f.find(":") {
+                    let (name, type_) = (&f[..idx], &f[idx+1..]);
+                    (name.trim().to_string(), type_.trim().to_string())
+                } else {
+                    (f.trim().to_string(), "any".to_string())
+                }
+            })
+            .filter(|(name, _)| !name.is_empty())
+            .collect::<Vec<_>>();
+        dbg!(&name, &fields);
         WebXModel { name, fields }
     }
 

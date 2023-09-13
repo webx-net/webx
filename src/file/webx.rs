@@ -61,7 +61,7 @@ pub struct WebXModel {
     /// The name of the model.
     pub name: String,
     /// The fields of the model.
-    pub fields: String,
+    pub fields: Vec<(String, String)>,
 }
 
 #[derive(Debug)]
