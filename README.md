@@ -244,7 +244,6 @@ handler renderTodos(todos: Todo[], user: User): HTML {
 
 get /todos/(id: number) -> initServices:s, auth(s.userService, id):a, isAdmin(a.user) {
     const todos = s.todoService.getAllTodosForUser(a.user.id);
-    return { todos };
 } -> renderTodos(todos, a.user)
 ```
 
