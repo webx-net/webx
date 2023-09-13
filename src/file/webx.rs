@@ -56,12 +56,14 @@ pub struct WebXScope {
     pub scopes: Vec<WebXScope>,
 }
 
+pub type TypedIdentifier = (String, String);
+
 #[derive(Debug)]
 pub struct WebXModel {
     /// The name of the model.
     pub name: String,
     /// The fields of the model.
-    pub fields: Vec<(String, String)>,
+    pub fields: Vec<TypedIdentifier>,
 }
 
 #[derive(Debug)]
@@ -69,9 +71,7 @@ pub struct WebXHandler {
     /// The name of the handler.
     pub name: String,
     /// The parameters of the handler.
-    pub params: String,
-    /// Return type of the handler.
-    pub return_type: Option<String>,
+    pub params: Vec<TypedIdentifier>,
     /// The typescript body of the handler.
     pub body: String,
 }
