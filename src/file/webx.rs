@@ -52,17 +52,17 @@ impl fmt::Debug for WXUrlPath {
 
 pub const WXROOT_PATH: WXUrlPath = WXUrlPath(vec![]);
 
-/// # WebX file format
-/// A module for working with WebX files.
+/// # WebX module
+/// A file data structure for WebX files.
 #[derive(Debug)]
-pub struct WXFile {
+pub struct WXModule {
     /// The path to the file.
     pub path: PathBuf,
     /// Global webx module scope.
-    pub module_scope: WXScope,
+    pub scope: WXScope,
 }
 
-impl WXFile {
+impl WXModule {
     /// "/path/to/file.webx" -> "path/to"
     pub fn parent(&self) -> String {
         let cwd = std::env::current_dir().unwrap().canonicalize().unwrap();
