@@ -30,6 +30,15 @@ impl<'a> WebXFileParser<'a> {
         p
     }
 
+    fn __update_line_column(&mut self, c: char) {
+        if c == '\n' {
+            self.line += 1;
+            self.column = 1;
+        } else {
+            self.column += 1;
+        }
+    }
+
     /// Returns the next character in the file, or None if EOF is reached.
     /// Increments the line and column counters.
     /// 
@@ -46,12 +55,6 @@ impl<'a> WebXFileParser<'a> {
         self.peeked_index += 1;
         // Index of the character returned by the next call to `next`.
         self.next_index = self.peeked_index - 1;
-        if c == '\n' {
-            self.line += 1;
-            self.column = 1;
-        } else {
-            self.column += 1;
-        }
         Some(c)
     }
 
@@ -59,6 +62,7 @@ impl<'a> WebXFileParser<'a> {
     fn next(&mut self) -> Option<char> {
         let c = self.peeked;
         self.peeked = self.__raw_next();
+        if let Some(c) = c { self.__update_line_column(c); }
         c
     }
     fn expect(&mut self, context: &str) -> char {
