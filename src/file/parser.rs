@@ -20,8 +20,8 @@ impl<'a> WebXFileParser<'a> {
             file,
             _content: content,
             reader: BufReader::new(content.as_bytes()),
-            line: 0,
-            column: 0,
+            line: 1,
+            column: 1,
             peeked_index: 0,
             next_index: 0,
             peeked: None,
@@ -48,7 +48,7 @@ impl<'a> WebXFileParser<'a> {
         self.next_index = self.peeked_index - 1;
         if c == '\n' {
             self.line += 1;
-            self.column = 0;
+            self.column = 1;
         } else {
             self.column += 1;
         }
