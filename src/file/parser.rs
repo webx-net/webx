@@ -260,7 +260,7 @@ impl<'a> WebXFileParser<'a> {
         (name, type_)
     }
 
-    fn parse_type_pairs(&mut self) -> Vec<(String, String)> {
+    fn parse_type_pairs(&mut self, allow_stray_comma: bool) -> Vec<(String, String)> {
         let mut pairs = vec![];
         loop {
             let pair = self.parse_type_pair();
@@ -270,7 +270,9 @@ impl<'a> WebXFileParser<'a> {
             if nc.is_none() { break; }
             let nc = nc.unwrap();
             if nc != ',' { break; } // No comma means end of type pairs.
-            self.next();
+            self.next(); // Consume the comma.
+            self.skip_whitespace(true);
+            if allow_stray_comma && !char::is_alphabetic(self.peek().unwrap()) { break; } // Allow stray comma.
         }
         pairs
     }
@@ -280,7 +282,7 @@ impl<'a> WebXFileParser<'a> {
         self.expect_specific_str("model", 1, context);
         let name = self.read_until('{').trim().to_string();
         self.expect_next_specific('{', context);
-        let fields = self.parse_type_pairs();
+        let fields = self.parse_type_pairs(true);
         self.expect_next_specific('}', context);
         dbg!(&name, &fields);
         WebXModel { name, fields }
@@ -320,7 +322,7 @@ impl<'a> WebXFileParser<'a> {
         self.skip_whitespace(true);
         let name = self.read_until('(').trim().to_string();
         self.expect_next_specific('(', context);
-        let params = self.parse_type_pairs();
+        let params = self.parse_type_pairs(false);
         self.expect_next_specific(')', context);
         let body = self.parse_code_body();
         if body.is_none() { exit_error_unexpected("handler body".to_string(), context, self.line, self.column, ERROR_SYNTAX); }
