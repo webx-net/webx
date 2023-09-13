@@ -747,7 +747,6 @@ impl<'a> WebXFileParser<'a> {
                 _ => exit_error_unexpected_char(c, context, self.line, self.column, ERROR_SYNTAX),
             }
         }
-        dbg!(&scope);
         Ok(scope)
     }
 
