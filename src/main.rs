@@ -1,5 +1,6 @@
 mod engine;
 mod project;
+mod analytics;
 mod reporting;
 mod file;
 

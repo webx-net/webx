@@ -1,5 +1,5 @@
 use crate::{
-    file::webx::WXFile,
+    file::webx::WXModule,
     reporting::error::{
         exit_error, exit_error_expected_any_of_but_found, exit_error_expected_but_found,
         exit_error_unexpected, exit_error_unexpected_char, ERROR_PARSE_IO, ERROR_SYNTAX,
@@ -750,15 +750,15 @@ impl<'a> WebXFileParser<'a> {
         Ok(scope)
     }
 
-    fn parse_module(&mut self) -> Result<WXFile, String> {
-        Ok(WXFile {
+    fn parse_module(&mut self) -> Result<WXModule, String> {
+        Ok(WXModule {
             path: self.file.clone(),
-            module_scope: self.parse_scope(true, WXROOT_PATH)?,
+            scope: self.parse_scope(true, WXROOT_PATH)?,
         })
     }
 }
 
-pub fn parse_webx_file(file: &PathBuf) -> Result<WXFile, String> {
+pub fn parse_webx_file(file: &PathBuf) -> Result<WXModule, String> {
     let file_contents = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
     let mut parser = WebXFileParser::new(file, &file_contents);
     Ok(parser.parse_module()?)

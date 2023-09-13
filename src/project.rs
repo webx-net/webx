@@ -1,14 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
 
 use crate::{
-    file::webx::WXFile,
+    file::{webx::WXModule, parser::parse_webx_file},
     reporting::{
-        error::{exit_error, ERROR_CIRCULAR_DEPENDENCY, ERROR_READ_WEBX_FILES},
+        error::{exit_error, ERROR_READ_WEBX_FILES},
         warning::warning,
     },
 };
@@ -123,7 +122,7 @@ pub fn load_project_config(config_file: &PathBuf) -> ProjectConfig {
 ///
 /// ## Errors
 /// If the source directory does not exist, an error is returned.
-pub fn locate_webx_files(src: &Path) -> Vec<PathBuf> {
+pub fn locate_files(src: &Path) -> Vec<PathBuf> {
     let src = src.to_path_buf();
     if !src.exists() {
         exit_error(
@@ -137,7 +136,7 @@ pub fn locate_webx_files(src: &Path) -> Vec<PathBuf> {
         let path = entry.unwrap().path();
         if path.is_dir() {
             // Recursively find all .webx files in the directory.
-            files.append(&mut locate_webx_files(&path));
+            files.append(&mut locate_files(&path));
         } else if path.is_file() {
             files.push(path.canonicalize().map_err(|e| e.to_string()).expect("Failed to canonicalize path."));
         } else {
@@ -150,42 +149,32 @@ pub fn locate_webx_files(src: &Path) -> Vec<PathBuf> {
     files
 }
 
-type DependencyTree = HashMap<PathBuf, Vec<PathBuf>>;
-
-pub fn detect_circular_dependencies(tree: &DependencyTree) -> Vec<PathBuf> {
-    let mut circular_dependencies = Vec::new();
-    for (_, dependents) in tree {
-        for dependent in dependents {
-            if tree.contains_key(dependent) {
-                circular_dependencies.push(dependent.clone());
-            }
-        }
+/// Load all WebX modules from a given directory.
+/// This function will recursively find all `.webx` files in the given directory,
+/// parse them, and return a vector of the parsed modules.
+/// If any of the files fail to parse, an error is reported and the program exits.
+/// 
+/// ## Note
+/// This function does not perform any static analysis on the modules
+/// such as detecting circular dependencies.
+pub fn load_modules(src: &Path) -> Vec<WXModule> {
+    let files = locate_files(src);
+    let webx_modules = files.iter().map(|f| parse_webx_file(f)).collect::<Vec<_>>();
+    let errors = webx_modules
+        .iter()
+        .filter(|m| m.is_err())
+        .map(|m| m.as_ref().unwrap_err())
+        .collect::<Vec<_>>();
+    if !errors.is_empty() {
+        exit_error(
+            format!("Failed to parse webx files:\n{:?}", errors),
+            ERROR_READ_WEBX_FILES,
+        );
     }
-    circular_dependencies
-}
-
-/// Construct a dependency tree from a list of WebX files.
-/// The tree is a hashmap where the keys are the dependencies and the values are the files that
-/// depend on them.
-/// If a circular dependency is detected, an error is returned.
-///
-/// ## Arguments
-/// - `files` - The list of WebX files.
-///
-/// ## Returns
-/// The dependency tree.
-pub fn construct_dependency_tree(files: &Vec<WXFile>) -> DependencyTree {
-    let mut tree = DependencyTree::new();
-    for file in files.iter() {
-        // Insert dependencies into the tree as keys and the file path as the value.
-        for dependency in file.module_scope.includes.iter() {
-            let dependency_target = file.path.join(dependency);
-            tree.entry(dependency_target)
-                .or_insert(Vec::new())
-                .push(file.path.clone());
-        }
-    }
-    tree
+    webx_modules
+        .into_iter()
+        .map(|m| m.unwrap())
+        .collect::<Vec<_>>()
 }
 
 /// Create a new WebX project in the given directory.
