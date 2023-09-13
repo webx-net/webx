@@ -1,18 +1,29 @@
 use colored::*;
 
 // Error codes:
-pub static ERROR_READ_WEBX_FILES: i32 = 1;
-pub static ERROR_READ_PROJECT_CONFIG: i32 = 2;
-pub static ERROR_CIRCULAR_DEPENDENCY: i32 = 3;
-pub static ERROR_PARSE_IO: i32 = 4;
-pub static ERROR_SYNTAX: i32 = 5;
+pub const ERROR_READ_WEBX_FILES: i32 = 1;
+pub const ERROR_READ_PROJECT_CONFIG: i32 = 2;
+pub const ERROR_CIRCULAR_DEPENDENCY: i32 = 3;
+pub const ERROR_PARSE_IO: i32 = 4;
+pub const ERROR_SYNTAX: i32 = 5;
+
+pub fn code_to_name(code: i32) -> String {
+    match code {
+        ERROR_READ_WEBX_FILES => "READ_WEBX_FILES".to_owned(),
+        ERROR_READ_PROJECT_CONFIG => "READ_PROJECT_CONFIG".to_owned(),
+        ERROR_CIRCULAR_DEPENDENCY => "CIRCULAR_DEPENDENCY".to_owned(),
+        ERROR_PARSE_IO => "PARSE_IO".to_owned(),
+        ERROR_SYNTAX => "SYNTAX".to_owned(),
+        _ => format!("UNKNOWN {}", code),
+    }
+}
 
 fn error_generic(message: String, error_name: &str) {
     eprintln!("{}: {}", error_name.red(), message);
 }
 
 fn exit_error_generic(message: String, code: i32, error_name: &str) -> ! {
-    error_generic(message, format!("{} ({})", error_name, code).as_str());
+    error_generic(message, format!("{} ({})", error_name, code_to_name(code)).as_str());
     std::process::exit(code);
 }
 
