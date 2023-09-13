@@ -12,24 +12,23 @@ A framework for building minimal but powerful **web app backends**, **REST APIs*
 ## Features & Roadmap
 Below is a high-level overview of the existing (implemented) and planned features of the WebX technology (in no particular order).
 
-- [X] Blazingly Fast 🔥
-- [X] Lightweight and Minimalistic 🪶
-- [X] Versatile, flexible and powerful 🤸
-- [X] Simple to use and easy to learn 🧠
+- [X] Blazingly fast 🔥
+- [X] Lightweight and minimalistic 🪶
+- [X] Versatile, flexible, and powerful 🤸
+- [X] Easy to use and learn 🧠
 - [ ] Built-in services (native modules)
   - [ ] Authentication integration
   - [ ] Sessions
   - [ ] Caching
   - [ ] WebSockets
 - [ ] Batteries included 🔋
-  - [ ] Static file serving (HTML, CSS, JS, JSX, HS, images, files, etc.)
+  - [ ] Static file serving
   - [ ] DDOS protection 🛡️
   - [ ] Hot reloading 🔥
   - [ ] Integrated testing framework/suite
-  - [ ] Language server protocol
-  - [ ] Package manager (NPM like, for WebX handlers and modules)
-  - [ ] VSC extension (syntax highlighting, snippets, etc.)
+  - [ ] Package manager (NPM-like, for WebX handlers, modules, and drivers)
   - [ ] Database drivers (PostgreSQL, MySQL, SQLite)
+  - [X] [VSC extension](https://github.com/webx-net/webx-extension) (syntax highlighting, snippets, etc.)
 
 
 <details><summary>WebX DSL (Domain Specific Language)</summary>
