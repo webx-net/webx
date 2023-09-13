@@ -1,5 +1,5 @@
 use crate::{
-    file::webx::WebXFile,
+    file::webx::WXFile,
     reporting::error::{
         exit_error, exit_error_expected_any_of_but_found, exit_error_expected_but_found,
         exit_error_unexpected, exit_error_unexpected_char, ERROR_PARSE_IO, ERROR_SYNTAX,
@@ -7,11 +7,11 @@ use crate::{
 };
 use std::{
     io::{BufReader, Read},
-    path::PathBuf,
+    path::PathBuf, fmt::format,
 };
 
 use super::webx::{
-    WebXBody, WebXBodyType, WebXHandler, WebXModel, WebXRoute, WebXRouteMethod, WebXScope,
+    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteMethod, WXScope, WXUrlPath, WXRootPath, WXUrlPathSegment,
 };
 
 struct WebXFileParser<'a> {
@@ -328,14 +328,14 @@ impl<'a> WebXFileParser<'a> {
         path
     }
 
-    fn parse_location(&mut self) -> Result<WebXScope, String> {
+    fn parse_location(&mut self) -> Result<WXScope, String> {
         let context = "parsing a location statement";
         self.expect_specific_str("location", 1, context);
         self.skip_whitespace(true);
         let path = self.parse_url_path();
         self.skip_whitespace(true);
         self.expect_next_specific('{', context);
-        self.parse_scope(false)
+        self.parse_scope(false, path)
     }
 
     fn parse_type_pair(&mut self) -> (String, String) {
@@ -375,31 +375,30 @@ impl<'a> WebXFileParser<'a> {
         pairs
     }
 
-    fn parse_model(&mut self) -> WebXModel {
+    fn parse_model(&mut self) -> WXModel {
         let context = "parsing a model statement";
         self.expect_specific_str("model", 1, context);
         let name = self.read_until('{').trim().to_string();
         self.expect_next_specific('{', context);
         let fields = self.parse_type_pairs(true);
         self.expect_next_specific('}', context);
-        dbg!(&name, &fields);
-        WebXModel { name, fields }
+        WXModel { name, fields }
     }
 
-    fn parse_code_body(&mut self) -> Option<WebXBody> {
+    fn parse_code_body(&mut self) -> Option<WXBody> {
         self.skip_whitespace(true);
         match self.peek() {
             Some('{') => {
                 self.next();
-                Some(WebXBody {
-                    body_type: WebXBodyType::TS,
+                Some(WXBody {
+                    body_type: WXBodyType::TS,
                     body: self.parse_block('{', '}').trim().to_string(),
                 })
             }
             Some('(') => {
                 self.next();
-                Some(WebXBody {
-                    body_type: WebXBodyType::TSX,
+                Some(WXBody {
+                    body_type: WXBodyType::TSX,
                     body: self.parse_block('(', ')').trim().to_string(),
                 })
             }
@@ -421,7 +420,7 @@ impl<'a> WebXFileParser<'a> {
     ///     <h1>html</h1>
     /// )
     /// ```
-    fn parse_handler(&mut self) -> WebXHandler {
+    fn parse_handler(&mut self) -> WXHandler {
         let context = "parsing a handler statement";
         self.skip_whitespace(true);
         let name = self.read_until('(').trim().to_string();
@@ -439,7 +438,7 @@ impl<'a> WebXFileParser<'a> {
             );
         }
         let body = body.unwrap();
-        WebXHandler { name, params, body }
+        WXHandler { name, params, body }
     }
 
     /// Parse a URL path variable segment.
@@ -470,30 +469,32 @@ impl<'a> WebXFileParser<'a> {
     /// ```ignore
     /// /path/to/(arg: string)?/*
     /// ```
-    fn parse_url_path(&mut self) -> String {
-        let context = "parsing a URL path";
-        let mut path = String::new();
-        let c = self.next_skip_whitespace(true);
-        if c.is_none() {
-            exit_error_expected_but_found(
-                "endpoint path".to_string(),
-                "EOF".to_string(),
-                context,
-                self.line,
-                self.column,
-                ERROR_SYNTAX,
-            );
-        }
-        let mut c = c.unwrap();
+    fn parse_url_path(&mut self) -> WXUrlPath {
+        let context = "parsing a endpoint URL path";
+        let mut segments: WXUrlPath = vec![];
+        self.skip_whitespace(true);
         loop {
-            match c {
-                '(' => path.push_str(&self.parse_url_path_variable()),
-                c if c.is_alphanumeric() || c == '/' || c == '_' || c == '*' => path.push(c),
+            match self.expect(context) {
+                '(' => {
+                    segments.push(WXUrlPathSegment::Parameter(self.parse_type_pair()));
+                    self.expect_next_specific(')', context);
+                },
+                '*' => segments.push(WXUrlPathSegment::Regex("*".to_string())),
+                '/' => {
+                    let nc = self.peek();
+                    if nc.is_some() && char::is_alphanumeric(nc.unwrap()) {
+                        segments.push(WXUrlPathSegment::Literal(self.parse_identifier()));
+                    }
+                },
+                c if c.is_alphabetic() => {
+                    let mut name = c.to_string();
+                    name.push_str(&self.parse_identifier());
+                    segments.push(WXUrlPathSegment::Literal(name));
+                }
                 _ => break,
             }
-            c = self.next().unwrap();
         }
-        path
+        segments
     }
 
     /// Parse a request body format.
@@ -582,8 +583,8 @@ impl<'a> WebXFileParser<'a> {
     ///     // ...
     /// }
     /// ```
-    fn parse_route(&mut self, method: WebXRouteMethod) -> Result<WebXRoute, String> {
-        Ok(WebXRoute {
+    fn parse_route(&mut self, method: WXRouteMethod) -> Result<WXRoute, String> {
+        Ok(WXRoute {
             method,
             path: self.parse_url_path(),
             body_format: self.parse_body_format(),
@@ -600,9 +601,10 @@ impl<'a> WebXFileParser<'a> {
     ///
     /// # Arguments
     /// * `is_global` - Whether the scope is global or not.
-    fn parse_scope(&mut self, is_global: bool) -> Result<WebXScope, String> {
+    fn parse_scope(&mut self, is_global: bool, path: WXUrlPath) -> Result<WXScope, String> {
         let context = "parsing a scope";
-        let mut scope = WebXScope {
+        let mut scope = WXScope {
+            path,
             global_ts: String::new(),
             includes: vec![],
             models: vec![],
@@ -655,7 +657,7 @@ impl<'a> WebXFileParser<'a> {
                     }
                     'e' => {
                         self.expect_specific_str("head", 2, context);
-                        scope.routes.push(self.parse_route(WebXRouteMethod::HEAD)?);
+                        scope.routes.push(self.parse_route(WXRouteMethod::HEAD)?);
                     }
                     c => exit_error_expected_any_of_but_found(
                         "handler or head".to_string(),
@@ -669,7 +671,7 @@ impl<'a> WebXFileParser<'a> {
                 'g' => match self.expect(context) {
                     'e' => {
                         self.expect_specific_str("get", 2, context);
-                        scope.routes.push(self.parse_route(WebXRouteMethod::GET)?);
+                        scope.routes.push(self.parse_route(WXRouteMethod::GET)?);
                     }
                     'l' => {
                         self.expect_specific_str("global", 2, context);
@@ -689,15 +691,15 @@ impl<'a> WebXFileParser<'a> {
                 'p' => match self.expect(context) {
                     'o' => {
                         self.expect_specific_str("post", 2, context);
-                        scope.routes.push(self.parse_route(WebXRouteMethod::POST)?);
+                        scope.routes.push(self.parse_route(WXRouteMethod::POST)?);
                     }
                     'u' => {
                         self.expect_specific_str("put", 2, context);
-                        scope.routes.push(self.parse_route(WebXRouteMethod::PUT)?);
+                        scope.routes.push(self.parse_route(WXRouteMethod::PUT)?);
                     }
                     'a' => {
                         self.expect_specific_str("patch", 2, context);
-                        scope.routes.push(self.parse_route(WebXRouteMethod::PATCH)?);
+                        scope.routes.push(self.parse_route(WXRouteMethod::PATCH)?);
                     }
                     c => exit_error_expected_any_of_but_found(
                         "post, put or patch".to_string(),
@@ -712,23 +714,23 @@ impl<'a> WebXFileParser<'a> {
                     self.expect_specific_str("delete", 1, context);
                     scope
                         .routes
-                        .push(self.parse_route(WebXRouteMethod::DELETE)?);
+                        .push(self.parse_route(WXRouteMethod::DELETE)?);
                 }
                 'c' => {
                     self.expect_specific_str("connect", 1, context);
                     scope
                         .routes
-                        .push(self.parse_route(WebXRouteMethod::CONNECT)?);
+                        .push(self.parse_route(WXRouteMethod::CONNECT)?);
                 }
                 'o' => {
                     self.expect_specific_str("options", 1, context);
                     scope
                         .routes
-                        .push(self.parse_route(WebXRouteMethod::OPTIONS)?);
+                        .push(self.parse_route(WXRouteMethod::OPTIONS)?);
                 }
                 't' => {
                     self.expect_specific_str("trace", 1, context);
-                    scope.routes.push(self.parse_route(WebXRouteMethod::TRACE)?);
+                    scope.routes.push(self.parse_route(WXRouteMethod::TRACE)?);
                 }
                 _ => exit_error_unexpected_char(c, context, self.line, self.column, ERROR_SYNTAX),
             }
@@ -737,15 +739,15 @@ impl<'a> WebXFileParser<'a> {
         Ok(scope)
     }
 
-    fn parse_module(&mut self) -> Result<WebXFile, String> {
-        Ok(WebXFile {
+    fn parse_module(&mut self) -> Result<WXFile, String> {
+        Ok(WXFile {
             path: self.file.clone(),
-            module_scope: self.parse_scope(true)?,
+            module_scope: self.parse_scope(true, WXRootPath)?,
         })
     }
 }
 
-pub fn parse_webx_file(file: &PathBuf) -> Result<WebXFile, String> {
+pub fn parse_webx_file(file: &PathBuf) -> Result<WXFile, String> {
     let file_contents = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
     let mut parser = WebXFileParser::new(file, &file_contents);
     Ok(parser.parse_module()?)
