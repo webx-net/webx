@@ -25,7 +25,7 @@ impl fmt::Debug for WXUrlPath {
                 match segment {
                     WXUrlPathSegment::Literal(literal) => literal,
                     WXUrlPathSegment::Parameter((name, type_)) => format!("({}: {})", name, type_),
-                    WXUrlPathSegment::Regex(regex) => regex,
+                    WXUrlPathSegment::Regex(regex) => format!("({})", regex)
                 }
             })
             .collect::<Vec<_>>();
