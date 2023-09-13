@@ -471,7 +471,7 @@ impl<'a> WebXFileParser<'a> {
     /// ```
     fn parse_url_path(&mut self) -> WXUrlPath {
         let context = "parsing a endpoint URL path";
-        let mut segments: WXUrlPath = vec![];
+        let mut segments: Vec<WXUrlPathSegment> = vec![];
         self.skip_whitespace(true);
         loop {
             match self.expect(context) {
@@ -494,7 +494,7 @@ impl<'a> WebXFileParser<'a> {
                 _ => break,
             }
         }
-        segments
+        WXUrlPath(segments)
     }
 
     /// Parse a request body format.

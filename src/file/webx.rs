@@ -1,19 +1,44 @@
-use std::path::PathBuf;
+use std::{
+    fmt::{self, Formatter},
+    path::PathBuf,
+};
 
 pub type WXType = String;
 
 pub type WXTypedIdentifier = (String, WXType);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WXUrlPathSegment {
     Literal(String),
     Parameter(WXTypedIdentifier),
     Regex(String),
 }
 
-pub type WXUrlPath = Vec<WXUrlPathSegment>;
+pub struct WXUrlPath(pub Vec<WXUrlPathSegment>);
 
-pub const WXROOT_PATH: WXUrlPath = WXUrlPath::new();
+impl fmt::Debug for WXUrlPath {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let c = self.0.clone();
+        let ss = c
+            .into_iter()
+            .map(|segment| {
+                match segment {
+                    WXUrlPathSegment::Literal(literal) => literal,
+                    WXUrlPathSegment::Parameter((name, type_)) => format!("({}: {})", name, type_),
+                    WXUrlPathSegment::Regex(regex) => regex,
+                }
+            })
+            .collect::<Vec<_>>();
+        write!(f, "/")?;
+        for (i, s) in ss.iter().enumerate() {
+            if i > 0 { write!(f, "/")?; }
+            write!(f, "{}", s)?;
+        }
+        Ok(())
+    }
+}
+
+pub const WXROOT_PATH: WXUrlPath = WXUrlPath(vec![]);
 
 /// # WebX file format
 /// A module for working with WebX files.
