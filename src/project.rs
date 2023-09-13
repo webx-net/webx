@@ -8,7 +8,7 @@ use std::{
 use crate::{
     file::webx::WXFile,
     reporting::{
-        error::{exit_error, ERROR_CIRCULAR_DEPENDENCY},
+        error::{exit_error, ERROR_CIRCULAR_DEPENDENCY, ERROR_READ_WEBX_FILES},
         warning::warning,
     },
 };
@@ -123,10 +123,13 @@ pub fn load_project_config(config_file: &PathBuf) -> ProjectConfig {
 ///
 /// ## Errors
 /// If the source directory does not exist, an error is returned.
-pub fn locate_webx_files(src: &Path) -> Result<Vec<PathBuf>, String> {
+pub fn locate_webx_files(src: &Path) -> Vec<PathBuf> {
     let src = src.to_path_buf();
     if !src.exists() {
-        return Err(format!("The directory '{}' does not exist.", src.display()));
+        exit_error(
+            format!("Failed to locate webx program files due to missing directory '{}'", src.display()),
+            ERROR_READ_WEBX_FILES,
+        );
     }
 
     let mut files = Vec::new();
@@ -134,9 +137,9 @@ pub fn locate_webx_files(src: &Path) -> Result<Vec<PathBuf>, String> {
         let path = entry.unwrap().path();
         if path.is_dir() {
             // Recursively find all .webx files in the directory.
-            files.append(&mut locate_webx_files(&path).unwrap());
+            files.append(&mut locate_webx_files(&path));
         } else if path.is_file() {
-            files.push(path.canonicalize().map_err(|e| e.to_string())?);
+            files.push(path.canonicalize().map_err(|e| e.to_string()).expect("Failed to canonicalize path."));
         } else {
             panic!(
                 "The path '{}' is neither a file nor a directory.",
@@ -144,7 +147,7 @@ pub fn locate_webx_files(src: &Path) -> Result<Vec<PathBuf>, String> {
             );
         }
     }
-    Ok(files)
+    files
 }
 
 type DependencyTree = HashMap<PathBuf, Vec<PathBuf>>;

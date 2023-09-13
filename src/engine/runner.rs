@@ -13,14 +13,7 @@ pub fn run(root: &Path, prod: bool) {
     let config_file = root.join(PROJECT_CONFIG_FILE_NAME);
     let config = load_project_config(&config_file);
     let source_root = root.join(&config.src);
-    let files = match locate_webx_files(&source_root) {
-        Ok(files) => files,
-        Err(err) => exit_error(
-            format!("Failed to locate webx program files due to, {}", err),
-            ERROR_READ_WEBX_FILES,
-        ),
-    };
-
+    let files = locate_webx_files(&source_root);
     let webx_modules = files.iter().map(|f| parse_webx_file(f)).collect::<Vec<_>>();
     let errors = webx_modules
         .iter()
