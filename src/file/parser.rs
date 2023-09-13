@@ -173,7 +173,7 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn parse_comment(&mut self) {
-        match self.expect_next_any_of(vec!['/', '*'], "while parsing the beginning of a comment") {
+        match self.expect_next_any_of(vec!['/', '*'], "parsing the beginning of a comment") {
             '/' => {
                 loop {
                     let c = self.next();
@@ -231,7 +231,7 @@ impl<'a> WebXFileParser<'a> {
     /// include "path/to/file.webx";
     /// ```
     fn parse_include(&mut self) -> String {
-        let context = "while parsing an include statement";
+        let context = "parsing an include statement";
         self.expect_specific_str("include", 1, context);
         self.expect_next_specific('"', context);
         let path = self.parse_string();
@@ -241,7 +241,7 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn parse_location(&mut self) -> Result<WebXScope, String> {
-        let context = "while parsing a location statement";
+        let context = "parsing a location statement";
         self.expect_specific_str("location", 1, context);
         self.skip_whitespace(true);
         let path = self.parse_url_path();
@@ -251,7 +251,7 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn parse_type_pair(&mut self) -> (String, String) {
-        let context = "while parsing a type pair";
+        let context = "parsing a type pair";
         self.skip_whitespace(true);
         let name = self.parse_identifier();
         self.skip_whitespace(true);
@@ -280,7 +280,7 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn parse_model(&mut self) -> WebXModel {
-        let context = "while parsing a model statement";
+        let context = "parsing a model statement";
         self.expect_specific_str("model", 1, context);
         let name = self.read_until('{').trim().to_string();
         self.expect_next_specific('{', context);
@@ -320,7 +320,7 @@ impl<'a> WebXFileParser<'a> {
     /// )
     /// ```
     fn parse_handler(&mut self) -> WebXHandler {
-        let context = "while parsing a handler statement";
+        let context = "parsing a handler statement";
         self.skip_whitespace(true);
         let name = self.read_until('(').trim().to_string();
         self.expect_next_specific('(', context);
@@ -340,7 +340,7 @@ impl<'a> WebXFileParser<'a> {
     /// (arg: string)?
     /// ```
     fn parse_url_path_variable(&mut self) -> String {
-        let context = "while parsing a URL path variable segment";
+        let context = "parsing a URL path variable segment";
         let name = self.read_until(':').trim().to_string();
         self.expect_next_specific(':', context);
         let type_ = self.read_until(')').trim().to_string();
@@ -361,7 +361,7 @@ impl<'a> WebXFileParser<'a> {
     /// /path/to/(arg: string)?/*
     /// ```
     fn parse_url_path(&mut self) -> String {
-        let context = "while parsing a URL path";
+        let context = "parsing a URL path";
         let mut path = String::new();
         let c = self.next_skip_whitespace(true);
         if c.is_none() { exit_error_expected_but_found("endpoint path".to_string(), "EOF".to_string(), context, self.line, self.column, ERROR_SYNTAX); }
@@ -395,7 +395,7 @@ impl<'a> WebXFileParser<'a> {
     /// User
     /// ```
     fn parse_body_format(&mut self) -> Option<String> {
-        let context = "while parsing a request body format";
+        let context = "parsing a request body format";
         self.skip_whitespace(true);
         let nc = self.peek();
         if nc.is_some() && char::is_alphabetic(nc.unwrap()) {
@@ -406,7 +406,7 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn parse_handler_call(&mut self) -> String {
-        let context = "while parsing a handler call";
+        let context = "parsing a handler call";
         // parse "handler(arg1, arg2, ...): output"
         let mut call = self.read_until(')');
         call.push(self.expect_next_specific(')', context));
@@ -422,7 +422,7 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn parse_route_handlers(&mut self) -> Vec<String> {
-        let context = "while parsing route handlers";
+        let context = "parsing route handlers";
         self.skip_whitespace(true);
         match self.peek() {
             Some('-') => {
@@ -480,7 +480,7 @@ impl<'a> WebXFileParser<'a> {
     /// # Arguments
     /// * `is_global` - Whether the scope is global or not.
     fn parse_scope(&mut self, is_global: bool) -> Result<WebXScope, String> {
-        let context = "while parsing a scope";
+        let context = "parsing a scope";
         let mut scope = WebXScope {
             global_ts: String::new(),
             includes: vec![],

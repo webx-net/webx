@@ -36,15 +36,15 @@ pub fn exit_error(message: String, code: i32) -> ! {
 }
 
 pub fn exit_error_unexpected(what: String, context: &str, line: usize, column: usize, code: i32) -> ! {
-    exit_error(format!("Unexpected {} {} at line {}, column {}", what, context, line, column), code);
+    exit_error(format!("Unexpected {} while {} at line {}, column {}", what, context, line, column), code);
 }
 
 pub fn exit_error_expected_but_found(expected: String, found: String, context: &str, line: usize, column: usize, code: i32) -> ! {
-    exit_error(format!("Expected {} but found '{}' {} at line {}, column {}", expected, found, context, line, column), code);
+    exit_error(format!("Expected {} but found '{}' while {} at line {}, column {}", expected, found, context, line, column), code);
 }
 
 pub fn exit_error_expected_any_of_but_found(expected: String, found: char, context: &str, line: usize, column: usize, code: i32) -> ! {
-    exit_error(format!("Expected any of {} but found '{}' {} at line {}, column {}", expected, found, context, line, column), code);
+    exit_error(format!("Expected any of {} but found '{}' while {} at line {}, column {}", expected, found, context, line, column), code);
 }
 
 pub fn exit_error_unexpected_char(what: char, context: &str, line: usize, column: usize, code: i32) -> ! {
