@@ -7,11 +7,12 @@ use crate::{
 };
 use std::{
     io::{BufReader, Read},
-    path::PathBuf, fmt::format,
+    path::PathBuf,
 };
 
 use super::webx::{
-    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteMethod, WXScope, WXUrlPath, WXROOT_PATH, WXUrlPathSegment, WXRouteReqBody, WXRouteHandler, WXTypedIdentifier,
+    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteHandler, WXRouteMethod, WXRouteReqBody,
+    WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment, WXROOT_PATH,
 };
 
 struct WebXFileParser<'a> {
@@ -354,12 +355,18 @@ impl<'a> WebXFileParser<'a> {
         let mut pairs = vec![];
         loop {
             let pair = self.parse_type_pair();
-            if pair.name.is_empty() { break; } // Empty name means end of type pairs.
+            if pair.name.is_empty() {
+                break;
+            } // Empty name means end of type pairs.
             pairs.push(pair);
             let nc = self.peek();
-            if nc.is_none() { break; }
+            if nc.is_none() {
+                break;
+            }
             let nc = nc.unwrap();
-            if nc != ',' { break; } // No comma means end of type pairs.
+            if nc != ',' {
+                break;
+            } // No comma means end of type pairs.
             self.next(); // Consume the comma.
             self.skip_whitespace(true);
             if allow_stray_comma && !char::is_alphabetic(self.peek().unwrap()) {
@@ -457,22 +464,6 @@ impl<'a> WebXFileParser<'a> {
         WXHandler { name, params, body }
     }
 
-    /// Parse a URL path variable segment.
-    /// **Obs: This function does not parse the opening parenthesis.**
-    ///
-    /// ## Example:
-    /// ```ignore
-    /// (arg: string)?
-    /// ```
-    fn parse_url_path_variable(&mut self) -> String {
-        let context = "parsing a URL path variable segment";
-        let name = self.read_until(':').trim().to_string();
-        self.expect_next_specific(':', context);
-        let type_ = self.read_until(')').trim().to_string();
-        self.expect_next_specific(')', context);
-        format!("({}:{})", name, type_)
-    }
-
     /// Parse a URL path.
     /// ## Supporting syntax:
     /// - Static path segments
@@ -494,14 +485,14 @@ impl<'a> WebXFileParser<'a> {
                 '(' => {
                     segments.push(WXUrlPathSegment::Parameter(self.parse_type_pair()));
                     self.expect_next_specific(')', context);
-                },
+                }
                 '*' => segments.push(WXUrlPathSegment::Regex("*".to_string())),
                 '/' => {
                     let nc = self.peek();
                     if nc.is_some() && char::is_alphanumeric(nc.unwrap()) {
                         segments.push(WXUrlPathSegment::Literal(self.parse_identifier()));
                     }
-                },
+                }
                 c if c.is_alphabetic() => {
                     let mut name = c.to_string();
                     name.push_str(&self.parse_identifier());
@@ -739,21 +730,15 @@ impl<'a> WebXFileParser<'a> {
                 },
                 'd' => {
                     self.expect_specific_str("delete", 1, context);
-                    scope
-                        .routes
-                        .push(self.parse_route(WXRouteMethod::DELETE)?);
+                    scope.routes.push(self.parse_route(WXRouteMethod::DELETE)?);
                 }
                 'c' => {
                     self.expect_specific_str("connect", 1, context);
-                    scope
-                        .routes
-                        .push(self.parse_route(WXRouteMethod::CONNECT)?);
+                    scope.routes.push(self.parse_route(WXRouteMethod::CONNECT)?);
                 }
                 'o' => {
                     self.expect_specific_str("options", 1, context);
-                    scope
-                        .routes
-                        .push(self.parse_route(WXRouteMethod::OPTIONS)?);
+                    scope.routes.push(self.parse_route(WXRouteMethod::OPTIONS)?);
                 }
                 't' => {
                     self.expect_specific_str("trace", 1, context);

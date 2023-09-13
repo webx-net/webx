@@ -8,7 +8,7 @@ pub type WXType = String;
 #[derive(Clone)]
 pub struct WXTypedIdentifier {
     pub name: String,
-    pub type_: WXType
+    pub type_: WXType,
 }
 
 impl fmt::Debug for WXTypedIdentifier {
@@ -31,17 +31,19 @@ impl fmt::Debug for WXUrlPath {
         let c = self.0.clone();
         let ss = c
             .into_iter()
-            .map(|segment| {
-                match segment {
-                    WXUrlPathSegment::Literal(literal) => literal,
-                    WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => format!("({}: {})", name, type_),
-                    WXUrlPathSegment::Regex(regex) => format!("({})", regex)
+            .map(|segment| match segment {
+                WXUrlPathSegment::Literal(literal) => literal,
+                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => {
+                    format!("({}: {})", name, type_)
                 }
+                WXUrlPathSegment::Regex(regex) => format!("({})", regex),
             })
             .collect::<Vec<_>>();
         write!(f, "/")?;
         for (i, s) in ss.iter().enumerate() {
-            if i > 0 { write!(f, "/")?; }
+            if i > 0 {
+                write!(f, "/")?;
+            }
             write!(f, "{}", s)?;
         }
         Ok(())
@@ -148,8 +150,7 @@ pub enum WXRouteMethod {
 pub enum WXBodyType {
     TS,
     TSX,
-    JSON,
-    TEXT,
+    // TODO: JSON and TEXT
 }
 
 impl ToString for WXBodyType {
@@ -157,8 +158,6 @@ impl ToString for WXBodyType {
         match self {
             WXBodyType::TS => "ts".to_string(),
             WXBodyType::TSX => "tsx".to_string(),
-            WXBodyType::JSON => "json".to_string(),
-            WXBodyType::TEXT => "text".to_string(),
         }
     }
 }
@@ -186,7 +185,9 @@ impl fmt::Debug for WXRouteReqBody {
             WXRouteReqBody::Definition(name, fields) => {
                 write!(f, "{}(", name)?;
                 for (i, field) in fields.iter().enumerate() {
-                    if i > 0 { write!(f, ", ")?; }
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
                     field.fmt(f)?;
                 }
                 write!(f, ")")
