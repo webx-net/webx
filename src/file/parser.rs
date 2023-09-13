@@ -371,9 +371,16 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn parse_route_body(&mut self) -> Option<String> {
-        match self.next_skip_whitespace(true) {
-            Some('{') => Some(self.parse_block('{', '}')),
-            Some('(') => Some(self.parse_block('(', ')')),
+        self.skip_whitespace(true);
+        match self.peek() {
+            Some('{') => {
+                self.next();
+                Some(self.parse_block('{', '}'))
+            },
+            Some('(') => {
+                self.next();
+                Some(self.parse_block('(', ')'))
+            },
             _ => None,
         }
     }
