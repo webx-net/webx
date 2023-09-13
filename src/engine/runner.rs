@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::file::parser::parse_webx_file;
-use crate::file::webx::WebXFile;
+use crate::file::webx::WXFile;
 use crate::project::{
     construct_dependency_tree, detect_circular_dependencies, load_project_config, locate_webx_files,
 };
@@ -53,7 +53,7 @@ pub fn run(root: &Path, prod: bool) {
         "Webx modules: {:?}",
         webx_modules
             .iter()
-            .map(WebXFile::module_name)
+            .map(WXFile::module_name)
             .collect::<Vec<_>>()
             .join(", ")
     );

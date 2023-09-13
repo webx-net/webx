@@ -1,16 +1,30 @@
 use std::path::PathBuf;
 
+pub type WXType = String;
+
+pub type WXTypedIdentifier = (String, WXType);
+
+#[derive(Debug)]
+pub enum WXUrlPathSegment {
+    Literal(String),
+    Parameter(WXTypedIdentifier),
+    Regex(String),
+}
+
+pub type WXUrlPath = Vec<WXUrlPathSegment>;
+pub const WXRootPath: WXUrlPath = WXUrlPath::new();
+
 /// # WebX file format
 /// A module for working with WebX files.
 #[derive(Debug)]
-pub struct WebXFile {
+pub struct WXFile {
     /// The path to the file.
     pub path: PathBuf,
     /// Global webx module scope.
-    pub module_scope: WebXScope,
+    pub module_scope: WXScope,
 }
 
-impl WebXFile {
+impl WXFile {
     /// "/path/to/file.webx" -> "path/to"
     pub fn parent(&self) -> String {
         let cwd = std::env::current_dir().unwrap().canonicalize().unwrap();
@@ -47,44 +61,43 @@ impl WebXFile {
 }
 
 #[derive(Debug)]
-pub struct WebXScope {
+pub struct WXScope {
+    pub path: WXUrlPath,
     /// The dependencies of the scope.
     pub includes: Vec<String>,
     /// Global TypeScript code block
     pub global_ts: String,
     /// ORM Model definitions
-    pub models: Vec<WebXModel>,
+    pub models: Vec<WXModel>,
     /// Handler functions
-    pub handlers: Vec<WebXHandler>,
+    pub handlers: Vec<WXHandler>,
     /// Route endpoints
-    pub routes: Vec<WebXRoute>,
+    pub routes: Vec<WXRoute>,
     /// Nested scopes.
     /// Created by root and the `location` keyword.
-    pub scopes: Vec<WebXScope>,
+    pub scopes: Vec<WXScope>,
 }
 
-pub type TypedIdentifier = (String, String);
-
 #[derive(Debug)]
-pub struct WebXModel {
+pub struct WXModel {
     /// The name of the model.
     pub name: String,
     /// The fields of the model.
-    pub fields: Vec<TypedIdentifier>,
+    pub fields: Vec<WXTypedIdentifier>,
 }
 
 #[derive(Debug)]
-pub struct WebXHandler {
+pub struct WXHandler {
     /// The name of the handler.
     pub name: String,
     /// The parameters of the handler.
-    pub params: Vec<TypedIdentifier>,
+    pub params: Vec<WXTypedIdentifier>,
     /// The typescript body of the handler.
-    pub body: WebXBody,
+    pub body: WXBody,
 }
 
 #[derive(Debug)]
-pub enum WebXRouteMethod {
+pub enum WXRouteMethod {
     CONNECT,
     DELETE,
     GET,
@@ -97,7 +110,7 @@ pub enum WebXRouteMethod {
 }
 
 #[derive(Debug)]
-pub enum WebXBodyType {
+pub enum WXBodyType {
     TS,
     TSX,
     JSON,
@@ -105,23 +118,23 @@ pub enum WebXBodyType {
 }
 
 #[derive(Debug)]
-pub struct WebXBody {
-    pub body_type: WebXBodyType,
+pub struct WXBody {
+    pub body_type: WXBodyType,
     pub body: String,
 }
 
 #[derive(Debug)]
-pub struct WebXRoute {
+pub struct WXRoute {
     /// HTTP method of the route.
-    pub method: WebXRouteMethod,
+    pub method: WXRouteMethod,
     /// The path of the route.
-    pub path: String,
+    pub path: WXUrlPath,
     /// Request body format.
     pub body_format: Option<String>,
     /// The pre-handler functions of the route.
     pub pre_handlers: Vec<String>,
     /// The code block of the route.
-    pub body: Option<WebXBody>,
+    pub body: Option<WXBody>,
     /// The post-handler functions of the route.
     pub post_handlers: Vec<String>,
 }
