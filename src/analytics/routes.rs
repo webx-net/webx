@@ -2,7 +2,7 @@ use colored::*;
 
 use std::{collections::HashMap};
 
-use crate::{file::webx::{WXModule, WXScope, WXUrlPath, WXROOT_PATH, WXRouteMethod, WXInfoField, WXRoute}, reporting::error::{exit_error, ERROR_DUPLICATE_ROUTE}};
+use crate::{file::webx::{WXModule, WXScope, WXUrlPath, WXROOT_PATH, WXRouteMethod, WXInfoField, WXRoute}, reporting::error::{exit_error, ERROR_DUPLICATE_ROUTE, format_info_field}};
 
 type FlatRoutes = HashMap<(WXRoute, WXUrlPath), Vec<WXInfoField>>;
 
@@ -36,9 +36,7 @@ fn extract_duplicate_routes(routes: &FlatRoutes) -> Vec<String> {
         .map(|((route, path), modules)| {
             let locations = modules
                 .iter()
-                .map(|info|
-                    format!("{} line {}", info.path.module_name(), info.line)
-                    .bright_black().to_string())
+                .map(format_info_field)
                 .collect::<Vec<_>>();
             format!(
                 "Route {} {} is defined in modules:\n    - {}",
@@ -74,11 +72,13 @@ fn extract_invalid_routes(routes: &FlatRoutes) -> Vec<String> {
                 _ => false,
             }
         })
-        .map(|((route, path), _)| {
+        .map(|((route, path), info)| {
             format!(
-                "Route {} {} specify a request body format but is not a POST or PUT endpoint",
+                "Route {} {} specify {}, but is not a POST or PUT endpoint. {}",
                 route.method.to_string().green(),
-                path.to_string().yellow()
+                path.to_string().yellow(),
+                route.body_format.as_ref().unwrap().to_string().red(),
+                format_info_field(info.first().unwrap()),
             )
         })
         .collect()
@@ -90,7 +90,6 @@ fn extract_invalid_routes(routes: &FlatRoutes) -> Vec<String> {
 /// - bad combinations of route methods and request body format types (e.g. GET + body)
 fn analyse_invalid_routes(modules: &Vec<WXModule>) {
     let routes = extract_flat_routes(modules);
-    dbg!(&routes);
     let invalid_routes = extract_invalid_routes(&routes);
     if !invalid_routes.is_empty() {
         exit_error(

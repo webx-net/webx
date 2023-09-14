@@ -241,7 +241,7 @@ pub enum WXRouteReqBody {
     Definition(String, Vec<WXTypedIdentifier>),
 }
 
-impl fmt::Debug for WXRouteReqBody {
+impl Display for WXRouteReqBody {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             WXRouteReqBody::ModelReference(name) => write!(f, "{}", name),
@@ -256,6 +256,12 @@ impl fmt::Debug for WXRouteReqBody {
                 write!(f, ")")
             }
         }
+    }
+}
+
+impl Debug for WXRouteReqBody {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 

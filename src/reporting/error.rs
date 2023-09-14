@@ -1,5 +1,7 @@
 use colored::*;
 
+use crate::file::webx::WXInfoField;
+
 // Error codes:
 pub const ERROR_READ_WEBX_FILES: i32 = 1;
 pub const ERROR_READ_PROJECT_CONFIG: i32 = 2;
@@ -51,4 +53,8 @@ pub fn exit_error_expected_any_of_but_found(expected: String, found: char, conte
 
 pub fn exit_error_unexpected_char(what: char, context: &str, line: usize, column: usize, code: i32) -> ! {
     exit_error_unexpected(format!("character '{}'", what), context, line, column, code);
+}
+
+pub fn format_info_field(info: &WXInfoField) -> String {
+    format!("{} line {}", info.path.module_name(), info.line).bright_black().to_string()
 }
