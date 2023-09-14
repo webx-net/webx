@@ -6,12 +6,14 @@ pub const ERROR_READ_PROJECT_CONFIG: i32 = 2;
 pub const ERROR_CIRCULAR_DEPENDENCY: i32 = 3;
 pub const ERROR_PARSE_IO: i32 = 4;
 pub const ERROR_SYNTAX: i32 = 5;
+pub const ERROR_DUPLICATE_ROUTE: i32 = 6;
 
 pub fn code_to_name(code: i32) -> String {
     match code {
         ERROR_READ_WEBX_FILES => "READ_WEBX_FILES".to_owned(),
         ERROR_READ_PROJECT_CONFIG => "READ_PROJECT_CONFIG".to_owned(),
         ERROR_CIRCULAR_DEPENDENCY => "CIRCULAR_DEPENDENCY".to_owned(),
+        ERROR_DUPLICATE_ROUTE => "DUPLICATE_ROUTE".to_owned(),
         ERROR_PARSE_IO => "PARSE_IO".to_owned(),
         ERROR_SYNTAX => "SYNTAX".to_owned(),
         _ => format!("UNKNOWN {}", code),

@@ -12,7 +12,7 @@ use std::{
 
 use super::webx::{
     WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteHandler, WXRouteMethod, WXRouteReqBody,
-    WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment, WXROOT_PATH,
+    WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment, WXROOT_PATH, WXInfoField, WXModulePath,
 };
 
 struct WebXFileParser<'a> {
@@ -609,6 +609,7 @@ impl<'a> WebXFileParser<'a> {
             pre_handlers: self.parse_route_handlers(),
             body: self.parse_code_body(),
             post_handlers: self.parse_route_handlers(),
+            info: WXInfoField { path: WXModulePath::new(self.file.clone()), line: self.line },
         })
     }
 
@@ -752,7 +753,7 @@ impl<'a> WebXFileParser<'a> {
 
     fn parse_module(&mut self) -> Result<WXModule, String> {
         Ok(WXModule {
-            path: self.file.clone(),
+            path: WXModulePath::new(self.file.clone()),
             scope: self.parse_scope(true, WXROOT_PATH)?,
         })
     }

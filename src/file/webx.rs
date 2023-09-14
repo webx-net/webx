@@ -1,11 +1,17 @@
 use std::{
-    fmt::{self, Formatter},
+    fmt::{self, Formatter, Display, Debug},
     path::PathBuf,
 };
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct WXInfoField {
+    pub path: WXModulePath,
+    pub line: usize,
+}
+
 pub type WXType = String;
 
-#[derive(Clone)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct WXTypedIdentifier {
     pub name: String,
     pub type_: WXType,
@@ -17,16 +23,17 @@ impl fmt::Debug for WXTypedIdentifier {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum WXUrlPathSegment {
     Literal(String),
     Parameter(WXTypedIdentifier),
     Regex(String),
 }
 
+#[derive(Hash, PartialEq, Eq)]
 pub struct WXUrlPath(pub Vec<WXUrlPathSegment>);
 
-impl fmt::Debug for WXUrlPath {
+impl Display for WXUrlPath {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let c = self.0.clone();
         let ss = c
@@ -50,6 +57,20 @@ impl fmt::Debug for WXUrlPath {
     }
 }
 
+impl Debug for WXUrlPath {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl WXUrlPath {
+    pub fn combine(&self, other: &WXUrlPath) -> WXUrlPath {
+        let mut path = self.0.clone();
+        path.extend(other.0.clone());
+        WXUrlPath(path)
+    }
+}
+
 pub const WXROOT_PATH: WXUrlPath = WXUrlPath(vec![]);
 
 /// # WebX module
@@ -57,16 +78,24 @@ pub const WXROOT_PATH: WXUrlPath = WXUrlPath(vec![]);
 #[derive(Debug)]
 pub struct WXModule {
     /// The path to the file.
-    pub path: PathBuf,
+    pub path: WXModulePath,
     /// Global webx module scope.
     pub scope: WXScope,
 }
 
-impl WXModule {
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct  WXModulePath {
+    pub inner: PathBuf,
+}
+
+impl WXModulePath {
+    pub fn new(inner: PathBuf) -> Self {
+        Self { inner }
+    }
     /// "/path/to/file.webx" -> "path/to"
     pub fn parent(&self) -> String {
         let cwd = std::env::current_dir().unwrap().canonicalize().unwrap();
-        let path = self.path.canonicalize().unwrap();
+        let path = self.inner.canonicalize().unwrap();
         let stripped = path
             .strip_prefix(&cwd)
             .expect(&format!("Failed to strip prefix of {:?}", path));
@@ -80,15 +109,15 @@ impl WXModule {
 
     /// "/path/to/file.webx" -> "file"
     pub fn name(&self) -> &str {
-        match self.path.file_name() {
+        match self.inner.file_name() {
             Some(name) => match name.to_str() {
                 Some(name) => match name.split('.').next() {
                     Some(name) => name,
-                    None => panic!("Failed to extract file module name of {:?}", self.path),
+                    None => panic!("Failed to extract file module name of {:?}", self.inner),
                 },
-                None => panic!("Failed to convert file name to string of {:?}", self.path),
+                None => panic!("Failed to convert file name to string of {:?}", self.inner),
             },
-            None => panic!("Failed to get file name of {:?}", self.path),
+            None => panic!("Failed to get file name of {:?}", self.inner),
         }
     }
 
@@ -116,7 +145,7 @@ pub struct WXScope {
     pub scopes: Vec<WXScope>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct WXModel {
     /// The name of the model.
     pub name: String,
@@ -134,7 +163,7 @@ pub struct WXHandler {
     pub body: WXBody,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum WXRouteMethod {
     CONNECT,
     DELETE,
@@ -145,6 +174,22 @@ pub enum WXRouteMethod {
     POST,
     PUT,
     TRACE,
+}
+
+impl Display for WXRouteMethod {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            WXRouteMethod::CONNECT => write!(f, "CONNECT"),
+            WXRouteMethod::DELETE => write!(f, "DELETE"),
+            WXRouteMethod::GET => write!(f, "GET"),
+            WXRouteMethod::HEAD => write!(f, "HEAD"),
+            WXRouteMethod::OPTIONS => write!(f, "OPTIONS"),
+            WXRouteMethod::PATCH => write!(f, "PATCH"),
+            WXRouteMethod::POST => write!(f, "POST"),
+            WXRouteMethod::PUT => write!(f, "PUT"),
+            WXRouteMethod::TRACE => write!(f, "TRACE"),
+        }
+    }
 }
 
 pub enum WXBodyType {
@@ -214,6 +259,7 @@ impl fmt::Debug for WXRouteHandler {
 
 #[derive(Debug)]
 pub struct WXRoute {
+    pub info: WXInfoField,
     /// HTTP method of the route.
     pub method: WXRouteMethod,
     /// The path of the route.

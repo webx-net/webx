@@ -32,10 +32,10 @@ fn construct_dependency_tree(files: &Vec<WXModule>) -> DependencyTree {
     for file in files.iter() {
         // Insert dependencies into the tree as keys and the file path as the value.
         for dependency in file.scope.includes.iter() {
-            let dependency_target = file.path.join(dependency);
+            let dependency_target = file.path.inner.join(dependency);
             tree.entry(dependency_target)
                 .or_insert(Vec::new())
-                .push(file.path.clone());
+                .push(file.path.inner.clone());
         }
     }
     tree
