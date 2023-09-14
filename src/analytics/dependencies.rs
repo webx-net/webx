@@ -5,18 +5,6 @@ use crate::{file::webx::WXModule, reporting::error::{exit_error, ERROR_CIRCULAR_
 
 type DependencyTree = HashMap<PathBuf, Vec<PathBuf>>;
 
-fn detect_circular_dependencies(tree: &DependencyTree) -> Vec<PathBuf> {
-    let mut circular_dependencies = Vec::new();
-    for (_, dependents) in tree {
-        for dependent in dependents {
-            if tree.contains_key(dependent) {
-                circular_dependencies.push(dependent.clone());
-            }
-        }
-    }
-    circular_dependencies
-}
-
 /// Construct a dependency tree from a list of WebX files.
 /// The tree is a hashmap where the keys are the dependencies and the values are the files that
 /// depend on them.
@@ -41,9 +29,19 @@ fn construct_dependency_tree(files: &Vec<WXModule>) -> DependencyTree {
     tree
 }
 
-/// Analyse the dependencies of a list of WebX modules.
-/// If a circular dependency is detected, an error is reported and the program exits.
-pub fn analyse_module_deps(modules: &Vec<WXModule>) {
+fn detect_circular_dependencies(tree: &DependencyTree) -> Vec<PathBuf> {
+    let mut circular_dependencies = Vec::new();
+    for (_, dependents) in tree {
+        for dependent in dependents {
+            if tree.contains_key(dependent) {
+                circular_dependencies.push(dependent.clone());
+            }
+        }
+    }
+    circular_dependencies
+}
+
+fn analyse_circle_dependencies(modules: &Vec<WXModule>) {
     let dependency_tree = construct_dependency_tree(modules);
     let circular_dependencies = detect_circular_dependencies(&dependency_tree);
     if !circular_dependencies.is_empty() {
@@ -55,4 +53,10 @@ pub fn analyse_module_deps(modules: &Vec<WXModule>) {
             ERROR_CIRCULAR_DEPENDENCY,
         );
     }
+}
+
+/// Analyse the dependencies of a list of WebX modules.
+/// If a circular dependency is detected, an error is reported and the program exits.
+pub fn analyse_module_deps(modules: &Vec<WXModule>) {
+    analyse_circle_dependencies(modules);
 }

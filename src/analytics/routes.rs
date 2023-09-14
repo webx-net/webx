@@ -50,7 +50,7 @@ fn extract_duplicate_routes(routes: &FlatRoutes) -> Vec<String> {
         .collect()
 }
 
-pub fn analyse_module_routes(modules: &Vec<WXModule>) {
+fn analyse_duplicate_routes(modules: &Vec<WXModule>) {
     let routes = extract_flat_routes(modules);
     let duplicate_routes = extract_duplicate_routes(&routes);
     if !duplicate_routes.is_empty() {
@@ -64,7 +64,14 @@ pub fn analyse_module_routes(modules: &Vec<WXModule>) {
     }
 }
 
+fn analyse_invalid_routes(modules: &Vec<WXModule>) {
+}
+
+pub fn analyse_module_routes(modules: &Vec<WXModule>) {
+    analyse_duplicate_routes(modules);
+    analyse_invalid_routes(modules);
+}
+
 // Route verification, check for:
-//       - duplicate route (paths and methods)
 //       - invalid route combinations (e.g. GET + body)
 //       - return type for each route (HTML, JSON, or unknown)
