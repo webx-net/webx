@@ -64,14 +64,46 @@ fn analyse_duplicate_routes(modules: &Vec<WXModule>) {
     }
 }
 
+fn extract_invalid_routes(routes: &FlatRoutes) -> Vec<String> {
+    routes
+        .iter()
+        .filter(|((route, _), _)| {
+            match route.method {
+                WXRouteMethod::GET | WXRouteMethod::DELETE => route.body_format.is_some(),
+                WXRouteMethod::POST | WXRouteMethod::PUT => route.body_format.is_none(),
+                _ => false,
+            }
+        })
+        .map(|((route, path), _)| {
+            format!(
+                "Route {} {} specify a request body format but is not a POST or PUT endpoint",
+                route.method.to_string().green(),
+                path.to_string().yellow()
+            )
+        })
+        .collect()
+}
+
+/// Analyse the implementation of routes in a list of WebX modules.
+/// If an invalid route is detected, an error is reported and the program exits.
+/// Invalid routes include:
+/// - bad combinations of route methods and request body format types (e.g. GET + body)
 fn analyse_invalid_routes(modules: &Vec<WXModule>) {
+    let routes = extract_flat_routes(modules);
+    dbg!(&routes);
+    let invalid_routes = extract_invalid_routes(&routes);
+    if !invalid_routes.is_empty() {
+        exit_error(
+            format!(
+                "Invalid routes detected:\n  - {}",
+                invalid_routes.join("\n  - ")
+            ),
+            ERROR_DUPLICATE_ROUTE,
+        );
+    }
 }
 
 pub fn analyse_module_routes(modules: &Vec<WXModule>) {
     analyse_duplicate_routes(modules);
     analyse_invalid_routes(modules);
 }
-
-// Route verification, check for:
-//       - invalid route combinations (e.g. GET + body)
-//       - return type for each route (HTML, JSON, or unknown)
