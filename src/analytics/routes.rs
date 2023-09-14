@@ -1,17 +1,17 @@
 use colored::*;
 
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
-use crate::{file::webx::{WXModule, WXScope, WXUrlPath, WXROOT_PATH, WXRouteMethod, WXInfoField}, reporting::error::{exit_error, ERROR_DUPLICATE_ROUTE}};
+use crate::{file::webx::{WXModule, WXScope, WXUrlPath, WXROOT_PATH, WXRouteMethod, WXInfoField, WXRoute}, reporting::error::{exit_error, ERROR_DUPLICATE_ROUTE}};
 
-type FlatRoutes = HashMap<(WXRouteMethod, WXUrlPath), Vec<WXInfoField>>;
+type FlatRoutes = HashMap<(WXRoute, WXUrlPath), Vec<WXInfoField>>;
 
 fn extract_flat_routes(modules: &Vec<WXModule>) -> FlatRoutes {
     let mut routes = HashMap::new();
     fn flatten_scopes(module_name: String, scope: &WXScope, path_prefix: WXUrlPath, routes: &mut FlatRoutes) {
         for route in scope.routes.iter() {
             let flat_path = path_prefix.combine(&route.path);
-            let route_key = (route.method.clone(), flat_path);
+            let route_key = (route.clone(), flat_path);
             if routes.contains_key(&route_key) {
                 routes.get_mut(&route_key).unwrap().push(route.info.clone());
             } else {
@@ -33,7 +33,7 @@ fn extract_duplicate_routes(routes: &FlatRoutes) -> Vec<String> {
     routes
         .iter()
         .filter(|(_, modules)| modules.len() > 1)
-        .map(|((method, path), modules)| {
+        .map(|((route, path), modules)| {
             let locations = modules
                 .iter()
                 .map(|info|
@@ -42,7 +42,7 @@ fn extract_duplicate_routes(routes: &FlatRoutes) -> Vec<String> {
                 .collect::<Vec<_>>();
             format!(
                 "Route {} {} is defined in modules:\n    - {}",
-                method.to_string().green(),
+                route.method.to_string().green(),
                 path.to_string().yellow(),
                 locations.join("\n    - ")
             )

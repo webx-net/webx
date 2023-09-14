@@ -1,6 +1,6 @@
 use std::{
     fmt::{self, Formatter, Display, Debug},
-    path::PathBuf,
+    path::PathBuf, hash::{Hash, Hasher},
 };
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -23,14 +23,14 @@ impl fmt::Debug for WXTypedIdentifier {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WXUrlPathSegment {
     Literal(String),
     Parameter(WXTypedIdentifier),
     Regex(String),
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct WXUrlPath(pub Vec<WXUrlPathSegment>);
 
 impl Display for WXUrlPath {
@@ -60,6 +60,21 @@ impl Display for WXUrlPath {
 impl Debug for WXUrlPath {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+impl Hash for WXUrlPath {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for segment in self.0.iter() {
+            match segment {
+                WXUrlPathSegment::Literal(literal) => literal.hash(state),
+                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => {
+                    name.hash(state);
+                    type_.hash(state);
+                }
+                WXUrlPathSegment::Regex(regex) => regex.hash(state),
+            }
+        }
     }
 }
 
@@ -127,7 +142,7 @@ impl WXModulePath {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WXScope {
     pub path: WXUrlPath,
     /// The dependencies of the scope.
@@ -153,7 +168,7 @@ pub struct WXModel {
     pub fields: Vec<WXTypedIdentifier>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct WXHandler {
     /// The name of the handler.
     pub name: String,
@@ -192,6 +207,7 @@ impl Display for WXRouteMethod {
     }
 }
 
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub enum WXBodyType {
     TS,
     TSX,
@@ -207,6 +223,7 @@ impl ToString for WXBodyType {
     }
 }
 
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct WXBody {
     pub body_type: WXBodyType,
     pub body: String,
@@ -218,6 +235,7 @@ impl fmt::Debug for WXBody {
     }
 }
 
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub enum WXRouteReqBody {
     ModelReference(String),
     Definition(String, Vec<WXTypedIdentifier>),
@@ -241,6 +259,7 @@ impl fmt::Debug for WXRouteReqBody {
     }
 }
 
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct WXRouteHandler {
     pub name: String,
     pub args: Vec<String>,
@@ -257,7 +276,7 @@ impl fmt::Debug for WXRouteHandler {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WXRoute {
     pub info: WXInfoField,
     /// HTTP method of the route.
@@ -273,3 +292,18 @@ pub struct WXRoute {
     /// The post-handler functions of the route.
     pub post_handlers: Vec<WXRouteHandler>,
 }
+
+impl Hash for WXRoute {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.method.hash(state);
+        self.path.hash(state);
+    }
+}
+
+impl PartialEq for WXRoute {
+    fn eq(&self, other: &Self) -> bool {
+        self.method == other.method && self.path == other.path
+    }
+}
+
+impl Eq for WXRoute {}
