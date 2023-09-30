@@ -1,12 +1,11 @@
 // test
 
-post list/all/(data : Int)/data json(a: b, c : D) -> renderAllTodos(todos, test): out, hc() : u
+post list/all/(data : Int)/data json(a: T, b : U) -> renderAllTodos(todos, test): out, hc() : u
 
 post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
     const a = [5];
     if true { console.log(text); }
 } -> renderAllTodos(a, b, c)
-
 
 // This is an example WebX todo app project.
 global {
