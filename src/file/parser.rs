@@ -603,13 +603,13 @@ impl<'a> WebXFileParser<'a> {
     /// ```
     fn parse_route(&mut self, method: WXRouteMethod) -> Result<WXRoute, String> {
         Ok(WXRoute {
+            info: WXInfoField { path: WXModulePath::new(self.file.clone()), line: self.line },
             method,
             path: self.parse_url_path(),
             body_format: self.parse_body_format(),
             pre_handlers: self.parse_route_handlers(),
             body: self.parse_code_body(),
             post_handlers: self.parse_route_handlers(),
-            info: WXInfoField { path: WXModulePath::new(self.file.clone()), line: self.line },
         })
     }
 
