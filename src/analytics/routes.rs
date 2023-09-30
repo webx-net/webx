@@ -1,6 +1,6 @@
 use colored::*;
 
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{file::webx::{WXModule, WXScope, WXUrlPath, WXROOT_PATH, WXRouteMethod, WXInfoField, WXRoute}, reporting::error::{exit_error, ERROR_DUPLICATE_ROUTE, format_info_field}};
 
