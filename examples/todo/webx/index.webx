@@ -30,7 +30,7 @@ handler renderTodo(todo: Todo) (<li>
 </li>)
 
 handler renderAllTodos(todos: Todo) (
-    <ul class="test" onClick={authenticate}>{todos.map(renderTodo)}</ul>
+    <ul class="test">{todos.map(renderTodo)}</ul>
 )
 
 handler authenticate(user_id: Number) {
