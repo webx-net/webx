@@ -6,7 +6,6 @@ pub enum WXRuntimeMessage {
     NewModule(WXModule),
     SwapModule(PathBuf, WXModule),
     RemoveModule(PathBuf),
-    Info(String),
     Exit,
 }
 pub struct WXRuntime {
@@ -77,9 +76,6 @@ impl WXRuntime {
                 WXRuntimeMessage::RemoveModule(path) => {
                     info(self.mode, "Runtime received remove module");
                     self.modules.retain(|m| m.path.inner != path);
-                },
-                WXRuntimeMessage::Info(text) => {
-                    info(self.mode, &format!("Runtime received info: {}", text));
                 },
                 WXRuntimeMessage::Exit => {
                     info(self.mode, "Runtime received exit");
