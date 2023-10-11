@@ -1,6 +1,6 @@
 use std::{sync::mpsc::Receiver, path::PathBuf, net::{SocketAddr, TcpListener}, io::{Read, Write}};
 
-use crate::{file::webx::WXModule, runner::WXMode, reporting::debug::info};
+use crate::{file::webx::WXModule, runner::WXMode, reporting::{debug::info, warning::warning}};
 
 pub enum WXRuntimeMessage {
     NewModule(WXModule),
@@ -44,10 +44,13 @@ impl WXRuntime {
             if let Ok((mut stream, addr)) = listener.accept() /* Blocking */ {
                 info(self.mode, &format!("Runtime received request from {}", addr));
                 let mut buf = [0; 1024];
-                stream.read(&mut buf).unwrap();
-                let response = b"HTTP/1.1 200 OK\r\n\r\nHello, world!";
-                stream.write(response).unwrap();
-                stream.flush().unwrap();
+                if let Ok(_) = stream.read(&mut buf) {
+                    let response = b"HTTP/1.1 200 OK\r\n\r\nHello, world!";
+                    stream.write(response).unwrap();
+                    stream.flush().unwrap();
+                } else {
+                    warning(format!("Failed to read request from {}", addr));
+                }
             }
             // In case we are in dev mode, we don't want the TCP listener to block the thread.
             // Instead, we want to sleep for a short while and then check for new messages
