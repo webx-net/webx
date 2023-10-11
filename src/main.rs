@@ -1,6 +1,5 @@
 mod runner;
 mod engine;
-mod project;
 mod analytics;
 mod reporting;
 mod file;
@@ -77,7 +76,7 @@ fn main() {
             }
         };
         let override_existing = matches.contains_id("override");
-        project::create_new_project(name, &std::env::current_dir().unwrap(), override_existing);
+        file::project::create_new_project(name, &std::env::current_dir().unwrap(), override_existing);
     } else if let Some(matches) = matches.subcommand_matches("run") {
         let prod = matches.contains_id("prod");
         let dir = std::env::current_dir().unwrap();
