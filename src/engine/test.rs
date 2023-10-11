@@ -2,7 +2,7 @@
 mod tests {
     use std::path::Path;
 
-    use crate::engine::runner::run;
+    use crate::runner::run;
 
     #[test]
     fn test_example_todo() {
