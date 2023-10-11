@@ -1,23 +1,26 @@
 use std::{sync::mpsc::Receiver, path::PathBuf, net::{SocketAddr, TcpListener}, io::{Read, Write}};
 
-use crate::file::webx::WXModule;
+use crate::{file::webx::WXModule, runner::WXMode};
 
 pub enum WXRuntimeMessage {
     NewModule(WXModule),
     SwapModule(PathBuf, WXModule),
     RemoveModule(PathBuf),
-    Info(String)
+    Info(String),
+    Exit,
 }
 pub struct WXRuntime {
     modules: Vec<WXModule>,
     modules_rx: Receiver<WXRuntimeMessage>,
+    mode: WXMode,
 }
 
 impl WXRuntime {
-    pub fn new(rx: Receiver<WXRuntimeMessage>) -> Self {
+    pub fn new(rx: Receiver<WXRuntimeMessage>, mode: WXMode) -> Self {
         WXRuntime {
             modules: Vec::new(),
             modules_rx: rx,
+            mode
         }
     }
 
@@ -33,8 +36,10 @@ impl WXRuntime {
             SocketAddr::from(([127, 0, 0, 1], 443)),  // TODO: Only in prod mode
         ];
         let listener = TcpListener::bind(&addrs[..]).unwrap();
+        let manual_blocking = self.mode == WXMode::Dev;
+        listener.set_nonblocking(manual_blocking).unwrap();
         loop {
-            self.try_sync_modules();
+            if !self.sync_channel_messages() { break } // Exit if requested
             // Listen for requests
             if let Ok((mut stream, addr)) = listener.accept() /* Blocking */ {
                 println!("Runtime received request from {}", addr);
@@ -44,13 +49,17 @@ impl WXRuntime {
                 stream.write(response).unwrap();
                 stream.flush().unwrap();
             }
+            // In case we are in dev mode, we don't want the TCP listener to block the thread.
+            // Instead, we want to sleep for a short while and then check for new messages
+            // from the channel repeatedly in case we have received a new module hotswap.
+            if manual_blocking { std::thread::sleep(std::time::Duration::from_millis(100)); }
         }
     }
 
     /// Look for module updates from the given channel.
     /// This function is non-blocking.
     /// All queued updates are applied immediately.
-    fn try_sync_modules(&mut self) {
+    fn sync_channel_messages(&mut self) -> bool {
         while let Ok(msg) = self.modules_rx.try_recv() /* Non-blocking */ {
             match msg {
                 WXRuntimeMessage::NewModule(module) => {
@@ -68,9 +77,14 @@ impl WXRuntime {
                 },
                 WXRuntimeMessage::Info(text) => {
                     println!("Runtime received info: {}", text);
+                },
+                WXRuntimeMessage::Exit => {
+                    println!("Runtime received exit");
+                    return false;
                 }
             }
         }
+        true
     }
 }
         

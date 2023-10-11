@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::Relaxed;
 use std::sync::mpsc::Sender;
-use std::sync::{Mutex, Arc};
 use std::time::Instant;
 use chrono::offset::Local;
 use chrono::{self};
@@ -15,8 +16,25 @@ use crate::file::webx::WXModule;
 use crate::file::project::{load_modules, load_project_config};
 
 const PROJECT_CONFIG_FILE_NAME: &str = "webx.config.json";
+static EXIT_FLAG: AtomicBool = AtomicBool::new(false);
 
-fn print_start_info(modules: &Vec<WXModule>, prod: bool, start_duration: std::time::Duration) {
+#[derive(Debug, Clone, Copy)]
+pub enum WXMode {
+    Dev,
+    Prod,
+}
+
+impl PartialEq<WXMode> for WXMode {
+    fn eq(&self, other: &WXMode) -> bool {
+        match (self, other) {
+            (WXMode::Dev, WXMode::Dev) => true,
+            (WXMode::Prod, WXMode::Prod) => true,
+            _ => false
+        }
+    }
+}
+
+fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, start_duration: std::time::Duration) {
     let width = 30;
     println!("{}{} {}{} {}", "+".bright_black(), "-".repeat(3).bright_black(), "Web", "X".bright_blue(), "-".repeat(width - 6 - 3).bright_black());
     let prefix = "|".bright_black();
@@ -39,7 +57,7 @@ fn print_start_info(modules: &Vec<WXModule>, prod: bool, start_duration: std::ti
         "{} {}: {}",
         prefix,
         "Mode".bold(),
-        if prod { "production" } else { "development" }
+        if mode == WXMode::Prod { "production" } else { "development" }
     );
     // Build duration
     println!(
@@ -62,8 +80,8 @@ fn print_start_info(modules: &Vec<WXModule>, prod: bool, start_duration: std::ti
 /// 
 /// ## Arguments
 /// - `root` - The root path of the project.
-/// - `prod` - Whether to run in production mode. 
-pub fn run(root: &Path, prod: bool) {
+/// - `mode` - The mode to run in.
+pub fn run(root: &Path, mode: WXMode) {
     let time_start = Instant::now();
     let config_file = root.join(PROJECT_CONFIG_FILE_NAME);
     let config = load_project_config(&config_file);
@@ -71,23 +89,29 @@ pub fn run(root: &Path, prod: bool) {
     let webx_modules = load_modules(&source_root);
     analyse_module_deps(&webx_modules);
     analyse_module_routes(&webx_modules);
-    print_start_info(&webx_modules, prod, time_start.elapsed());
-    main_loop(&source_root, webx_modules);
+    print_start_info(&webx_modules, mode, time_start.elapsed());
+    main_loop(&source_root, webx_modules, mode);
 }
 
-fn main_loop(source_root: &PathBuf, init_modules: Vec<WXModule>) {
+fn main_loop(source_root: &PathBuf, init_modules: Vec<WXModule>, mode: WXMode) {
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     let source_root = source_root.clone();
-    let watch_hnd = std::thread::spawn(move || filewatcher(&source_root, rt_tx));
-    let mut runtime = WXRuntime::new(rt_rx);
+    let rt_tx_fw = rt_tx.clone();
+    let fw_hnd = std::thread::spawn(move || filewatcher(&source_root, rt_tx_fw));
+    let mut runtime = WXRuntime::new(rt_rx, mode);
     runtime.load_modules(init_modules);
     let runtime_hnd = std::thread::spawn(move || runtime.run());
+    // Handle Ctrl+C to exit gracefully
+    ctrlc::set_handler(move || {
+        println!("Received Ctrl+C, exiting...");
+        EXIT_FLAG.store(true, Relaxed);
+        rt_tx.send(WXRuntimeMessage::Exit).unwrap();
+    }).unwrap();
     // Check ps info: `ps | ? ProcessName -eq "webx"`
     runtime_hnd.join().unwrap();
     println!("Runtime thread exited");
-    watch_hnd.join().unwrap();
+    fw_hnd.join().unwrap();
     println!("Watcher thread exited");
-    // TODO: Handle Ctrl+C to exit gracefully
 }
 
 fn filewatcher(source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
@@ -128,8 +152,9 @@ fn filewatcher(source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
     watcher.watch(&source_root, notify::RecursiveMode::Recursive).unwrap();
     let mut c = 0;
     loop {
-        rt_tx_2.send(WXRuntimeMessage::Info(format!("Dummy text {}", c))).unwrap();
-        c += 1;
+        // rt_tx_2.send(WXRuntimeMessage::Info(format!("Dummy text {}", c))).unwrap();
+        // c += 1;
         std::thread::sleep(std::time::Duration::from_millis(3000));
+        if EXIT_FLAG.load(Relaxed) { break }
     }
 }

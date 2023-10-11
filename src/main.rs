@@ -7,6 +7,7 @@ mod file;
 use clap::{Arg, Command, ArgAction};
 use colored::*;
 use reporting::error::error;
+use runner::WXMode;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const NAME: &str = "webx";
@@ -78,9 +79,9 @@ fn main() {
         let override_existing = matches.contains_id("override");
         file::project::create_new_project(name, &std::env::current_dir().unwrap(), override_existing);
     } else if let Some(matches) = matches.subcommand_matches("run") {
-        let prod = matches.contains_id("prod");
+        let mode = if matches.contains_id("prod") { WXMode::Prod } else { WXMode::Dev };
         let dir = std::env::current_dir().unwrap();
-        runner::run(&dir, prod);
+        runner::run(&dir, mode);
     } else if let Some(_matches) = matches.subcommand_matches("test") {
         todo!("Test command not implemented.");
     } else {
