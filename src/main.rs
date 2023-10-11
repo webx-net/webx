@@ -1,3 +1,4 @@
+mod runner;
 mod engine;
 mod project;
 mod analytics;
@@ -80,7 +81,7 @@ fn main() {
     } else if let Some(matches) = matches.subcommand_matches("run") {
         let prod = matches.contains_id("prod");
         let dir = std::env::current_dir().unwrap();
-        engine::runner::run(&dir, prod);
+        runner::run(&dir, prod);
     } else if let Some(_matches) = matches.subcommand_matches("test") {
         todo!("Test command not implemented.");
     } else {
