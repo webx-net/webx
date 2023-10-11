@@ -58,3 +58,9 @@ pub fn exit_error_unexpected_char(what: char, context: &str, line: usize, column
 pub fn format_info_field(info: &WXInfoField) -> String {
     format!("{} line {}", info.path.module_name(), info.line).bright_black().to_string()
 }
+
+pub struct WXRuntimeError {
+    pub code: i32,
+    pub message: String,
+    pub info: Option<WXInfoField>,
+}
