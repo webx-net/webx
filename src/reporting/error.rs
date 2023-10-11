@@ -27,12 +27,12 @@ fn error_generic(message: String, error_name: &str) {
 }
 
 fn exit_error_generic(message: String, code: i32, error_name: &str) -> ! {
-    error_generic(message, format!("{} ({})", error_name, code_to_name(code)).as_str());
+    error_generic(message, format!("[{} ({})]", error_name, code_to_name(code)).as_str());
     std::process::exit(code);
 }
 
 pub fn error(message: String) {
-    error_generic(message, "Error");
+    error_generic(message, "[Error]");
 }
 
 pub fn exit_error(message: String, code: i32) -> ! {

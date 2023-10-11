@@ -1,6 +1,6 @@
 use std::{sync::mpsc::Receiver, path::PathBuf, net::{SocketAddr, TcpListener}, io::{Read, Write}};
 
-use crate::{file::webx::WXModule, runner::WXMode};
+use crate::{file::webx::WXModule, runner::WXMode, reporting::debug::info};
 
 pub enum WXRuntimeMessage {
     NewModule(WXModule),
@@ -29,7 +29,7 @@ impl WXRuntime {
     }
 
     pub fn run(&mut self) {
-        println!("Runtime started, waiting for module updates and HTTP requests");
+        info(self.mode, "Runtime started, waiting for module updates and HTTP requests");
         let addrs = [
             SocketAddr::from(([127, 0, 0, 1], 8080)), // TODO: Only in dev mode
             SocketAddr::from(([127, 0, 0, 1], 80)),   // TODO: Only in prod mode
@@ -42,7 +42,7 @@ impl WXRuntime {
             if !self.sync_channel_messages() { break } // Exit if requested
             // Listen for requests
             if let Ok((mut stream, addr)) = listener.accept() /* Blocking */ {
-                println!("Runtime received request from {}", addr);
+                info(self.mode, &format!("Runtime received request from {}", addr));
                 let mut buf = [0; 1024];
                 stream.read(&mut buf).unwrap();
                 let response = b"HTTP/1.1 200 OK\r\n\r\nHello, world!";
@@ -63,23 +63,23 @@ impl WXRuntime {
         while let Ok(msg) = self.modules_rx.try_recv() /* Non-blocking */ {
             match msg {
                 WXRuntimeMessage::NewModule(module) => {
-                    println!("Runtime received new module");
+                    info(self.mode, "Runtime received new module");
                     self.modules.push(module);
                 },
                 WXRuntimeMessage::SwapModule(path, module) => {
-                    println!("Runtime received swap module");
+                    info(self.mode, "Runtime received swap module");
                     self.modules.retain(|m| m.path.inner != path);
                     self.modules.push(module);
                 },
                 WXRuntimeMessage::RemoveModule(path) => {
-                    println!("Runtime received remove module");
+                    info(self.mode, "Runtime received remove module");
                     self.modules.retain(|m| m.path.inner != path);
                 },
                 WXRuntimeMessage::Info(text) => {
-                    println!("Runtime received info: {}", text);
+                    info(self.mode, &format!("Runtime received info: {}", text));
                 },
                 WXRuntimeMessage::Exit => {
-                    println!("Runtime received exit");
+                    info(self.mode, "Runtime received exit");
                     return false;
                 }
             }
