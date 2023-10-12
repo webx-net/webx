@@ -1,5 +1,3 @@
-// test
-
 post list/all/(data : Int)/data json(a: T, b : U) -> renderAllTodos(todos, test): out, hc() : u
 
 post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
