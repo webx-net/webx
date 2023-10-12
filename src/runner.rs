@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use chrono::offset::Local;
 use chrono::{self};
 use chrono::DateTime;
@@ -35,7 +35,7 @@ impl PartialEq<WXMode> for WXMode {
 }
 
 fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, start_duration: std::time::Duration) {
-    let width = 30;
+    let width = 40;
     println!("{}{} {}{} {}", "+".bright_black(), "-".repeat(3).bright_black(), "Web", "X".bright_blue(), "-".repeat(width - 6 - 3).bright_black());
     let prefix = "|".bright_black();
     // Modules
@@ -70,8 +70,6 @@ fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, start_duration: std::
     let now: DateTime<Local> = Local::now();
     let time = now.time().format("%H:%M");
     println!("{} {}: {:?} at {}", prefix, "Build".bold(), now.date_naive(), time);
-    // FS Watch
-    println!("{} Watching for file changes", prefix);
 
     println!("{}{}", "+".bright_black(), "-".repeat(width).bright_black());
 }
@@ -98,33 +96,87 @@ pub fn run(root: &Path, mode: WXMode) {
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     let mut runtime = WXRuntime::new(rt_rx, mode);
     runtime.load_modules(webx_modules);
-    register_filewatcher(&source_root, rt_tx);
-    let runtime_hnd = std::thread::spawn(move || runtime.run());
-    runtime_hnd.join().unwrap();
+    if mode == WXMode::Dev {
+        let fw_rt_tx = rt_tx.clone();
+        let fw_hnd = std::thread::spawn(move || run_filewatcher(mode, &source_root, fw_rt_tx));
+        let runtime_hnd = std::thread::spawn(move || runtime.run());
+        runtime_hnd.join().unwrap();
+        fw_hnd.join().unwrap();
+    } else {
+        // If we are in production mode, run in main thread.
+        runtime.run();
+    }
     // Check ps info: `ps | ? ProcessName -eq "webx"`
     // On interrupt, all threads are also terminated
 }
 
-fn register_filewatcher(source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
+struct FSWEvent {
+    pub kind: notify::EventKind,
+    pub path: WXModulePath,
+    pub timestamp: Instant,
+    is_empty_state: bool,
+}
+
+impl FSWEvent {
+    fn new(kind: notify::EventKind, path: &PathBuf) -> Self {
+        Self {
+            kind,
+            path: WXModulePath::new(path.clone()),
+            timestamp: Instant::now(),
+            is_empty_state: false
+        }
+    }
+
+    fn empty() -> Self {
+        Self {
+            kind: notify::EventKind::default(),
+            path: WXModulePath::new(PathBuf::default()),
+            timestamp: Instant::now(),
+            is_empty_state: true
+        }
+    }
+
+    fn is_duplicate(&self, earlier: &Self) -> bool {
+        if self.is_empty_state || earlier.is_empty_state { return false; }
+        const EPSILON: u128 = 100; // ms
+        self.path == earlier.path &&
+        self.timestamp.duration_since(earlier.timestamp).as_millis() < EPSILON
+    }
+}
+
+/// Registers the file watcher thread
+fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
+    let mut last_event: FSWEvent = FSWEvent::empty();
     let mut watcher = notify::recommended_watcher(move |res: Result<Event, Error>| {
         match res {
             Ok(event) => {
                 match event.kind {
                     notify::EventKind::Create(_) => {
-                        match parse_webx_file(&event.paths[0]) {
-                            Ok(module) => rt_tx.send(WXRuntimeMessage::NewModule(module)).unwrap(),
-                            Err(e) => warning(format!("watch error: {:?}", e))
+                        let event = FSWEvent::new(event.kind, &event.paths[0]);
+                        if !event.is_duplicate(&last_event) {
+                            match parse_webx_file(&event.path.inner) {
+                                Ok(module) => rt_tx.send(WXRuntimeMessage::NewModule(module)).unwrap(),
+                                Err(e) => warning(format!("(FileWatcher) Error: {:?}", e))
+                            }
                         }
+                        last_event = event; // Update last event
                     },
                     notify::EventKind::Modify(_) => {
-                        match parse_webx_file(&event.paths[0]) {
-                            Ok(module) => rt_tx.send(WXRuntimeMessage::SwapModule(WXModulePath::new(event.paths[0].clone()), module)).unwrap(),
-                            Err(e) => warning(format!("watch error: {:?}", e))
+                        let event = FSWEvent::new(event.kind, &event.paths[0]);
+                        if !event.is_duplicate(&last_event) {
+                            match parse_webx_file(&event.path.inner) {
+                                Ok(module) => rt_tx.send(WXRuntimeMessage::SwapModule(event.path.clone(), module)).unwrap(),
+                                Err(e) => warning(format!("(FileWatcher) Error: {:?}", e))
+                            }
                         }
+                        last_event = event; // Update last event
                     },
                     notify::EventKind::Remove(_) => {
-                        println!("remove");
-                        rt_tx.send(WXRuntimeMessage::RemoveModule(WXModulePath::new(event.paths[0].clone()))).unwrap();
+                        let event = FSWEvent::new(event.kind, &event.paths[0]);
+                        if !event.is_duplicate(&last_event) {
+                            rt_tx.send(WXRuntimeMessage::RemoveModule(event.path.clone())).unwrap();
+                        }
+                        last_event = event; // Update last event
                     },
                     _ => ()
                 }
@@ -133,4 +185,8 @@ fn register_filewatcher(source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) 
         }
     }).unwrap();
     watcher.watch(&source_root, notify::RecursiveMode::Recursive).unwrap();
+    info(mode, "Hot reloading is enabled.");
+    loop {
+        std::thread::sleep(Duration::from_millis(1000));
+    }
 }
