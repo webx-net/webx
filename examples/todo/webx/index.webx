@@ -1,9 +1,19 @@
-post list/all/(data : Int)/data json(a: T, b : U) -> renderAllTodos(todos, test): out, hc() : u
+
+get / (<html>
+    <body>
+        <h1>Hello from WebX!</h1>
+        <p>
+            This is an example index page.
+        </p>
+    </body>
+</html>)
 
 post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
     const a = [5];
     if true { console.log(text); }
 } -> renderAllTodos(a, b, c)
+
+post list/all/(data : Int)/data json(a: T, b : U) -> renderAllTodos(todos, test): out, hc() : u
 
 // This is an example WebX todo app project.
 global {
