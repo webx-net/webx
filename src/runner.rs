@@ -1,6 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering::Relaxed;
 use std::sync::mpsc::Sender;
 use std::time::Instant;
 use chrono::offset::Local;
@@ -10,15 +8,13 @@ use colored::Colorize;
 use notify::{self, Watcher, Error, Event};
 
 use crate::analytics::{dependencies::analyse_module_deps, routes::analyse_module_routes};
-use crate::reporting::debug::info;
 use crate::engine::runtime::{WXRuntime, WXRuntimeMessage};
 use crate::file::parser::parse_webx_file;
-use crate::file::webx::WXModule;
+use crate::file::webx::{WXModule, WXModulePath};
 use crate::file::project::{load_modules, load_project_config};
 use crate::reporting::warning::warning;
 
 const PROJECT_CONFIG_FILE_NAME: &str = "webx.config.json";
-static EXIT_FLAG: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy)]
 pub enum WXMode {
@@ -92,31 +88,17 @@ pub fn run(root: &Path, mode: WXMode) {
     analyse_module_deps(&webx_modules);
     analyse_module_routes(&webx_modules);
     print_start_info(&webx_modules, mode, time_start.elapsed());
-    main_loop(&source_root, webx_modules, mode);
-}
-
-fn main_loop(source_root: &PathBuf, init_modules: Vec<WXModule>, mode: WXMode) {
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
-    let source_root = source_root.clone();
-    let rt_tx_fw = rt_tx.clone();
-    let fw_hnd = std::thread::spawn(move || filewatcher(&source_root, rt_tx_fw));
     let mut runtime = WXRuntime::new(rt_rx, mode);
-    runtime.load_modules(init_modules);
+    runtime.load_modules(webx_modules);
+    register_filewatcher(&source_root, rt_tx);
     let runtime_hnd = std::thread::spawn(move || runtime.run());
-    // Handle Ctrl+C to exit gracefully
-    ctrlc::set_handler(move || {
-        info(mode, "Received Ctrl+C, exiting...");
-        EXIT_FLAG.store(true, Relaxed);
-        rt_tx.send(WXRuntimeMessage::Exit).unwrap();
-    }).unwrap();
-    // Check ps info: `ps | ? ProcessName -eq "webx"`
     runtime_hnd.join().unwrap();
-    info(mode, "Runtime thread exited");
-    fw_hnd.join().unwrap();
-    info(mode, "Watcher thread exited");
+    // Check ps info: `ps | ? ProcessName -eq "webx"`
+    // On interrupt, all threads are also terminated
 }
 
-fn filewatcher(source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
+fn register_filewatcher(source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
     let mut watcher = notify::recommended_watcher(move |res: Result<Event, Error>| {
         match res {
             Ok(event) => {
@@ -129,13 +111,13 @@ fn filewatcher(source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
                     },
                     notify::EventKind::Modify(_) => {
                         match parse_webx_file(&event.paths[0]) {
-                            Ok(module) => rt_tx.send(WXRuntimeMessage::SwapModule(event.paths[0].clone(), module)).unwrap(),
+                            Ok(module) => rt_tx.send(WXRuntimeMessage::SwapModule(WXModulePath::new(event.paths[0].clone()), module)).unwrap(),
                             Err(e) => warning(format!("watch error: {:?}", e))
                         }
                     },
                     notify::EventKind::Remove(_) => {
                         println!("remove");
-                        rt_tx.send(WXRuntimeMessage::RemoveModule(event.paths[0].clone())).unwrap();
+                        rt_tx.send(WXRuntimeMessage::RemoveModule(WXModulePath::new(event.paths[0].clone()))).unwrap();
                     },
                     _ => ()
                 }
@@ -144,8 +126,4 @@ fn filewatcher(source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
         }
     }).unwrap();
     watcher.watch(&source_root, notify::RecursiveMode::Recursive).unwrap();
-    loop {
-        std::thread::sleep(std::time::Duration::from_millis(3000));
-        if EXIT_FLAG.load(Relaxed) { break }
-    }
 }
