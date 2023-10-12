@@ -139,6 +139,7 @@ impl FSWEvent {
     fn is_duplicate(&self, earlier: &Self) -> bool {
         if self.is_empty_state || earlier.is_empty_state { return false; }
         const EPSILON: u128 = 100; // ms
+        self.kind == earlier.kind &&
         self.path == earlier.path &&
         self.timestamp.duration_since(earlier.timestamp).as_millis() < EPSILON
     }
