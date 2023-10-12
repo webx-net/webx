@@ -27,7 +27,7 @@ impl WXRuntime {
     }
 
     pub fn run(&mut self) {
-        info(self.mode, "Runtime started, waiting for module updates and HTTP requests");
+        info(self.mode, "WebX server is running!");
         let addrs = [
             SocketAddr::from(([127, 0, 0, 1], 8080)), // TODO: Only in dev mode
             SocketAddr::from(([127, 0, 0, 1], 80)),   // TODO: Only in prod mode
@@ -73,13 +73,13 @@ impl WXRuntime {
 
     fn listen_for_requests(&self, listener: &TcpListener) {
         if let Ok((mut stream, addr)) = listener.accept() {
-            info(self.mode, &format!("Runtime received request from {}", addr));
+            info(self.mode, &format!("(Runtime) Request: {}", addr));
             let mut buf = [0; 1024];
             if let Ok(_) = stream.read(&mut buf) {
                 let response = b"HTTP/1.1 200 OK\r\n\r\nHello, world!";
                 stream.write(response).unwrap();
                 stream.flush().unwrap();
-            } else { warning(format!("Failed to read request from {}", addr)); }
+            } else { warning(format!("(Runtime) Request read failure: {}", addr)); }
         }
     }
 }
