@@ -4,7 +4,7 @@ use crate::file::webx::WXInfoField;
 
 // Error codes:
 pub const ERROR_READ_WEBX_FILES: i32 = 1;
-pub const ERROR_READ_PROJECT_CONFIG: i32 = 2;
+pub const ERROR_PROJECT: i32 = 2;
 pub const ERROR_CIRCULAR_DEPENDENCY: i32 = 3;
 pub const ERROR_PARSE_IO: i32 = 4;
 pub const ERROR_SYNTAX: i32 = 5;
@@ -13,7 +13,7 @@ pub const ERROR_DUPLICATE_ROUTE: i32 = 6;
 pub fn code_to_name(code: i32) -> String {
     match code {
         ERROR_READ_WEBX_FILES => "READ_WEBX_FILES".to_owned(),
-        ERROR_READ_PROJECT_CONFIG => "READ_PROJECT_CONFIG".to_owned(),
+        ERROR_PROJECT => "PROJECT".to_owned(),
         ERROR_CIRCULAR_DEPENDENCY => "CIRCULAR_DEPENDENCY".to_owned(),
         ERROR_DUPLICATE_ROUTE => "DUPLICATE_ROUTE".to_owned(),
         ERROR_PARSE_IO => "PARSE_IO".to_owned(),
@@ -57,6 +57,15 @@ pub fn exit_error_unexpected_char(what: char, context: &str, line: usize, column
 
 pub fn format_info_field(info: &WXInfoField) -> String {
     format!("{} line {}", info.path.module_name(), info.line).bright_black().to_string()
+}
+
+pub fn exit_error_hint(message: &str, hints: &[&str], code: i32) -> ! {
+    if hints.len() == 0 { exit_error(message.into(), code); }
+    let hints = if hints.len() > 1 {
+        const HINT_SEP: &str = "\n - ";
+        format!("{}: {}{}", "Hints".bright_yellow(), HINT_SEP, hints.join(HINT_SEP))
+    } else { format!("{}: {}", "Hint".bright_yellow(),hints[0]) };
+    exit_error(format!("{}\n{}", message, hints), code)
 }
 
 pub struct WXRuntimeError {

@@ -12,6 +12,8 @@ use crate::engine::runtime::{WXRuntime, WXRuntimeMessage};
 use crate::file::parser::parse_webx_file;
 use crate::file::webx::{WXModule, WXModulePath};
 use crate::file::project::{load_modules, load_project_config};
+use crate::reporting::debug::info;
+use crate::reporting::error::{exit_error, ERROR_PROJECT, exit_error_hint};
 use crate::reporting::warning::warning;
 
 const PROJECT_CONFIG_FILE_NAME: &str = "webx.config.json";
@@ -82,7 +84,12 @@ fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, start_duration: std::
 pub fn run(root: &Path, mode: WXMode) {
     let time_start = Instant::now();
     let config_file = root.join(PROJECT_CONFIG_FILE_NAME);
-    let config = load_project_config(&config_file);
+    let config = if let Some(config) = load_project_config(&config_file) { config} else {
+        exit_error_hint("Failed to open WebX configuration.", &[
+            "Have you created a WebX project?",
+            "Are you in the project root directory?"
+        ], ERROR_PROJECT);
+    };
     let source_root = root.join(&config.src);
     let webx_modules = load_modules(&source_root);
     analyse_module_deps(&webx_modules);

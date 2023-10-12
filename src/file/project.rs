@@ -105,11 +105,11 @@ pub struct CacheConfig {
 ///
 /// ## Returns
 /// The project configuration.
-pub fn load_project_config(config_file: &PathBuf) -> ProjectConfig {
-    let txt = fs::read_to_string(config_file).expect("Failed to open project configuration.");
-    let config: ProjectConfig =
-        serde_json::from_str(&txt).expect("Failed to parse project configuration.");
-    config
+pub fn load_project_config(config_file: &PathBuf) -> Option<ProjectConfig> {
+    match fs::read_to_string(config_file) {
+        Ok(txt) => Some(serde_json::from_str::<ProjectConfig>(&txt).expect("Failed to parse project configuration.")),
+        Err(_) => None
+    }
 }
 
 /// Recursively find all `.webx` files in a given directory.
