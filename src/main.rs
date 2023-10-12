@@ -24,9 +24,10 @@ fn cli() -> Command {
             Command::new("run")
                 .about("Run the project web server")
                 .arg(
-                    Arg::new("prod")
+                    Arg::new("production")
                         .short('p')
                         .long("prod")
+                        .action(ArgAction::SetTrue)
                         .help("Run in production mode"),
                 ),
         )
@@ -51,6 +52,7 @@ fn cli() -> Command {
                     Arg::new("prod")
                         .short('p')
                         .long("prod")
+                        .action(ArgAction::SetTrue)
                         .help("Test in production mode"),
                 ),
         )
@@ -76,10 +78,10 @@ fn main() {
                 std::process::exit(1);
             }
         };
-        let override_existing = matches.contains_id("override");
+        let override_existing = matches.get_flag("override");
         file::project::create_new_project(name, &std::env::current_dir().unwrap(), override_existing);
     } else if let Some(matches) = matches.subcommand_matches("run") {
-        let mode = if matches.contains_id("prod") { WXMode::Prod } else { WXMode::Dev };
+        let mode = if matches.get_flag("production") { WXMode::Prod } else { WXMode::Dev };
         let dir = std::env::current_dir().unwrap();
         runner::run(&dir, mode);
     } else if let Some(_matches) = matches.subcommand_matches("test") {
