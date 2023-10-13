@@ -7,7 +7,7 @@ use chrono::DateTime;
 use colored::Colorize;
 use notify::{self, Watcher, Error, Event};
 
-use crate::analytics::{dependencies::analyse_module_deps, routes::analyse_module_routes};
+use crate::analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes};
 use crate::engine::runtime::{WXRuntime, WXRuntimeMessage};
 use crate::file::parser::parse_webx_file;
 use crate::file::webx::{WXModule, WXModulePath};

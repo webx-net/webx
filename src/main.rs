@@ -1,6 +1,6 @@
 mod runner;
 mod engine;
-mod analytics;
+mod analysis;
 mod reporting;
 mod file;
 
