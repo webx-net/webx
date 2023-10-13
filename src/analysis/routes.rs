@@ -6,7 +6,7 @@ use crate::{file::webx::{WXModule, WXScope, WXUrlPath, WXROOT_PATH, WXRouteMetho
 
 type FlatRoutes = HashMap<(WXRoute, WXUrlPath), Vec<WXInfoField>>;
 
-fn extract_flat_routes(modules: &Vec<WXModule>) -> FlatRoutes {
+pub fn extract_flat_routes(modules: &Vec<WXModule>) -> FlatRoutes {
     let mut routes = HashMap::new();
     fn flatten_scopes(module_name: String, scope: &WXScope, path_prefix: WXUrlPath, routes: &mut FlatRoutes) {
         for route in scope.routes.iter() {
