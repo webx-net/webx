@@ -71,14 +71,10 @@ Below is a high-level overview of the existing (implemented) and planned feature
     - [X] HTTP methods
     - [ ] Path parameters (URL/segments/)
     - [ ] Query parameters (?key=value)
+    - [ ] Request headers
     - [ ] Request Body parameters (POST/PUT/PATCH)
-    - [ ] Headers
-    - [ ] Status codes
-    - [ ] Cookies
-    - [ ] Sessions
-    - [ ] Caching
-    - [ ] Data serialization (JSON, XML, etc.)
-    - [ ] Data deserialization and validation
+    - [ ] Body serialization (JSON, XML, etc.)
+    - [ ] Body deserialization and validation
     - [ ] Return result destructuring (for handlers)
     - [ ] Dependency injection (between handlers)
 ```typescript
@@ -150,12 +146,27 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
 <details><summary>WebX Runtime</summary>
 
   - [ ] Web server
-    - [ ] HTTP/1.1
-    - [ ] HTTP/2
-    - [ ] HTTP/3
-    - [ ] HTTP/3 server push
-    - [ ] TLS/SSL/HTTPS
+    - [X] TCP/IP
+    - [X] HTTP Request parsing
+    - [X] HTTP Response serialization
+    - [X] HTTP Request routing
+    - [X] HTTP Request handling
+    - [ ] Protocols
+      - [ ] HTTP/1.1
+      - [ ] HTTP/2
+      - [ ] HTTP/3
+      - [ ] HTTP/3 server push
+      - [ ] TLS/SSL/HTTPS
     - [ ] Multiplexing
+    - [ ] Compression
+    - [ ] Status codes
+    - [ ] Cookies
+    - [ ] Caching
+    - [ ] Sessions
+    - [ ] Multi-threading
+    - [ ] Middleware
+    - [X] Logging
+    - [X] Error handling
   - [ ] Web framework
     - [ ] REST API
     - [ ] GraphQL API
