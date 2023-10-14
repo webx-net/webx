@@ -89,6 +89,13 @@ impl WXRuntime {
         }
     }
 
+    /// Load a list of modules into the runtime.
+    /// 
+    /// ## Note
+    /// This function will **not** recompile the route map.
+    /// To recompile the route map, either:
+    /// - start the runtime with the `run` function.
+    /// - trigger a module hotswap in `dev` mode.
     pub fn load_modules(&mut self, modules: Vec<WXModule>) {
         self.source_modules.extend(modules);
     }
@@ -110,6 +117,10 @@ impl WXRuntime {
         }
     }
 
+    /// Main runtime loop.
+    /// This function will run forever in a dedicated thread
+    /// and will handle all incoming requests and responses
+    /// until the program is terminated.
     pub fn run(&mut self) {
         self.recompile_routes(); // Ensure that we have a valid route map.
         dbg!(&self.routes); // TODO: Remove this line (debug only
@@ -160,12 +171,18 @@ impl WXRuntime {
         }
     }
 
+    /// Listen for incoming requests.
+    /// 
+    /// ## Blocking
+    /// This function is **non-blocking** and will return immediately depending on the
+    /// value of `listener.set_nonblocking` in the `run` function.
     fn listen_for_requests(&self, listener: &TcpListener) {
         let Ok((stream, addr)) = listener.accept() else { return };
         self.handle_request(stream, addr);
         // TODO: Add multi-threading pool
     }
 
+    /// Handle an incoming request.
     fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
         // let mut buf = [0; 1024];
         // if let Ok(_) = stream.read(&mut buf) {
@@ -177,15 +194,11 @@ impl WXRuntime {
         if let Some(request) = parse_request_tcp::<()>(&stream) {
             info(self.mode, &format!("(Runtime) Request from: {}\n{:#?}", stream.peer_addr().unwrap(), &request));
             let response = Response::builder().status(200).body("Hello, world!").unwrap();
-            self.send_response(&mut stream, &response);
+            stream.write(serialize_response(&response).as_bytes()).unwrap();
             info(self.mode, &format!("(Runtime) Response to: {}\n{:#?}", stream.peer_addr().unwrap(), &response));
         } else {
             warning(format!("(Runtime) Request read failure: {}", addr));
         }
-    }
-
-    fn send_response<D: Default + ToString>(&self, stream: &mut TcpStream, response: &Response<D>) {
-        stream.write(serialize_response(response).as_bytes()).unwrap();
     }
 }
         
