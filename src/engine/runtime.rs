@@ -1,6 +1,10 @@
-use std::{sync::mpsc::Receiver, net::{SocketAddr, TcpListener}, io::{Read, Write}, collections::HashMap};
+use std::{sync::mpsc::Receiver, net::{SocketAddr, TcpListener, TcpStream}, io::{Read, Write, BufReader, BufRead}, collections::HashMap};
+
+use http::{Response, response};
 
 use crate::{file::webx::{WXModule, WXModulePath, WXRouteMethod, WXUrlPath, WXBody, WXRoute, WXROUTE_METHODS}, runner::WXMode, reporting::{debug::info, warning::warning, error::{error_code, ERROR_DUPLICATE_ROUTE}}, analysis::routes::{extract_flat_routes, extract_duplicate_routes, analyse_duplicate_routes, verify_model_routes}};
+
+use super::http::{parse_request, parse_request_tcp, serialize_response};
 
 /// A runtime error.
 pub struct WXRuntimeError {
@@ -158,14 +162,31 @@ impl WXRuntime {
 
     fn listen_for_requests(&self, listener: &TcpListener) {
         if let Ok((mut stream, addr)) = listener.accept() {
-            let mut buf = [0; 1024];
-            if let Ok(_) = stream.read(&mut buf) {
-                info(self.mode, &format!("(Runtime) Request from: {}\n{}", addr, String::from_utf8_lossy(&buf)));
-                let response = b"HTTP/1.1 200 OK\r\n\r\nHello, world!";
-                stream.write(response).unwrap();
-                stream.flush().unwrap();
-            } else { warning(format!("(Runtime) Request read failure: {}", addr)); }
+            self.handle_request(stream, addr);
+            // TODO: Add multi-threading pool
         }
+    }
+
+    fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
+        // let mut buf = [0; 1024];
+        // if let Ok(_) = stream.read(&mut buf) {
+        //     info(self.mode, &format!("(Runtime) Request from: {}\n{}", addr, String::from_utf8_lossy(&buf)));
+        //     let response = b"HTTP/1.1 200 OK\r\n\r\nHello, world!";
+        //     stream.write(response).unwrap();
+        //     stream.flush().unwrap();
+        // } else { warning(format!("(Runtime) Request read failure: {}", addr)); }
+        if let Some(request) = parse_request_tcp::<()>(&stream) {
+            info(self.mode, &format!("(Runtime) Request from: {}\n{:#?}", stream.peer_addr().unwrap(), &request));
+            let response = Response::builder().status(200).body("Hello, world!").unwrap();
+            self.send_response(&mut stream, &response);
+            info(self.mode, &format!("(Runtime) Response to: {}\n{:#?}", stream.peer_addr().unwrap(), &response));
+        } else {
+            warning(format!("(Runtime) Request read failure: {}", addr));
+        }
+    }
+
+    fn send_response<D: Default + ToString>(&self, stream: &mut TcpStream, response: &Response<D>) {
+        stream.write(serialize_response(response).as_bytes()).unwrap();
     }
 }
         
