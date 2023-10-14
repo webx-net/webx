@@ -114,6 +114,9 @@ impl WXRuntime {
             Ok(routes) => self.routes = routes,
             Err(err) => error_code(format!("(Runtime) {}", err.message), err.code)
         }
+        if self.mode == WXMode::Dev {
+            dbg!(&self.routes); // TODO: Remove this line
+        }
     }
 
     /// Main runtime loop.
@@ -122,7 +125,6 @@ impl WXRuntime {
     /// until the program is terminated.
     pub fn run(&mut self) {
         self.recompile_routes(); // Ensure that we have a valid route map.
-        dbg!(&self.routes); // TODO: Remove this line (debug only
         info(self.mode, "WebX server is running!");
         let addrs = [
             SocketAddr::from(([127, 0, 0, 1], 8080)), // TODO: Only in dev mode
