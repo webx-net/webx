@@ -93,8 +93,13 @@ impl WXRouteMap {
     /// This is done in the `analyse_module_routes` function.
     fn resolve(&self, method: &Method, path: &str) -> Option<(&WXUrlPath, &WXRTRoute)> {
         let routes = self.0.get(method)?;
+        // Sort all routes by path length in descending order.
+        // This is required to ensure that the most specific routes are matched first.
+        let mut routes: Vec<(&WXUrlPath, &WXRTRoute)> = routes.iter().collect();
+        routes.sort_by(|(a, _), (b, _)| b.segments().cmp(&a.segments()));
         // Go through all routes and try to match the path.
-        for (route_path, route) in routes.iter() {
+        for (route_path, route) in routes {
+            dbg!("Checking", route_path, route, route_path.matches(path));
             if route_path.matches(path) { return Some((route_path, route)); }
         }
         None
