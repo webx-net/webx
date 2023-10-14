@@ -161,10 +161,9 @@ impl WXRuntime {
     }
 
     fn listen_for_requests(&self, listener: &TcpListener) {
-        if let Ok((mut stream, addr)) = listener.accept() {
-            self.handle_request(stream, addr);
-            // TODO: Add multi-threading pool
-        }
+        let Ok((stream, addr)) = listener.accept() else { return };
+        self.handle_request(stream, addr);
+        // TODO: Add multi-threading pool
     }
 
     fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
