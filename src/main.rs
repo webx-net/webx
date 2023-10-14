@@ -49,7 +49,7 @@ fn cli() -> Command {
             Command::new("test")
                 .about("Run the project tests (not implemented)")
                 .arg(
-                    Arg::new("prod")
+                    Arg::new("production")
                         .short('p')
                         .long("prod")
                         .action(ArgAction::SetTrue)
