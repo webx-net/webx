@@ -196,15 +196,17 @@ Create an issue or a pull request!
 Download the latest prebuilt binaries from the [releases page](https://github.com/WilliamRagstad/WebX/releases) and extract it to a folder of your choice.
 
 ### Usage
-To start the web server for a project, use:
+To start the development web server for a project, use:
 ```sh
 webx run
 ```
-
+This enable **hot reloading** 🔥, **extensive logging**, **safe real-time error reporting**, and other useful features.
+<br><br>
 To run the project in production mode, use:
 ```sh
 webx run --prod
 ```
+This enable **optimizations** 🚀 (*for speed and memory performance improvements*), **caching**, **compression**, and other useful features. It also *disables hot reloading and logging* to **not leak any sensitive information**.
 
 <br>
 
