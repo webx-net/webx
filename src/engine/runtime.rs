@@ -4,7 +4,7 @@ use http::{Response, response};
 
 use crate::{file::webx::{WXModule, WXModulePath, WXRouteMethod, WXUrlPath, WXBody, WXRoute, WXROUTE_METHODS}, runner::WXMode, reporting::{debug::info, warning::warning, error::{error_code, ERROR_DUPLICATE_ROUTE}}, analysis::routes::{extract_flat_routes, extract_duplicate_routes, analyse_duplicate_routes, verify_model_routes}};
 
-use super::http::{parse_request, parse_request_tcp, serialize_response};
+use super::http::{parse_request, parse_request_tcp, serialize_response, Responses::ok_html};
 
 /// A runtime error.
 pub struct WXRuntimeError {
@@ -186,7 +186,7 @@ impl WXRuntime {
     fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
         if let Some(request) = parse_request_tcp::<()>(&stream) {
             info(self.mode, &format!("(Runtime) Request from: {}\n{:#?}", stream.peer_addr().unwrap(), &request));
-            let response = Response::builder().status(200).body("Hello, world!").unwrap();
+            let response = ok_html("Hello, world!".into());
             stream.write(serialize_response(&response).as_bytes()).unwrap();
             info(self.mode, &format!("(Runtime) Response to: {}\n{:#?}", stream.peer_addr().unwrap(), &response));
         } else {
@@ -194,4 +194,3 @@ impl WXRuntime {
         }
     }
 }
-        

@@ -55,3 +55,21 @@ pub fn serialize_response<D: Default + ToString>(response: &Response<D>) -> Stri
     result.push_str(&response.body().to_string());
     result
 }
+
+pub mod Responses {
+    pub fn ok_html(body: String) -> http::Response<String> {
+        http::Response::builder()
+            .status(http::StatusCode::OK)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Content-Type", "text/html; charset=utf-8")
+            .header("Content-Length", body.len().to_string())
+            .header("Connection", "close")
+            .header("Server", "webx")
+            .header("Date", chrono::Utc::now().to_rfc2822())
+            .header("Cache-Control", "no-cache")
+            .header("Pragma", "no-cache")
+            .header("Expires", "0")
+            .body(body)
+            .unwrap()
+    }
+}
