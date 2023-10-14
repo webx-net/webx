@@ -1,10 +1,10 @@
-use std::{sync::mpsc::Receiver, net::{SocketAddr, TcpListener, TcpStream}, io::{Read, Write, BufReader, BufRead}, collections::HashMap};
+use std::{sync::mpsc::Receiver, net::{SocketAddr, TcpListener, TcpStream}, io::Write, collections::HashMap};
 
-use http::{Response, Method, response};
+use http::{Method, Response, request};
 
-use crate::{file::webx::{WXModule, WXModulePath, WXUrlPath, WXBody, WXRoute, WXROUTE_METHODS}, runner::WXMode, reporting::{debug::info, warning::warning, error::{error_code, ERROR_DUPLICATE_ROUTE}}, analysis::routes::{extract_flat_routes, extract_duplicate_routes, analyse_duplicate_routes, verify_model_routes}};
+use crate::{file::webx::{WXModule, WXModulePath, WXUrlPath, WXBody, WXRoute, WXBodyType}, runner::WXMode, reporting::{debug::info, warning::warning, error::error_code}, analysis::routes::verify_model_routes};
 
-use super::http::{parse_request, parse_request_tcp, serialize_response, Responses::ok_html};
+use super::http::{parse_request_tcp, serialize_response, Responses::{ok_html, self}};
 
 /// A runtime error.
 pub struct WXRuntimeError {
@@ -23,7 +23,30 @@ pub struct WXRTRoute {
 }
 
 impl WXRTRoute {
-
+    /// Execute the route and return a HTTP response.
+    /// 
+    /// ## Note
+    /// This function will **not** check if the route is valid.
+    fn execute(&self) -> Result<Response<String>, WXRuntimeError> {
+        if let Some(body) = &self.body {
+            Ok(match body.body_type {
+                WXBodyType::TS => {
+                    todo!("(Runtime) TS body type is not supported yet");
+                },
+                WXBodyType::TSX => {
+                    // Assume that the body is valid JSX without dynamic content.
+                    // That is, the body is a static HTML page or fragment.
+                    ok_html(body.body.clone())
+                },
+            })
+        } else {
+            // TODO: Add support for handlers as well.
+            Err(WXRuntimeError {
+                code: 500,
+                message: "Route body is empty".into()
+            })
+        }
+    }
 }
 
 type WXMethodMapInner = HashMap<WXUrlPath, WXRTRoute>;
@@ -60,6 +83,21 @@ impl WXRouteMap {
     fn compile_route(route: &WXRoute) -> Result<WXRTRoute, WXRuntimeError> {
         let body = route.body.clone();
         Ok(WXRTRoute { body })
+    }
+
+    /// Get a route from the route map.
+    /// This function will return `None` if the route does not exist.
+    /// 
+    /// ## Note
+    /// This function will **not** check for duplicate routes.
+    /// This is done in the `analyse_module_routes` function.
+    fn resolve(&self, method: &Method, path: &str) -> Option<(&WXUrlPath, &WXRTRoute)> {
+        let routes = self.0.get(method)?;
+        // Go through all routes and try to match the path.
+        for (route_path, route) in routes.iter() {
+            if route_path.matches(path) { return Some((route_path, route)); }
+        }
+        None
     }
 }
 
@@ -186,13 +224,26 @@ impl WXRuntime {
     /// Handle an incoming request.
     fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
         if let Some(request) = parse_request_tcp::<()>(&stream) {
-            info(self.mode, &format!("(Runtime) Request from: {}\n{:#?}", stream.peer_addr().unwrap(), &request));
+            info(self.mode, &format!("(Runtime) Request from: {}\n{:#?}", addr, &request));
             // Match the request to a route.
-
-            
-            let response = ok_html("Hello, world!".into());
-            stream.write(serialize_response(&response).as_bytes()).unwrap();
-            info(self.mode, &format!("(Runtime) Response to: {}\n{:#?}", stream.peer_addr().unwrap(), &response));
+            let url = request.uri().path();
+            if let Some((path, route)) = self.routes.resolve(request.method(), url) {
+                info(self.mode, &format!("(Runtime) Route: {} {}, matches '{}'", request.method(), path, url));
+                let response = match route.execute() {
+                    Ok(response) => response,
+                    Err(err) => {
+                        error_code(format!("(Runtime) {}", err.message), err.code);
+                        Responses::internal_server_error_default_webx(self.mode)
+                    }
+                };
+                stream.write(serialize_response(&response).as_bytes()).unwrap();
+                info(self.mode, &format!("(Runtime) Response to: {}\n{:#?}", addr, &response));
+                info(self.mode, &format!("(Runtime) Response body:\n{}", &response.body()));
+            } else {
+                warning(format!("(Runtime) Route not found: {}", url));
+                stream.write(serialize_response(&Responses::not_found_default_webx(self.mode)).as_bytes()).unwrap();
+            }
+            stream.flush().unwrap();
         } else {
             warning(format!("(Runtime) Request read failure: {}", addr));
         }
