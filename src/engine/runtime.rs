@@ -184,13 +184,6 @@ impl WXRuntime {
 
     /// Handle an incoming request.
     fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
-        // let mut buf = [0; 1024];
-        // if let Ok(_) = stream.read(&mut buf) {
-        //     info(self.mode, &format!("(Runtime) Request from: {}\n{}", addr, String::from_utf8_lossy(&buf)));
-        //     let response = b"HTTP/1.1 200 OK\r\n\r\nHello, world!";
-        //     stream.write(response).unwrap();
-        //     stream.flush().unwrap();
-        // } else { warning(format!("(Runtime) Request read failure: {}", addr)); }
         if let Some(request) = parse_request_tcp::<()>(&stream) {
             info(self.mode, &format!("(Runtime) Request from: {}\n{:#?}", stream.peer_addr().unwrap(), &request));
             let response = Response::builder().status(200).body("Hello, world!").unwrap();
