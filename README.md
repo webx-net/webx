@@ -152,7 +152,9 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
     - [X] HTTP Request routing
     - [X] HTTP Request handling
     - [ ] Protocols
-      - [ ] HTTP/1.1
+      - [X] HTTP/0.9
+      - [X] HTTP/1.0
+      - [X] HTTP/1.1
       - [ ] HTTP/2
       - [ ] HTTP/3
       - [ ] HTTP/3 server push
