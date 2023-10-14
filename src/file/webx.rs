@@ -191,6 +191,18 @@ pub enum WXRouteMethod {
     TRACE,
 }
 
+pub const WXROUTE_METHODS: [WXRouteMethod; 9] = [
+    WXRouteMethod::CONNECT,
+    WXRouteMethod::DELETE,
+    WXRouteMethod::GET,
+    WXRouteMethod::HEAD,
+    WXRouteMethod::OPTIONS,
+    WXRouteMethod::PATCH,
+    WXRouteMethod::POST,
+    WXRouteMethod::PUT,
+    WXRouteMethod::TRACE,
+];
+
 impl Display for WXRouteMethod {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {

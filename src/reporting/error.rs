@@ -9,6 +9,7 @@ pub const ERROR_CIRCULAR_DEPENDENCY: i32 = 3;
 pub const ERROR_PARSE_IO: i32 = 4;
 pub const ERROR_SYNTAX: i32 = 5;
 pub const ERROR_DUPLICATE_ROUTE: i32 = 6;
+pub const ERROR_INVALID_ROUTE: i32 = 7;
 
 pub fn code_to_name(code: i32) -> String {
     match code {
@@ -16,6 +17,7 @@ pub fn code_to_name(code: i32) -> String {
         ERROR_PROJECT => "PROJECT".to_owned(),
         ERROR_CIRCULAR_DEPENDENCY => "CIRCULAR_DEPENDENCY".to_owned(),
         ERROR_DUPLICATE_ROUTE => "DUPLICATE_ROUTE".to_owned(),
+        ERROR_INVALID_ROUTE => "INVALID_ROUTE".to_owned(),
         ERROR_PARSE_IO => "PARSE_IO".to_owned(),
         ERROR_SYNTAX => "SYNTAX".to_owned(),
         _ => format!("UNKNOWN {}", code),
@@ -26,8 +28,12 @@ fn error_generic(message: String, error_name: &str) {
     eprintln!("{}: {}", error_name.red(), message);
 }
 
-fn exit_error_generic(message: String, code: i32, error_name: &str) -> ! {
+fn error_generic_code(message: String, code: i32, error_name: &str) {
     error_generic(message, format!("[{} ({})]", error_name, code_to_name(code)).as_str());
+}
+
+fn exit_error_generic_code(message: String, code: i32, error_name: &str) -> ! {
+    error_generic_code(message, code, error_name);
     std::process::exit(code);
 }
 
@@ -35,8 +41,12 @@ pub fn error(message: String) {
     error_generic(message, "[Error]");
 }
 
+pub fn error_code(message: String, code: i32) {
+    error_generic_code(message, code, "Error");
+}
+
 pub fn exit_error(message: String, code: i32) -> ! {
-    exit_error_generic(message, code, "Error");
+    exit_error_generic_code(message, code, "Error");
 }
 
 pub fn exit_error_unexpected(what: String, context: &str, line: usize, column: usize, code: i32) -> ! {
@@ -66,10 +76,4 @@ pub fn exit_error_hint(message: &str, hints: &[&str], code: i32) -> ! {
         format!("{}: {}{}", "Hints".bright_yellow(), HINT_SEP, hints.join(HINT_SEP))
     } else { format!("{}: {}", "Hint".bright_yellow(),hints[0]) };
     exit_error(format!("{}\n{}", message, hints), code)
-}
-
-pub struct WXRuntimeError {
-    pub code: i32,
-    pub message: String,
-    pub info: Option<WXInfoField>,
 }

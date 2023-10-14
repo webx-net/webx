@@ -13,7 +13,7 @@ use crate::file::parser::parse_webx_file;
 use crate::file::webx::{WXModule, WXModulePath};
 use crate::file::project::{load_modules, load_project_config};
 use crate::reporting::debug::info;
-use crate::reporting::error::{exit_error, ERROR_PROJECT, exit_error_hint};
+use crate::reporting::error::{ERROR_PROJECT, exit_error_hint};
 use crate::reporting::warning::warning;
 
 const PROJECT_CONFIG_FILE_NAME: &str = "webx.config.json";
