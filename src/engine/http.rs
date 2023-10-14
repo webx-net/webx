@@ -57,9 +57,99 @@ pub fn serialize_response<D: Default + ToString>(response: &Response<D>) -> Stri
 }
 
 pub mod Responses {
+    use crate::runner::WXMode;
+
     pub fn ok_html(body: String) -> http::Response<String> {
         http::Response::builder()
             .status(http::StatusCode::OK)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Content-Type", "text/html; charset=utf-8")
+            .header("Content-Length", body.len().to_string())
+            .header("Connection", "close")
+            .header("Server", "webx")
+            .header("Date", chrono::Utc::now().to_rfc2822())
+            .header("Cache-Control", "no-cache")
+            .header("Pragma", "no-cache")
+            .header("Expires", "0")
+            .body(body)
+            .unwrap()
+    }
+
+    pub fn not_found_default_webx(mode: WXMode) -> http::Response<String> {
+        let body = match mode {
+            WXMode::Dev => format!(r#"
+                <html>
+                    <head>
+                        <title>404 Not Found</title>
+                    </head>
+                    <body>
+                        <h1>404 Not Found</h1>
+                        <p>The requested URL was not found on this server.</p>
+                        <hr>
+                        <address>webx/0.1.0 (Unix) (webx/{})</address>
+                    </body>
+                </html>
+            "#, env!("CARGO_PKG_VERSION")),
+            WXMode::Prod => format!(r#"
+                <html>
+                    <head>
+                        <title>404 Not Found</title>
+                    </head>
+                    <body>
+                        <h1>404 Not Found</h1>
+                        <p>The requested URL was not found on this server.</p>
+                        <hr>
+                        <address>webx/0.1.0 (Unix)</address>
+                    </body>
+                </html>
+            "#),
+        };
+        http::Response::builder()
+            .status(http::StatusCode::NOT_FOUND)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Content-Type", "text/html; charset=utf-8")
+            .header("Content-Length", body.len().to_string())
+            .header("Connection", "close")
+            .header("Server", "webx")
+            .header("Date", chrono::Utc::now().to_rfc2822())
+            .header("Cache-Control", "no-cache")
+            .header("Pragma", "no-cache")
+            .header("Expires", "0")
+            .body(body)
+            .unwrap()
+    }
+
+    pub fn internal_server_error_default_webx(mode: WXMode) -> http::Response<String> {
+        let body = match mode {
+            WXMode::Dev => format!(r#"
+                <html>
+                    <head>
+                        <title>500 Internal Server Error</title>
+                    </head>
+                    <body>
+                        <h1>500 Internal Server Error</h1>
+                        <p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>
+                        <hr>
+                        <address>webx/0.1.0 (Unix) (webx/{})</address>
+                    </body>
+                </html>
+            "#, env!("CARGO_PKG_VERSION")),
+            WXMode::Prod => format!(r#"
+                <html>
+                    <head>
+                        <title>500 Internal Server Error</title>
+                    </head>
+                    <body>
+                        <h1>500 Internal Server Error</h1>
+                        <p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>
+                        <hr>
+                        <address>webx/0.1.0 (Unix)</address>
+                    </body>
+                </html>
+            "#),
+        };
+        http::Response::builder()
+            .status(http::StatusCode::INTERNAL_SERVER_ERROR)
             .header("Access-Control-Allow-Origin", "*")
             .header("Content-Type", "text/html; charset=utf-8")
             .header("Content-Length", body.len().to_string())
