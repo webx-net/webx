@@ -84,6 +84,24 @@ impl WXUrlPath {
         path.extend(other.0.clone());
         WXUrlPath(path)
     }
+
+    pub fn matches(&self, url: &str) -> bool {
+        let mut url = url.split('/');
+        for segment in self.0.iter() {
+            match segment {
+                WXUrlPathSegment::Literal(literal) => {
+                    if url.next() != Some(literal) { return false; }
+                }
+                WXUrlPathSegment::Parameter(_) => {
+                    if url.next().is_none() { return false; }
+                }
+                WXUrlPathSegment::Regex(_) => { 
+                    if url.next().is_none() { return false; }
+                }
+            }
+        }
+        true
+    }
 }
 
 pub const WXROOT_PATH: WXUrlPath = WXUrlPath(vec![]);
