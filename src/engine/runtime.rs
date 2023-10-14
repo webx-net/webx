@@ -9,6 +9,7 @@ pub struct WXRuntimeError {
 }
 
 /// A runtime flat-route.
+#[derive(Debug)]
 pub struct WXRTRoute {
     // TODO: Add support for:
     // TODO: - handler functions
@@ -25,6 +26,7 @@ impl WXRTRoute {
 /// The key is the route path, and the value is the route.
 /// This map requires that **all routes are unique**.
 /// This is enforced by the `analyse_module_routes` function.
+#[derive(Debug)]
 pub struct WXRouteMap(HashMap<WXRouteMethod, HashMap<WXUrlPath, WXRTRoute>>);
 
 impl WXRouteMap {
@@ -106,6 +108,7 @@ impl WXRuntime {
 
     pub fn run(&mut self) {
         self.recompile_routes(); // Ensure that we have a valid route map.
+        dbg!(&self.routes); // TODO: Remove this line (debug only
         info(self.mode, "WebX server is running!");
         let addrs = [
             SocketAddr::from(([127, 0, 0, 1], 8080)), // TODO: Only in dev mode
