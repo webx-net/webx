@@ -178,46 +178,17 @@ pub struct WXHandler {
     pub body: WXBody,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub enum WXRouteMethod {
-    CONNECT,
-    DELETE,
-    GET,
-    HEAD,
-    OPTIONS,
-    PATCH,
-    POST,
-    PUT,
-    TRACE,
-}
-
-pub const WXROUTE_METHODS: [WXRouteMethod; 9] = [
-    WXRouteMethod::CONNECT,
-    WXRouteMethod::DELETE,
-    WXRouteMethod::GET,
-    WXRouteMethod::HEAD,
-    WXRouteMethod::OPTIONS,
-    WXRouteMethod::PATCH,
-    WXRouteMethod::POST,
-    WXRouteMethod::PUT,
-    WXRouteMethod::TRACE,
+pub const WXROUTE_METHODS: [http::Method; 9] = [
+    http::Method::CONNECT,
+    http::Method::DELETE,
+    http::Method::GET,
+    http::Method::HEAD,
+    http::Method::OPTIONS,
+    http::Method::PATCH,
+    http::Method::POST,
+    http::Method::PUT,
+    http::Method::TRACE,
 ];
-
-impl Display for WXRouteMethod {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            WXRouteMethod::CONNECT => write!(f, "CONNECT"),
-            WXRouteMethod::DELETE => write!(f, "DELETE"),
-            WXRouteMethod::GET => write!(f, "GET"),
-            WXRouteMethod::HEAD => write!(f, "HEAD"),
-            WXRouteMethod::OPTIONS => write!(f, "OPTIONS"),
-            WXRouteMethod::PATCH => write!(f, "PATCH"),
-            WXRouteMethod::POST => write!(f, "POST"),
-            WXRouteMethod::PUT => write!(f, "PUT"),
-            WXRouteMethod::TRACE => write!(f, "TRACE"),
-        }
-    }
-}
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub enum WXBodyType {
@@ -298,7 +269,7 @@ impl fmt::Debug for WXRouteHandler {
 pub struct WXRoute {
     pub info: WXInfoField,
     /// HTTP method of the route.
-    pub method: WXRouteMethod,
+    pub method: http::Method,
     /// The path of the route.
     pub path: WXUrlPath,
     /// Request body format.

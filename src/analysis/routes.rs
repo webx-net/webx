@@ -2,7 +2,7 @@ use colored::*;
 
 use std::collections::HashMap;
 
-use crate::{file::webx::{WXModule, WXScope, WXUrlPath, WXROOT_PATH, WXRouteMethod, WXInfoField, WXRoute}, reporting::error::{exit_error, ERROR_DUPLICATE_ROUTE, format_info_field, ERROR_INVALID_ROUTE}};
+use crate::{file::webx::{WXModule, WXScope, WXUrlPath, WXROOT_PATH, WXInfoField, WXRoute}, reporting::error::{exit_error, ERROR_DUPLICATE_ROUTE, format_info_field, ERROR_INVALID_ROUTE}};
 
 type FlatRoutes = HashMap<(WXRoute, WXUrlPath), Vec<WXInfoField>>;
 
@@ -66,8 +66,8 @@ fn extract_invalid_routes(routes: &FlatRoutes) -> Vec<String> {
         .iter()
         .filter(|((route, _), _)| {
             match route.method {
-                WXRouteMethod::GET | WXRouteMethod::DELETE => route.body_format.is_some(),
-                WXRouteMethod::POST | WXRouteMethod::PUT => route.body_format.is_none(),
+                http::Method::GET | http::Method::DELETE => route.body_format.is_some(),
+                http::Method::POST | http::Method::PUT => route.body_format.is_none(),
                 _ => false,
             }
         })

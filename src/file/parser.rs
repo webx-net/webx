@@ -11,7 +11,7 @@ use std::{
 };
 
 use super::webx::{
-    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteHandler, WXRouteMethod, WXRouteReqBody,
+    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteHandler, WXRouteReqBody,
     WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment, WXROOT_PATH, WXInfoField, WXModulePath,
 };
 
@@ -601,7 +601,7 @@ impl<'a> WebXFileParser<'a> {
     ///     // ...
     /// }
     /// ```
-    fn parse_route(&mut self, method: WXRouteMethod) -> Result<WXRoute, String> {
+    fn parse_route(&mut self, method: http::Method) -> Result<WXRoute, String> {
         Ok(WXRoute {
             info: WXInfoField { path: WXModulePath::new(self.file.clone()), line: self.line },
             method,
@@ -676,7 +676,7 @@ impl<'a> WebXFileParser<'a> {
                     }
                     'e' => {
                         self.expect_specific_str("head", 2, context);
-                        scope.routes.push(self.parse_route(WXRouteMethod::HEAD)?);
+                        scope.routes.push(self.parse_route(http::Method::HEAD)?);
                     }
                     c => exit_error_expected_any_of_but_found(
                         "handler or head".to_string(),
@@ -690,7 +690,7 @@ impl<'a> WebXFileParser<'a> {
                 'g' => match self.expect(context) {
                     'e' => {
                         self.expect_specific_str("get", 2, context);
-                        scope.routes.push(self.parse_route(WXRouteMethod::GET)?);
+                        scope.routes.push(self.parse_route(http::Method::GET)?);
                     }
                     'l' => {
                         self.expect_specific_str("global", 2, context);
@@ -710,15 +710,15 @@ impl<'a> WebXFileParser<'a> {
                 'p' => match self.expect(context) {
                     'o' => {
                         self.expect_specific_str("post", 2, context);
-                        scope.routes.push(self.parse_route(WXRouteMethod::POST)?);
+                        scope.routes.push(self.parse_route(http::Method::POST)?);
                     }
                     'u' => {
                         self.expect_specific_str("put", 2, context);
-                        scope.routes.push(self.parse_route(WXRouteMethod::PUT)?);
+                        scope.routes.push(self.parse_route(http::Method::PUT)?);
                     }
                     'a' => {
                         self.expect_specific_str("patch", 2, context);
-                        scope.routes.push(self.parse_route(WXRouteMethod::PATCH)?);
+                        scope.routes.push(self.parse_route(http::Method::PATCH)?);
                     }
                     c => exit_error_expected_any_of_but_found(
                         "post, put or patch".to_string(),
@@ -731,19 +731,19 @@ impl<'a> WebXFileParser<'a> {
                 },
                 'd' => {
                     self.expect_specific_str("delete", 1, context);
-                    scope.routes.push(self.parse_route(WXRouteMethod::DELETE)?);
+                    scope.routes.push(self.parse_route(http::Method::DELETE)?);
                 }
                 'c' => {
                     self.expect_specific_str("connect", 1, context);
-                    scope.routes.push(self.parse_route(WXRouteMethod::CONNECT)?);
+                    scope.routes.push(self.parse_route(http::Method::CONNECT)?);
                 }
                 'o' => {
                     self.expect_specific_str("options", 1, context);
-                    scope.routes.push(self.parse_route(WXRouteMethod::OPTIONS)?);
+                    scope.routes.push(self.parse_route(http::Method::OPTIONS)?);
                 }
                 't' => {
                     self.expect_specific_str("trace", 1, context);
-                    scope.routes.push(self.parse_route(WXRouteMethod::TRACE)?);
+                    scope.routes.push(self.parse_route(http::Method::TRACE)?);
                 }
                 _ => exit_error_unexpected_char(c, context, self.line, self.column, ERROR_SYNTAX),
             }

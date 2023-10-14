@@ -1,8 +1,8 @@
 use std::{sync::mpsc::Receiver, net::{SocketAddr, TcpListener, TcpStream}, io::{Read, Write, BufReader, BufRead}, collections::HashMap};
 
-use http::{Response, response};
+use http::{Response, Method, response};
 
-use crate::{file::webx::{WXModule, WXModulePath, WXRouteMethod, WXUrlPath, WXBody, WXRoute, WXROUTE_METHODS}, runner::WXMode, reporting::{debug::info, warning::warning, error::{error_code, ERROR_DUPLICATE_ROUTE}}, analysis::routes::{extract_flat_routes, extract_duplicate_routes, analyse_duplicate_routes, verify_model_routes}};
+use crate::{file::webx::{WXModule, WXModulePath, WXUrlPath, WXBody, WXRoute, WXROUTE_METHODS}, runner::WXMode, reporting::{debug::info, warning::warning, error::{error_code, ERROR_DUPLICATE_ROUTE}}, analysis::routes::{extract_flat_routes, extract_duplicate_routes, analyse_duplicate_routes, verify_model_routes}};
 
 use super::http::{parse_request, parse_request_tcp, serialize_response, Responses::ok_html};
 
@@ -31,7 +31,7 @@ impl WXRTRoute {
 /// This map requires that **all routes are unique**.
 /// This is enforced by the `analyse_module_routes` function.
 #[derive(Debug)]
-pub struct WXRouteMap(HashMap<WXRouteMethod, HashMap<WXUrlPath, WXRTRoute>>);
+pub struct WXRouteMap(HashMap<Method, HashMap<WXUrlPath, WXRTRoute>>);
 
 impl WXRouteMap {
     fn new() -> Self {
@@ -186,6 +186,9 @@ impl WXRuntime {
     fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
         if let Some(request) = parse_request_tcp::<()>(&stream) {
             info(self.mode, &format!("(Runtime) Request from: {}\n{:#?}", stream.peer_addr().unwrap(), &request));
+            // Match the request to a route.
+
+            
             let response = ok_html("Hello, world!".into());
             stream.write(serialize_response(&response).as_bytes()).unwrap();
             info(self.mode, &format!("(Runtime) Response to: {}\n{:#?}", stream.peer_addr().unwrap(), &response));
