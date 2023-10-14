@@ -19,11 +19,10 @@ Below is a high-level overview of the existing (implemented) and planned feature
 
 <details><summary>Batteries included 🔋</summary>
   
-- [ ] Static file serving
+- [X] Hot reloading 🔥
 - [ ] DDOS protection 🛡️
-- [ ] Hot reloading 🔥
-- [ ] Testing framework/suite
-- [ ] Package manager (NPM-like, for WebX handlers, modules, and drivers)
+- [ ] Static file serving 📁
+- [ ] Package manager 📦 *(`NPM`-like, for WebX handlers, modules, and drivers)*
 - [ ] Built-in modules and services (stdlib):
   - [ ] Database integration (PostgreSQL, MySQL, and SQLite drivers)
   - [ ] Authentication integration
@@ -48,7 +47,7 @@ Below is a high-level overview of the existing (implemented) and planned feature
     - [ ] Queries (CRUD operations)
   - [ ] Native SSR (HTML templating)
     - [ ] JSX support
-    - [ ] HyperScript support
+    - [ ] ~~HyperScript support~~
   - [ ] TypeScript support
     - [ ] WebAssembly AoT compilation
     - [ ] Unified type definitions (shared between client and server)
@@ -102,13 +101,13 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
       - Error handling
       - Logging
       - Caching
-  - [ ] Error handling
-    - [ ] Server errors
-    - [ ] Client errors
-    - [ ] Network errors
+  - [X] Error handling
+    - [X] Server errors
+    - [X] Client errors
+    - [X] Network errors
     - [ ] Database errors
     - [ ] External service errors
-    - [ ] Logging
+    - [X] Logging
 
 </details>
 <details><summary>WebX CLI tool</summary>
@@ -170,8 +169,8 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
     - [X] Logging
     - [X] Error handling
   - [ ] Web framework
-    - [ ] REST API
-    - [ ] GraphQL API
+    - [X] REST API
+    - [ ] ~~GraphQL API~~
     - [ ] Hypermedia API
     - [ ] WebSockets API
   - [ ] Database drivers
