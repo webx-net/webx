@@ -119,7 +119,7 @@ pub mod Responses {
             .unwrap()
     }
 
-    pub fn internal_server_error_default_webx(mode: WXMode) -> http::Response<String> {
+    pub fn internal_server_error_default_webx(mode: WXMode, message: String) -> http::Response<String> {
         let body = match mode {
             WXMode::Dev => format!(r#"
                 <html>
@@ -128,12 +128,22 @@ pub mod Responses {
                     </head>
                     <body>
                         <h1>500 Internal Server Error</h1>
-                        <p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>
+                        <p>
+                            The server encountered an internal error and was unable to complete your request. <br>
+                            Either the server is overloaded or there is an error in the application.
+                        </p>
+                        <h2>Debugging Information</h2>
+                        <p>
+                            <strong>Message:</strong>
+                            <pre>
+{}
+                            </pre>
+                        </p>
                         <hr>
-                        <address>webx/0.1.0 (Unix) (webx/{})</address>
+                        <address>webx/{} development mode</address>
                     </body>
                 </html>
-            "#, env!("CARGO_PKG_VERSION")),
+            "#, message, env!("CARGO_PKG_VERSION")),
             WXMode::Prod => format!(r#"
                 <html>
                     <head>
@@ -141,9 +151,12 @@ pub mod Responses {
                     </head>
                     <body>
                         <h1>500 Internal Server Error</h1>
-                        <p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>
+                        <p>
+                            The server encountered an internal error and was unable to complete your request. <br>
+                            Either the server is overloaded or there is an error in the application.
+                        </p>
                         <hr>
-                        <address>webx/0.1.0 (Unix)</address>
+                        <address>webx prouction mode</address>
                     </body>
                 </html>
             "#),

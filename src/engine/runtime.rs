@@ -233,7 +233,7 @@ impl WXRuntime {
                     Ok(response) => response,
                     Err(err) => {
                         error_code(format!("(Runtime) {}", err.message), err.code);
-                        Responses::internal_server_error_default_webx(self.mode)
+                        Responses::internal_server_error_default_webx(self.mode, err.message)
                     }
                 };
                 stream.write(serialize_response(&response).as_bytes()).unwrap();
