@@ -97,10 +97,7 @@ impl WXUrlPath {
         for segment in self.0.iter() {
             match segment {
                 WXUrlPathSegment::Literal(literal) => {
-                    let url_segment = url.next();
-                    if url_segment.is_none() || url_segment.unwrap() != literal {
-                        return false;
-                    }
+                    if url.next() != Some(literal) { return false; }
                 }
                 WXUrlPathSegment::Parameter(_) => {
                     if url.next().is_none() { return false; }
