@@ -85,12 +85,22 @@ impl WXUrlPath {
         WXUrlPath(path)
     }
 
+    pub fn segments(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn matches(&self, url: &str) -> bool {
         let mut url = url.split('/');
+        url.next(); // skip the first empty segment
+        // dbg!(url.clone().collect::<Vec<_>>());
+        // dbg!(&self.0);
         for segment in self.0.iter() {
             match segment {
                 WXUrlPathSegment::Literal(literal) => {
-                    if url.next() != Some(literal) { return false; }
+                    let url_segment = url.next();
+                    if url_segment.is_none() || url_segment.unwrap() != literal {
+                        return false;
+                    }
                 }
                 WXUrlPathSegment::Parameter(_) => {
                     if url.next().is_none() { return false; }
