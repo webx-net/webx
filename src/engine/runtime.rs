@@ -26,12 +26,15 @@ impl WXRTRoute {
 
 }
 
+type WXMethodMapInner = HashMap<WXUrlPath, WXRTRoute>;
+type WXRouteMapInner = HashMap<Method, WXMethodMapInner>;
+
 /// This is a map of all routes in the project.
 /// The key is the route path, and the value is the route.
 /// This map requires that **all routes are unique**.
 /// This is enforced by the `analyse_module_routes` function.
 #[derive(Debug)]
-pub struct WXRouteMap(HashMap<Method, HashMap<WXUrlPath, WXRTRoute>>);
+pub struct WXRouteMap(WXRouteMapInner);
 
 impl WXRouteMap {
     fn new() -> Self {
@@ -44,14 +47,10 @@ impl WXRouteMap {
         if let Err((message, code)) = routes {
             return Err(WXRuntimeError { code, message });
         }
-        let mut route_map = HashMap::new();
-        // Prepare the route map with empty method maps.
-        for method in WXROUTE_METHODS {
-            route_map.insert(method.clone(), HashMap::new());
-        }
+        let mut route_map: WXRouteMapInner = HashMap::new();
         // Insert all routes into each method map category.
         for ((route, path), _) in routes.unwrap().iter() {
-            let method_map = route_map.get_mut(&route.method).unwrap();
+            let method_map = route_map.entry(route.method.clone()).or_insert(HashMap::new());
             method_map.insert(path.clone(), Self::compile_route(route)?);
         }
         Ok(WXRouteMap(route_map))

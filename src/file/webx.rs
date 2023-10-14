@@ -178,18 +178,6 @@ pub struct WXHandler {
     pub body: WXBody,
 }
 
-pub const WXROUTE_METHODS: [http::Method; 9] = [
-    http::Method::CONNECT,
-    http::Method::DELETE,
-    http::Method::GET,
-    http::Method::HEAD,
-    http::Method::OPTIONS,
-    http::Method::PATCH,
-    http::Method::POST,
-    http::Method::PUT,
-    http::Method::TRACE,
-];
-
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub enum WXBodyType {
     TS,
