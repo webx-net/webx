@@ -7,8 +7,8 @@
 ![GitHub repo size](https://img.shields.io/github/repo-size/webx-net/webx) \
 ![GitHub commit activity (branch)](https://img.shields.io/github/commit-activity/w/webx-net/webx)
 ![GitHub contributors](https://img.shields.io/github/contributors/webx-net/webx)
+[![Discord](https://img.shields.io/discord/1163101679760179220?label=Discord)](https://discord.gg/WBYrWf6u7x)
 ![GitHub Sponsors](https://img.shields.io/github/sponsors/webx-net)
-
 
 
 
