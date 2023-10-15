@@ -7,7 +7,7 @@ mod file;
 use clap::{Arg, Command, ArgAction};
 use colored::*;
 use reporting::error::error;
-use runner::WXMode;
+use runner::{WXMode, DebugLevel};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const NAME: &str = "webx";
@@ -28,8 +28,13 @@ fn cli() -> Command {
                         .short('p')
                         .long("prod")
                         .action(ArgAction::SetTrue)
-                        .help("Run in production mode"),
-                ),
+                        .help("Run in production mode"))
+                .arg(
+                    Arg::new("level")
+                        .short('l')
+                        .long("level")
+                        .required(false)
+                        .help("Set the debug verbosity level [1-4], default: 2")),
         )
         .subcommand(
             Command::new("new")
@@ -66,6 +71,15 @@ fn cli() -> Command {
         .after_help(format!("{}", "For more information, visit: https://github.com/WilliamRagstad/webx.".bright_black()))
 }
 
+fn parse_debug_level(matches: &clap::ArgMatches) -> DebugLevel {
+    if let Some(value) = matches.get_one::<String>("level") {
+        if let Ok(level) = value.parse::<u8>() {
+            return DebugLevel::from_u8(level);
+        }
+    }
+    DebugLevel::Medium
+}
+
 fn main() {
     let matches = cli().get_matches();
 
@@ -79,9 +93,9 @@ fn main() {
             }
         };
         let override_existing = matches.get_flag("override");
-        file::project::create_new_project(name, &std::env::current_dir().unwrap(), override_existing);
+        file::project::create_new_project(WXMode::MAX, name, &std::env::current_dir().unwrap(), override_existing);
     } else if let Some(matches) = matches.subcommand_matches("run") {
-        let mode = if matches.get_flag("production") { WXMode::Prod } else { WXMode::Dev };
+        let mode = if matches.get_flag("production") { WXMode::Prod } else { WXMode::Dev(parse_debug_level(matches)) };
         let dir = std::env::current_dir().unwrap();
         runner::run(&dir, mode);
     } else if let Some(_matches) = matches.subcommand_matches("test") {
