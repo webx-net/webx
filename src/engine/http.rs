@@ -76,8 +76,7 @@ pub mod Responses {
     }
 
     pub fn not_found_default_webx(mode: WXMode) -> http::Response<String> {
-        let body = match mode {
-            WXMode::Dev => format!(r#"
+        let body = if mode.is_dev() { format!(r#"
                 <html>
                     <head>
                         <title>404 Not Found</title>
@@ -89,8 +88,7 @@ pub mod Responses {
                         <address>webx/0.1.0 (Unix) (webx/{})</address>
                     </body>
                 </html>
-            "#, env!("CARGO_PKG_VERSION")),
-            WXMode::Prod => format!(r#"
+            "#, env!("CARGO_PKG_VERSION")) } else { format!(r#"
                 <html>
                     <head>
                         <title>404 Not Found</title>
@@ -102,8 +100,7 @@ pub mod Responses {
                         <address>webx/0.1.0 (Unix)</address>
                     </body>
                 </html>
-            "#),
-        };
+            "#) };
         http::Response::builder()
             .status(http::StatusCode::NOT_FOUND)
             .header("Access-Control-Allow-Origin", "*")
@@ -120,8 +117,7 @@ pub mod Responses {
     }
 
     pub fn internal_server_error_default_webx(mode: WXMode, message: String) -> http::Response<String> {
-        let body = match mode {
-            WXMode::Dev => format!(r#"
+        let body = if mode.is_dev() { format!(r#"
                 <html>
                     <head>
                         <title>500 Internal Server Error</title>
@@ -143,8 +139,7 @@ pub mod Responses {
                         <address>webx/{} development mode</address>
                     </body>
                 </html>
-            "#, message, env!("CARGO_PKG_VERSION")),
-            WXMode::Prod => format!(r#"
+            "#, message, env!("CARGO_PKG_VERSION")) } else { format!(r#"
                 <html>
                     <head>
                         <title>500 Internal Server Error</title>
@@ -159,8 +154,7 @@ pub mod Responses {
                         <address>webx prouction mode</address>
                     </body>
                 </html>
-            "#),
-        };
+            "#) };
         http::Response::builder()
             .status(http::StatusCode::INTERNAL_SERVER_ERROR)
             .header("Access-Control-Allow-Origin", "*")

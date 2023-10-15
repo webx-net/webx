@@ -103,7 +103,7 @@ impl WXUrlPath {
     pub fn matches(&self, url: &Uri) -> WXPathResolution {
         let mut url = url.path().split('/').skip(1);
         let url_count = url.clone().count();
-        dbg!(url.clone().collect::<Vec<_>>(), url_count, self.segments());
+        // dbg!(url.clone().collect::<Vec<_>>(), url_count, self.segments());
         let mut bindings = WXPathBindings::new();
         if self.segments() == url_count {
             for (pattern, part) in self.0.iter().zip(url) {

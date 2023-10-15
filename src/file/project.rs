@@ -9,7 +9,7 @@ use crate::{
     reporting::{
         error::{exit_error, ERROR_READ_WEBX_FILES},
         warning::warning,
-    },
+    }, runner::WXMode,
 };
 
 /// The configuration for a WebX project.
@@ -199,14 +199,14 @@ pub fn load_modules(src: &Path) -> Vec<WXModule> {
 /// If a `webx.config.json` file already exists in the root directory,
 /// and `override_existing` is set to `false`, then a warning is printed and
 /// the function returns.
-pub fn create_new_project(name: String, root_dir: &PathBuf, override_existing: bool) {
+pub fn create_new_project(mode: WXMode, name: String, root_dir: &PathBuf, override_existing: bool) {
     let root_dir = root_dir.to_path_buf().join(&name);
     let config_file = root_dir.join("webx.config.json");
     let src_dir = root_dir.join("webx");
     let index_file = src_dir.join("index.webx");
 
     if config_file.exists() && !override_existing {
-        warning("A WebX project already exists in this directory.".into());
+        warning(mode, "A WebX project already exists in this directory.".into());
         return;
     }
 

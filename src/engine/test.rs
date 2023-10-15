@@ -2,11 +2,11 @@
 mod tests {
     use std::path::Path;
 
-    use crate::{runner::{WXMode, get_project_config_file_path}, file::project::{load_project_config, load_modules}, analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes}, engine::runtime::WXRuntime};
+    use crate::{runner::{WXMode, get_project_config_file_path, DebugLevel}, file::project::{load_project_config, load_modules}, analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes}, engine::runtime::WXRuntime};
 
     #[test]
     fn test_example_todo() {
-        let mode = WXMode::Dev;
+        let mode = WXMode::Dev(DebugLevel::Max);
         let root = &Path::new("examples/todo");
         let config = load_project_config(&get_project_config_file_path(root)).unwrap();
         let source_root = root.join(&config.src);

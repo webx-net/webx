@@ -11,7 +11,7 @@ use crate::{
     analysis::routes::verify_model_routes,
     file::webx::{WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXUrlPath, WXPathResolution, WXPathBindings},
     reporting::{debug::info, error::error_code, warning::warning},
-    runner::WXMode,
+    runner::{WXMode, DebugLevel},
 };
 
 use super::http::{
@@ -44,7 +44,7 @@ impl WXRTRoute {
         if let Some(body) = &self.body {
             Ok(match body.body_type {
                 WXBodyType::TS => {
-                    todo!("(Runtime) TS body type is not supported yet");
+                    todo!("TS body type is not supported yet");
                 }
                 WXBodyType::TSX => {
                     // Assume that the body is valid JSX without dynamic content.
@@ -115,7 +115,7 @@ impl WXRouteMap {
         // Go through all routes and try to match the path.
         let mut best_match = None;
         for (route_path, route) in routes {
-            dbg!("Checking", route_path, route, route_path.matches(path));
+            // dbg!("Checking", route_path, route, route_path.matches(path));
             match route_path.matches(path) {
                 WXPathResolution::None => continue,
                 WXPathResolution::Perfect(bindings) => {
@@ -180,9 +180,9 @@ impl WXRuntime {
     fn recompile_routes(&mut self) {
         match WXRouteMap::from_modules(&self.source_modules) {
             Ok(routes) => self.routes = routes,
-            Err(err) => error_code(format!("(Runtime) {}", err.message), err.code),
+            Err(err) => error_code(err.message, err.code),
         }
-        if self.mode == WXMode::Dev {
+        if self.mode.is_dev() && self.mode.debug_level().is_high() {
             // Print the route map in dev mode.
             info(self.mode, "Route map:");
             let routes: Vec<(&Method, &WXUrlPath)> = self
@@ -209,7 +209,7 @@ impl WXRuntime {
     pub fn run(&mut self) {
         self.recompile_routes(); // Ensure that we have a valid route map.
         info(self.mode, "WebX server is running!");
-        let ports = if self.mode == WXMode::Dev {
+        let ports = if self.mode.is_dev() {
             vec![8080]
         } else {
             vec![80, 443]
@@ -220,13 +220,13 @@ impl WXRuntime {
             .collect::<Vec<_>>();
         let listener = TcpListener::bind(&addrs[..]).unwrap();
         // Don't block if in dev mode, wait and read hotswap messages.
-        listener.set_nonblocking(self.mode == WXMode::Dev).unwrap();
+        listener.set_nonblocking(self.mode.is_dev()).unwrap();
         loop {
             self.listen_for_requests(&listener);
             // In dev mode, we don't want the TCP listener to block the thread.
             // Instead, we want to shortly sleep, then check for new messages
             // from the channel to enable module hotswapping.
-            if self.mode == WXMode::Dev {
+            if self.mode.is_dev() {
                 self.sync_channel_messages();
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
@@ -242,7 +242,7 @@ impl WXRuntime {
                 WXRuntimeMessage::NewModule(module) => {
                     info(
                         self.mode,
-                        &format!("(Runtime) New module: {}", module.path.module_name()),
+                        &format!("New module: {}", module.path.module_name()),
                     );
                     self.source_modules.push(module);
                     self.recompile_routes();
@@ -250,7 +250,7 @@ impl WXRuntime {
                 WXRuntimeMessage::SwapModule(path, module) => {
                     info(
                         self.mode,
-                        &format!("(Runtime) Reloaded module: {}", module.path.module_name()),
+                        &format!("Reloaded module: {}", module.path.module_name()),
                     );
                     self.source_modules.retain(|m| m.path != path);
                     self.source_modules.push(module);
@@ -259,7 +259,7 @@ impl WXRuntime {
                 WXRuntimeMessage::RemoveModule(path) => {
                     info(
                         self.mode,
-                        &format!("(Runtime) Removed module: {}", path.module_name()),
+                        &format!("Removed module: {}", path.module_name()),
                     );
                     self.source_modules.retain(|m| m.path != path);
                     self.recompile_routes();
@@ -282,16 +282,14 @@ impl WXRuntime {
     /// Handle an incoming request.
     fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
         if let Some(request) = parse_request_tcp::<()>(&stream) {
-            info(
-                self.mode,
-                &format!("(Runtime) Request from: {}\n{:#?}", addr, &request),
-            );
+            if self.mode.debug_level().is_max() { info(self.mode, &format!("Request from: {}\n{:#?}", addr, &request)); }
+            else if self.mode.debug_level().is_high() { info(self.mode, &format!("Request from: {}", addr)); }
             // Match the request to a route.
             if let Some((path, _bindings, route)) = self.routes.resolve(request.method(), request.uri()) {
                 info(
                     self.mode,
                     &format!(
-                        "(Runtime) Route: {} {}, matches '{}'",
+                        "Route: {} {}, matches '{}'",
                         request.method(),
                         path,
                         request.uri().path()
@@ -300,33 +298,32 @@ impl WXRuntime {
                 let response = match route.execute() {
                     Ok(response) => response,
                     Err(err) => {
-                        error_code(format!("(Runtime) {}", err.message), err.code);
+                        error_code(format!("{}", err.message), err.code);
                         Responses::internal_server_error_default_webx(self.mode, err.message)
                     }
                 };
                 stream
                     .write(serialize_response(&response).as_bytes())
                     .unwrap();
-                info(
-                    self.mode,
-                    &format!("(Runtime) Response to: {}\n{:#?}", addr, &response),
-                );
-                info(
-                    self.mode,
-                    &format!("(Runtime) Response body:\n{}", &response.body()),
-                );
+                if self.mode.debug_level().is_max() {
+                    info(self.mode, &format!("Response to: {}\n{:#?}", addr, &response));
+                    info(self.mode, &format!("Response body:\n{}", &response.body()));
+                } else if self.mode.debug_level().is_high() {
+                    info(self.mode, &format!("Response to: {}", addr));
+                }
             } else {
-                warning(format!("(Runtime) Route not found for: {}", request.uri().path()));
+                warning(self.mode, format!("No route match: {}", request.uri().path()));
                 stream
                     .write(
                         serialize_response(&Responses::not_found_default_webx(self.mode))
                             .as_bytes(),
                     )
                     .unwrap();
+                info(self.mode, &format!("Response to: {}", addr));
             }
             stream.flush().unwrap();
         } else {
-            warning(format!("(Runtime) Request read failure: {}", addr));
+            warning(self.mode, format!("Request read failure: {}", addr));
         }
     }
 }

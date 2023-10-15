@@ -20,16 +20,113 @@ pub fn get_project_config_file_path(root: &Path) -> PathBuf {
     root.join("webx.config.json")
 }
 
+/// Output verbosity level
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DebugLevel {
+    /// Low debug output (only errors)
+    Low = 1,
+    /// Medium debug output (errors and warnings)
+    Medium = 2,
+    /// High debug output (errors, warnings and info)
+    High = 3,
+    /// All debug output
+    Max = 4,
+}
+
+impl DebugLevel {
+    pub fn from_u8(level: u8) -> Self {
+        match level {
+            1 => Self::Low,
+            2 => Self::Medium,
+            3 => Self::High,
+            4 => Self::Max,
+            _ => Self::Low
+        }
+    }
+
+    pub fn to_u8(&self) -> u8 {
+        match self {
+            Self::Low => 1,
+            Self::Medium => 2,
+            Self::High => 3,
+            Self::Max => 4,
+        }
+    }
+
+    pub fn is_low(&self) -> bool {
+        match self {
+            Self::Low | Self::Medium | Self::High | Self::Max => true,
+            _ => false
+        }
+    }
+
+    pub fn is_medium(&self) -> bool {
+        match self {
+            Self::Medium | Self::High | Self::Max => true,
+            _ => false
+        }
+    }
+
+    pub fn is_high(&self) -> bool {
+        match self {
+            Self::High | Self::Max => true,
+            _ => false
+        }
+    }
+
+    pub fn is_max(&self) -> bool {
+        match self {
+            Self::Max => true,
+            _ => false
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Max => "max",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum WXMode {
-    Dev,
+    Dev(DebugLevel),
     Prod,
 }
 
+impl WXMode {
+    pub const MAX: WXMode = WXMode::Dev(DebugLevel::Max);
+
+    pub fn is_dev(&self) -> bool {
+        match self {
+            Self::Dev(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn debug_level(&self) -> DebugLevel {
+        match self {
+            Self::Dev(level) => *level,
+            _ => DebugLevel::Low
+        }
+    }
+
+    pub fn is_prod(&self) -> bool {
+        match self {
+            Self::Prod => true,
+            _ => false
+        }
+    }
+}
+
+//* Implement PartialEq for WXMode without taking DebugLevel into account
 impl PartialEq<WXMode> for WXMode {
     fn eq(&self, other: &WXMode) -> bool {
         match (self, other) {
-            (WXMode::Dev, WXMode::Dev) => true,
+            (WXMode::Dev(_), WXMode::Dev(_)) => true,
             (WXMode::Prod, WXMode::Prod) => true,
             _ => false
         }
@@ -37,7 +134,7 @@ impl PartialEq<WXMode> for WXMode {
 }
 
 fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, start_duration: std::time::Duration) {
-    let width = 40;
+    let width = 28;
     println!("{}{} {}{} {}", "+".bright_black(), "-".repeat(3).bright_black(), "Web", "X".bright_blue(), "-".repeat(width - 6 - 3).bright_black());
     let prefix = "|".bright_black();
     // Modules
@@ -59,8 +156,17 @@ fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, start_duration: std::
         "{} {}: {}",
         prefix,
         "Mode".bold(),
-        if mode == WXMode::Prod { "production" } else { "development" }
+        if mode.is_prod() { "production" } else { "development" }
     );
+    // Debug level
+    if mode.is_dev() {
+        println!(
+            "{} {}: {}",
+            prefix,
+            "Debug".bold(),
+            mode.debug_level().name()
+        );
+    }
     // Build duration
     println!(
         "{} {}: {:?}",
@@ -98,7 +204,7 @@ pub fn run(root: &Path, mode: WXMode) {
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     let mut runtime = WXRuntime::new(rt_rx, mode);
     runtime.load_modules(webx_modules);
-    if mode == WXMode::Dev {
+    if mode.is_dev() {
         let fw_rt_tx = rt_tx.clone();
         let fw_hnd = std::thread::spawn(move || run_filewatcher(mode, &source_root, fw_rt_tx));
         let runtime_hnd = std::thread::spawn(move || runtime.run());
@@ -159,7 +265,7 @@ fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeM
                         if !event.is_duplicate(&last_event) {
                             match parse_webx_file(&event.path.inner) {
                                 Ok(module) => rt_tx.send(WXRuntimeMessage::NewModule(module)).unwrap(),
-                                Err(e) => warning(format!("(FileWatcher) Error: {:?}", e))
+                                Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e))
                             }
                         }
                         last_event = event; // Update last event
@@ -169,7 +275,7 @@ fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeM
                         if !event.is_duplicate(&last_event) {
                             match parse_webx_file(&event.path.inner) {
                                 Ok(module) => rt_tx.send(WXRuntimeMessage::SwapModule(event.path.clone(), module)).unwrap(),
-                                Err(e) => warning(format!("(FileWatcher) Error: {:?}", e))
+                                Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e))
                             }
                         }
                         last_event = event; // Update last event
@@ -184,7 +290,7 @@ fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeM
                     _ => ()
                 }
             },
-            Err(e) => warning(format!("watch error: {:?}", e))
+            Err(e) => warning(mode, format!("watch error: {:?}", e))
         }
     }).unwrap();
     watcher.watch(&source_root, notify::RecursiveMode::Recursive).unwrap();

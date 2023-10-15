@@ -1,6 +1,6 @@
 use colored::*;
 
-use crate::file::webx::WXInfoField;
+use crate::{file::webx::WXInfoField, runner::WXMode};
 
 // Error codes:
 pub const ERROR_READ_WEBX_FILES: i32 = 1;
