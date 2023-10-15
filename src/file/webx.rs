@@ -3,6 +3,8 @@ use std::{
     path::PathBuf, hash::{Hash, Hasher},
 };
 
+use http::Uri;
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct WXInfoField {
     pub path: WXModulePath,
@@ -27,7 +29,7 @@ impl fmt::Debug for WXTypedIdentifier {
 pub enum WXUrlPathSegment {
     Literal(String),
     Parameter(WXTypedIdentifier),
-    Regex(String),
+    Regex(String, String), // Name, Regex
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -43,7 +45,7 @@ impl Display for WXUrlPath {
                 WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => {
                     format!("({}: {})", name, type_)
                 }
-                WXUrlPathSegment::Regex(regex) => format!("({})", regex),
+                WXUrlPathSegment::Regex(_, regex) => format!("({})", regex),
             })
             .collect::<Vec<_>>();
         write!(f, "/")?;
@@ -72,10 +74,19 @@ impl Hash for WXUrlPath {
                     name.hash(state);
                     type_.hash(state);
                 }
-                WXUrlPathSegment::Regex(regex) => regex.hash(state),
+                WXUrlPathSegment::Regex(regex_name, regex) => format!("{}{}", regex_name, regex).hash(state),
             }
         }
     }
+}
+
+pub type WXPathBindings = Vec<(String, String)>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WXPathResolution {
+    None,
+    Perfect(WXPathBindings),
+    Partial(WXPathBindings),
 }
 
 impl WXUrlPath {
@@ -89,25 +100,77 @@ impl WXUrlPath {
         self.0.len()
     }
 
-    pub fn matches(&self, url: &str) -> bool {
-        let mut url = url.split('/');
-        url.next(); // skip the first empty segment
-        // dbg!(url.clone().collect::<Vec<_>>());
-        // dbg!(&self.0);
-        for segment in self.0.iter() {
-            match segment {
-                WXUrlPathSegment::Literal(literal) => {
-                    if url.next() != Some(literal) { return false; }
-                }
-                WXUrlPathSegment::Parameter(_) => {
-                    if url.next().is_none() { return false; }
-                }
-                WXUrlPathSegment::Regex(_) => { 
-                    if url.next().is_none() { return false; }
+    pub fn matches(&self, url: &Uri) -> WXPathResolution {
+        let mut url = url.path().split('/').skip(1);
+        let url_count = url.clone().count();
+        dbg!(url.clone().collect::<Vec<_>>(), url_count, self.segments());
+        let mut bindings = WXPathBindings::new();
+        if self.segments() == url_count {
+            for (pattern, part) in self.0.iter().zip(url) {
+                match pattern {
+                    WXUrlPathSegment::Literal(literal) => {
+                        if literal.as_str() != part { return WXPathResolution::None; }
+                    }
+                    WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => {
+                        // TODO: Check type.
+                        bindings.push((name.clone(), part.to_string()));
+                    }
+                    WXUrlPathSegment::Regex(regex_name, regex) => {
+                        if regex::Regex::new(regex).unwrap().is_match(part) {
+                            bindings.push((regex_name.clone(), part.to_string()));
+                        } else {
+                            return WXPathResolution::None;
+                        }
+                    }
                 }
             }
+            return WXPathResolution::Perfect(bindings);
+        } else {
+            if self.segments() < url_count { return WXPathResolution::None; }
+            // self.segments() > url_count
+            // This could be a partial match in case some regex is allowed to be empty.
+            for segment in self.0.iter() {
+                match segment {
+                    WXUrlPathSegment::Literal(literal) => {
+                        if let Some(part) = url.next() {
+                            if part != literal.as_str() {
+                                return WXPathResolution::None;
+                            }
+                        } else {
+                            return WXPathResolution::None;
+                        }
+                    }
+                    WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => {
+                        if let Some(part) = url.next() {
+                            // TODO: Check type.
+                            bindings.push((name.clone(), part.to_string()));
+                        } else {
+                            return WXPathResolution::None;
+                        }
+                    }
+                    WXUrlPathSegment::Regex(regex_name, regex) => {
+                        if let Some(part) = url.next() {
+                            if regex::Regex::new(regex).unwrap().is_match(part) {
+                                bindings.push((regex_name.clone(), part.to_string()));
+                            } else {
+                                return WXPathResolution::None;
+                            }
+                        } else {
+                            if regex::Regex::new(regex).unwrap().is_match("") {
+                                bindings.push((regex_name.clone(), "".to_string()));
+                            } else {
+                                return WXPathResolution::None;
+                            }
+                        }
+                    }
+                }
+            }
+            // Check if there are any remaining segments in the url.
+            if let Some(_) = url.next() {
+                return WXPathResolution::None;
+            }
+            return WXPathResolution::Partial(bindings);
         }
-        true
     }
 }
 

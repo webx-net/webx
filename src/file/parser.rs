@@ -477,20 +477,29 @@ impl<'a> WebXFileParser<'a> {
     /// /path/to/(arg: string)?/*
     /// ```
     fn parse_url_path(&mut self) -> WXUrlPath {
-        let context = "parsing a endpoint URL path";
+        let context = "parsing an endpoint URL path";
         let mut segments: Vec<WXUrlPathSegment> = vec![];
         self.skip_whitespace(true);
+        let mut regex_counter = 0;
         loop {
             match self.expect(context) {
                 '(' => {
                     segments.push(WXUrlPathSegment::Parameter(self.parse_type_pair()));
                     self.expect_next_specific(')', context);
                 }
-                '*' => segments.push(WXUrlPathSegment::Regex("*".to_string())),
+                '*' => {
+                    segments.push(WXUrlPathSegment::Regex(format!("g{}", regex_counter), "*".to_string()));
+                    regex_counter += 1;
+                },
                 '/' => {
                     let nc = self.peek();
-                    if nc.is_some() && char::is_alphanumeric(nc.unwrap()) {
-                        segments.push(WXUrlPathSegment::Literal(self.parse_identifier()));
+                    if let Some(nc) = nc {
+                        if nc.is_alphanumeric() {
+                            segments.push(WXUrlPathSegment::Literal(self.parse_identifier()));
+                        } else if nc.is_whitespace() && segments.len() == 0 {
+                            // Allow root path to be empty. E.g. `get / ... `.
+                            segments.push(WXUrlPathSegment::Literal("".to_string()));
+                        }
                     }
                 }
                 c if c.is_alphabetic() => {

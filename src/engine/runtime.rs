@@ -5,11 +5,11 @@ use std::{
     sync::mpsc::Receiver,
 };
 
-use http::{request, Method, Response};
+use http::{request, Method, Response, Uri};
 
 use crate::{
     analysis::routes::verify_model_routes,
-    file::webx::{WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXUrlPath},
+    file::webx::{WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXUrlPath, WXPathResolution, WXPathBindings},
     reporting::{debug::info, error::error_code, warning::warning},
     runner::WXMode,
 };
@@ -106,20 +106,28 @@ impl WXRouteMap {
     /// ## Note
     /// This function will **not** check for duplicate routes.
     /// This is done in the `analyse_module_routes` function.
-    fn resolve(&self, method: &Method, path: &str) -> Option<(&WXUrlPath, &WXRTRoute)> {
+    fn resolve(&self, method: &Method, path: &Uri) -> Option<(&WXUrlPath, WXPathBindings, &WXRTRoute)> {
         let routes = self.0.get(method)?;
         // Sort all routes by path length in descending order.
         // This is required to ensure that the most specific routes are matched first.
         let mut routes: Vec<(&WXUrlPath, &WXRTRoute)> = routes.iter().collect();
         routes.sort_by(|(a, _), (b, _)| b.segments().cmp(&a.segments()));
         // Go through all routes and try to match the path.
+        let mut best_match = None;
         for (route_path, route) in routes {
             dbg!("Checking", route_path, route, route_path.matches(path));
-            if route_path.matches(path) {
-                return Some((route_path, route));
+            match route_path.matches(path) {
+                WXPathResolution::None => continue,
+                WXPathResolution::Perfect(bindings) => {
+                    best_match = Some((route_path, bindings, route));
+                    break;
+                },
+                WXPathResolution::Partial(bindings) => {
+                    best_match = Some((route_path, bindings, route));
+                },
             }
         }
-        None
+        best_match
     }
 }
 
@@ -279,15 +287,14 @@ impl WXRuntime {
                 &format!("(Runtime) Request from: {}\n{:#?}", addr, &request),
             );
             // Match the request to a route.
-            let url = request.uri().path();
-            if let Some((path, route)) = self.routes.resolve(request.method(), url) {
+            if let Some((path, _bindings, route)) = self.routes.resolve(request.method(), request.uri()) {
                 info(
                     self.mode,
                     &format!(
                         "(Runtime) Route: {} {}, matches '{}'",
                         request.method(),
                         path,
-                        url
+                        request.uri().path()
                     ),
                 );
                 let response = match route.execute() {
@@ -309,7 +316,7 @@ impl WXRuntime {
                     &format!("(Runtime) Response body:\n{}", &response.body()),
                 );
             } else {
-                warning(format!("(Runtime) Route not found: {}", url));
+                warning(format!("(Runtime) Route not found for: {}", request.uri().path()));
                 stream
                     .write(
                         serialize_response(&Responses::not_found_default_webx(self.mode))
