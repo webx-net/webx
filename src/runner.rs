@@ -16,7 +16,9 @@ use crate::reporting::debug::info;
 use crate::reporting::error::{ERROR_PROJECT, exit_error_hint};
 use crate::reporting::warning::warning;
 
-const PROJECT_CONFIG_FILE_NAME: &str = "webx.config.json";
+pub fn get_project_config_file_path(root: &Path) -> PathBuf {
+    root.join("webx.config.json")
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum WXMode {
@@ -81,7 +83,7 @@ fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, start_duration: std::
 /// - `mode` - The mode to run in.
 pub fn run(root: &Path, mode: WXMode) {
     let time_start = Instant::now();
-    let config_file = root.join(PROJECT_CONFIG_FILE_NAME);
+    let config_file = get_project_config_file_path(root);
     let config = if let Some(config) = load_project_config(&config_file) { config} else {
         exit_error_hint("Failed to open WebX configuration.", &[
             "Have you created a WebX project?",
