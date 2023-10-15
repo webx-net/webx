@@ -2,6 +2,17 @@
 <br>
 <img src="assets/logo.png" height="80px" />
 
+![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/webx-net/webx/build)
+![GitHub all releases](https://img.shields.io/github/downloads/webx-net/webx/total)
+![GitHub repo size](https://img.shields.io/github/repo-size/webx-net/webx) \
+![GitHub commit activity (branch)](https://img.shields.io/github/commit-activity/w/webx-net/webx)
+![GitHub contributors](https://img.shields.io/github/contributors/webx-net/webx)
+![GitHub Sponsors](https://img.shields.io/github/sponsors/webx-net)
+
+
+
+
+
 This is the official repository for the WebX web server project.
 A framework for building minimal but powerful **web app backends**, **REST APIs** and **hypermedia systems**.\
 ▸ [Get started](#getting-started) or [read more](#why-webx) about the project below.
