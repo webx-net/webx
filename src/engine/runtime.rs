@@ -175,7 +175,22 @@ impl WXRuntime {
             Err(err) => error_code(format!("(Runtime) {}", err.message), err.code),
         }
         if self.mode == WXMode::Dev {
-            dbg!(&self.routes); // TODO: Remove this line
+            // Print the route map in dev mode.
+            info(self.mode, "Route map:");
+            let mut routes: Vec<(&Method, &WXUrlPath)> = self
+                .routes
+                .0
+                .iter()
+                .flat_map(|(method, method_map)| {
+                    method_map
+                        .iter()
+                        .map(|(path, _)| (method, path))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            for (method, path) in routes {
+                println!(" - {} {}", method, path);
+            }
         }
     }
 
