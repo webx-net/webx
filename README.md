@@ -2,7 +2,7 @@
 <br>
 <img src="assets/logo.png" height="80px" />
 
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/webx-net/webx/build)
+![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/webx-net/webx/rust.yml)
 ![GitHub all releases](https://img.shields.io/github/downloads/webx-net/webx/total)
 ![GitHub repo size](https://img.shields.io/github/repo-size/webx-net/webx) \
 ![GitHub commit activity (branch)](https://img.shields.io/github/commit-activity/w/webx-net/webx)
