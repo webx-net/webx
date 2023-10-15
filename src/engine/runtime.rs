@@ -186,11 +186,15 @@ impl WXRuntime {
     pub fn run(&mut self) {
         self.recompile_routes(); // Ensure that we have a valid route map.
         info(self.mode, "WebX server is running!");
-        let addrs = [
-            SocketAddr::from(([127, 0, 0, 1], 8080)), // TODO: Only in dev mode
-            SocketAddr::from(([127, 0, 0, 1], 80)),   // TODO: Only in prod mode
-            SocketAddr::from(([127, 0, 0, 1], 443)),  // TODO: Only in prod mode
-        ];
+        let ports = if self.mode == WXMode::Dev {
+            vec![8080]
+        } else {
+            vec![80, 443]
+        };
+        let addrs = ports
+            .iter()
+            .map(|port| SocketAddr::from(([127, 0, 0, 1], *port)))
+            .collect::<Vec<_>>();
         let listener = TcpListener::bind(&addrs[..]).unwrap();
         // Don't block if in dev mode, wait and read hotswap messages.
         listener.set_nonblocking(self.mode == WXMode::Dev).unwrap();
