@@ -5,6 +5,7 @@ get / (<html>
         <p>
             This is an example index page.
         </p>
+        <a href="/about">About</a>
     </body>
 </html>)
 
@@ -52,6 +53,7 @@ handler authenticate(user_id: Number) {
 get /about (<div>
     <h1>About</h1>
     <p>This is an example WebX project.</p>
+    <a href="/">Home</a>
 </div>)
 
 location todos {
