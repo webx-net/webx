@@ -177,7 +177,7 @@ impl WXRuntime {
         if self.mode == WXMode::Dev {
             // Print the route map in dev mode.
             info(self.mode, "Route map:");
-            let mut routes: Vec<(&Method, &WXUrlPath)> = self
+            let routes: Vec<(&Method, &WXUrlPath)> = self
                 .routes
                 .0
                 .iter()
