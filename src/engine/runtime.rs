@@ -17,7 +17,7 @@ use crate::{
 use super::{http::{
     parse_request_tcp, serialize_response,
     Responses::{self, ok_html},
-};
+}, stdlib};
 
 /// A runtime error.
 pub struct WXRuntimeError {
@@ -165,6 +165,8 @@ impl WXRTHandlerCall {
     /// Execute the handler in the given context and return the result.
     fn execute(&self, ctx: &WXRTContext, info: &WXRuntimeInfo) -> Result<WXRTValue, WXRuntimeError> {
         let args = self.args.iter().map(|arg| eval_literal(arg, &ctx)).collect::<Result<Vec<_>, _>>()?;
+        // Try to call a native handler.
+        if let Some(native_res) = stdlib::try_call(&self.name, args, info) { return native_res; }
         // TODO: Add support for custom user-defined handlers
         Err(WXRuntimeError {
             code: 500,
