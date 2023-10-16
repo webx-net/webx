@@ -404,8 +404,7 @@ impl<'a> WebXFileParser<'a> {
                 WXLiteralValue::Number(integer.parse::<u32>().unwrap(), fraction.parse::<u32>().unwrap())
             },
             c if c.is_alphabetic() => {
-                let mut name = c.to_string();
-                name.push_str(&self.parse_identifier());
+                let name = self.parse_identifier();
                 if name == "true" { WXLiteralValue::Boolean(true) }
                 else if name == "false" { WXLiteralValue::Boolean(false) }
                 else { WXLiteralValue::Identifier(name) }
