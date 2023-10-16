@@ -542,7 +542,7 @@ impl<'a> WebXFileParser<'a> {
                     if let Some(nc) = nc {
                         if nc.is_alphanumeric() {
                             segments.push(WXUrlPathSegment::Literal(self.parse_identifier()));
-                        } else if nc.is_whitespace() && segments.len() == 0 {
+                        } else if nc.is_whitespace() {
                             // Allow root path to be empty. E.g. `get / ... `.
                             segments.push(WXUrlPathSegment::Literal("".to_string()));
                         }
@@ -556,6 +556,10 @@ impl<'a> WebXFileParser<'a> {
                 _ => break,
             }
         }
+        // Remove all empty segments.
+        segments.retain(|s| {
+            if let WXUrlPathSegment::Literal(s) = s { !s.is_empty() } else { true }
+        });
         WXUrlPath(segments)
     }
 
