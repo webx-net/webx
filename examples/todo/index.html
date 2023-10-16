@@ -8,7 +8,8 @@
     <div class="container">
         <h1>A Web<font color="#2262dc">X</font> todo list</h1>
         <p>Welcome! Here is a list of things to do:</p>
-        <ul id="todo-list" hx-get="/todo/list">Loading...</ul>
+        <ul id="todo-list" hx-get="/todos/list" hx-trigger="load" hx-swap="outerHTML">Loading...</ul>
+
         <form hx-post="/todos/add" hx-target="#todo-list" hx-swap="afterend">
             <input name="title" placeholder="Add a new item" type="text" required>
             <button>Add</button>

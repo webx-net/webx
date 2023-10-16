@@ -33,10 +33,10 @@ model Todo {
 }
 
 handler renderTodo(todo: Todo) (<li>
-    <h1>
+    <h4>
         <input type="checkbox" checked={todo.completed} />
         {todo.title} - {getTimeDiff(todo.createdAt)}
-    </h1>
+    </h4>
 </li>)
 
 handler renderAllTodos(todos: Todo) (
@@ -61,6 +61,21 @@ location todos {
     // The main todo app page.
     get / -> static("index.html")
     
+    get /list (<ul id="todo-list">
+        <li>
+            <h4>
+                <input type="checkbox" checked="true" />
+                Example Item - 1 minute ago
+            </h4>
+        </li>
+        <li>
+            <h4>
+                <input type="checkbox" />
+                Example Item - 2 minutes ago
+            </h4>
+        </li>
+    </ul>)
+
     // Display the global list of todos as HTML.
     get list/all/(data : Int)/data -> renderAllTodos(todos), renderAllTodos(todos)
 
