@@ -6,10 +6,9 @@ get / (<html>
             This is an example index page.
         </p>
         <a href="/about">About</a>
+        <a href="/todos">Todos</a>
     </body>
 </html>)
-
-get /index -> static("index.html")
 
 post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
     const a = [5];
@@ -59,6 +58,9 @@ get /about (<div>
 </div>)
 
 location todos {
+    // The main todo app page.
+    get / -> static("index.html")
+    
     // Display the global list of todos as HTML.
     get list/all/(data : Int)/data -> renderAllTodos(todos), renderAllTodos(todos)
 
