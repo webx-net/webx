@@ -2,7 +2,7 @@
 mod tests {
     use std::path::Path;
 
-    use crate::{runner::{WXMode, get_project_config_file_path, DebugLevel}, file::project::{load_project_config, load_modules}, analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes}, engine::runtime::WXRuntime};
+    use crate::{runner::{WXMode, get_project_config_file_path, DebugLevel}, file::project::{load_project_config, load_modules}, analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes}, engine::runtime::{WXRuntime, WXRuntimeInfo}};
 
     #[test]
     fn test_example_todo() {
@@ -14,7 +14,7 @@ mod tests {
         analyse_module_deps(&webx_modules);
         analyse_module_routes(&webx_modules);
         let (_, dummy_rx) = std::sync::mpsc::channel();
-        let mut runtime = WXRuntime::new(dummy_rx, mode);
+        let mut runtime = WXRuntime::new(dummy_rx, mode, WXRuntimeInfo::new(root));
         runtime.load_modules(webx_modules);
         std::thread::spawn(move || runtime.run());
         std::thread::sleep(std::time::Duration::from_secs(10));

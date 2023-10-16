@@ -1,6 +1,6 @@
 use colored::*;
 
-use crate::{file::webx::WXInfoField, runner::WXMode};
+use crate::file::webx::WXInfoField;
 
 // Error codes:
 pub const ERROR_READ_WEBX_FILES: i32 = 1;
@@ -10,6 +10,7 @@ pub const ERROR_PARSE_IO: i32 = 4;
 pub const ERROR_SYNTAX: i32 = 5;
 pub const ERROR_DUPLICATE_ROUTE: i32 = 6;
 pub const ERROR_INVALID_ROUTE: i32 = 7;
+pub const ERROR_HANDLER_CALL: i32 = 8;
 
 pub fn code_to_name(code: i32) -> String {
     match code {
@@ -18,6 +19,7 @@ pub fn code_to_name(code: i32) -> String {
         ERROR_CIRCULAR_DEPENDENCY => "CIRCULAR_DEPENDENCY".to_owned(),
         ERROR_DUPLICATE_ROUTE => "DUPLICATE_ROUTE".to_owned(),
         ERROR_INVALID_ROUTE => "INVALID_ROUTE".to_owned(),
+        ERROR_HANDLER_CALL => "HANDLER_CALL".to_owned(),
         ERROR_PARSE_IO => "PARSE_IO".to_owned(),
         ERROR_SYNTAX => "SYNTAX".to_owned(),
         _ => format!("UNKNOWN {}", code),

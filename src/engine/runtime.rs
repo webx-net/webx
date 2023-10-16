@@ -2,19 +2,19 @@ use std::{
     collections::HashMap,
     io::Write,
     net::{SocketAddr, TcpListener, TcpStream},
-    sync::mpsc::Receiver,
+    sync::mpsc::Receiver, path::{Path, PathBuf},
 };
 
-use http::{request, Method, Response, Uri};
+use http::{Method, Response, Uri};
 
 use crate::{
     analysis::routes::verify_model_routes,
-    file::webx::{WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXUrlPath, WXPathResolution, WXPathBindings},
+    file::webx::{WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXUrlPath, WXPathResolution, WXPathBindings, WXRouteHandler, WXLiteralValue},
     reporting::{debug::info, error::error_code, warning::warning},
-    runner::{WXMode, DebugLevel},
+    runner::WXMode,
 };
 
-use super::http::{
+use super::{http::{
     parse_request_tcp, serialize_response,
     Responses::{self, ok_html},
 };
@@ -25,6 +25,155 @@ pub struct WXRuntimeError {
     pub message: String,
 }
 
+pub struct WXRTContext {
+    pub values: HashMap<String, WXRTValue>,
+}
+
+impl WXRTContext {
+    fn new() -> Self {
+        WXRTContext {
+            values: HashMap::new(),
+        }
+    }
+
+    fn bind(&mut self, ident: &str, value: WXRTValue) {
+        self.values.insert(ident.into(), value);
+    }
+
+    fn resolve(&self, ident: &str) -> Option<WXRTValue> {
+        self.values.get(ident).map(|v| v.clone())
+    }
+}
+
+/// Runtime values in WebX.
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+pub enum WXRTValue {
+    String(String),
+    Number(u32, u32),
+    Boolean(bool),
+    Null,
+    Array(Vec<WXRTValue>),
+    Object(Vec<(String, WXRTValue)>),
+}
+
+impl WXRTValue {
+    /// Convert the runtime value into a string representing a JavaScript value.
+    pub fn to_js(&self) -> String {
+        match self {
+            WXRTValue::String(s) => format!("\"{}\"", s),
+            WXRTValue::Number(i, d) => format!("{}{}", i, d),
+            WXRTValue::Boolean(b) => format!("{}", b),
+            WXRTValue::Null => "null".into(),
+            WXRTValue::Array(arr) => {
+                let mut values = Vec::new();
+                for value in arr.iter() {
+                    values.push(value.to_js());
+                }
+                format!("[{}]", values.join(", "))
+            },
+            WXRTValue::Object(obj) => {
+                let mut values = Vec::new();
+                for (key, value) in obj.iter() {
+                    values.push(format!("{}: {}", key, value.to_js()));
+                }
+                format!("{{{}}}", values.join(", "))
+            },
+        }
+    }
+
+    /// Convert the runtime value into a raw value string.
+    /// This function will **not** wrap strings in quotes.
+    /// This function is used for sanitizing values in JSX render functions to be sent to the client.
+    /// This function will **not** escape any characters.
+    pub fn to_raw(&self) -> String {
+        match self {
+            WXRTValue::String(s) => s.clone(),
+            WXRTValue::Number(i, d) => format!("{}{}", i, d),
+            WXRTValue::Boolean(b) => format!("{}", b),
+            WXRTValue::Null => "null".into(),
+            WXRTValue::Array(arr) => {
+                let mut values = Vec::new();
+                for value in arr.iter() {
+                    values.push(value.to_raw());
+                }
+                format!("[{}]", values.join(", "))
+            },
+            WXRTValue::Object(obj) => {
+                let mut values = Vec::new();
+                for (key, value) in obj.iter() {
+                    values.push(format!("{}: {}", key, value.to_raw()));
+                }
+                format!("{{{}}}", values.join(", "))
+            },
+        }
+    }
+}
+
+fn eval_literal(literal: &WXLiteralValue, ctx: &WXRTContext) -> Result<WXRTValue, WXRuntimeError> {
+    match literal {
+        WXLiteralValue::String(s) => Ok(WXRTValue::String(s.clone())),
+        WXLiteralValue::Number(i, d) => Ok(WXRTValue::Number(*i, *d)),
+        WXLiteralValue::Boolean(b) => Ok(WXRTValue::Boolean(*b)),
+        WXLiteralValue::Null => Ok(WXRTValue::Null),
+        WXLiteralValue::Array(arr) => {
+            let mut values = Vec::new();
+            for value in arr.iter() {
+                values.push(eval_literal(value, ctx)?);
+            }
+            Ok(WXRTValue::Array(values))
+        },
+        WXLiteralValue::Object(obj) => {
+            let mut values = Vec::new();
+            for (key, value) in obj.iter() {
+                values.push((key.clone(), eval_literal(value, ctx)?));
+            }
+            Ok(WXRTValue::Object(values))
+        },
+        WXLiteralValue::Identifier(ident) => {
+            if let Some(value) = ctx.resolve(&ident) {
+                Ok(value)
+            } else {
+                Err(WXRuntimeError {
+                    code: 500,
+                    message: format!("Identifier '{}' not found in context", ident),
+                })
+            }
+        },
+    }
+}
+
+/// A runtime handler call.
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+pub struct WXRTHandlerCall {
+    /// The handler name.
+    pub name: String,
+    /// The handler arguments.
+    pub args: Vec<WXLiteralValue>,
+    /// The output variable name.
+    pub output: Option<String>,
+}
+
+impl WXRTHandlerCall {
+    fn from_handler(handler: &WXRouteHandler) -> Self {
+        WXRTHandlerCall {
+            name: handler.name.clone(),
+            args: handler.args.clone(),
+            output: handler.output.clone(),
+        }
+    }
+
+    /// Execute the handler in the given context and return the result.
+    fn execute(&self, ctx: &WXRTContext, info: &WXRuntimeInfo) -> Result<WXRTValue, WXRuntimeError> {
+        let args = self.args.iter().map(|arg| eval_literal(arg, &ctx)).collect::<Result<Vec<_>, _>>()?;
+        // TODO: Add support for custom user-defined handlers
+        Err(WXRuntimeError {
+            code: 500,
+            message: format!("Handler '{}' not found", self.name),
+        })
+    }
+}
+
+
 /// A runtime flat-route.
 #[derive(Debug)]
 pub struct WXRTRoute {
@@ -33,31 +182,67 @@ pub struct WXRTRoute {
     // TODO: - global typescript code
     // TODO: - models ORM and types
     body: Option<WXBody>,
+    pre_handlers: Vec<WXRTHandlerCall>,
+    post_handlers: Vec<WXRTHandlerCall>,
 }
 
 impl WXRTRoute {
+    fn execute_body(&self) -> Result<WXRTValue, WXRuntimeError> {
+        assert!(self.body.is_some());
+        let body = self.body.as_ref().unwrap();
+        match body.body_type {
+            WXBodyType::TS => todo!("TS body type is not supported yet"),
+            // TODO: Resolve bindings, render and execute JSX (dynamic)
+            WXBodyType::TSX => Ok(WXRTValue::String(body.body.clone())),
+        }
+    }
+
     /// Execute the route and return a HTTP response.
     ///
     /// ## Note
     /// This function will **not** check if the route is valid.
-    fn execute(&self) -> Result<Response<String>, WXRuntimeError> {
-        if let Some(body) = &self.body {
-            Ok(match body.body_type {
-                WXBodyType::TS => {
-                    todo!("TS body type is not supported yet");
-                }
-                WXBodyType::TSX => {
-                    // Assume that the body is valid JSX without dynamic content.
-                    // That is, the body is a static HTML page or fragment.
-                    ok_html(body.body.clone())
-                }
-            })
-        } else {
-            // TODO: Add support for handlers as well.
-            Err(WXRuntimeError {
+    /// 
+    fn execute(&self, info: &WXRuntimeInfo) -> Result<Response<String>, WXRuntimeError> {
+        // TODO: Refactor this function to combine all logic into a better structure.
+        if self.pre_handlers.len() == 0 && self.body.is_none() && self.post_handlers.len() == 0 {
+            // No handlers or body are present, return an empty response.
+            return Err(WXRuntimeError {
                 code: 500,
-                message: "Route body is empty".into(),
-            })
+                message: "Route is empty".into(),
+            });
+        } else if self.pre_handlers.len() == 0 && self.body.is_some() && self.post_handlers.len() == 0 {
+            // Only a body is present, execute it and return the result.
+            Ok(ok_html(self.execute_body()?.to_raw()))
+        } else if self.body.is_none() {
+            // Only handlers are present, execute them sequentially.
+            // Merge all pre and post handlers into a single handler vector.
+            let mut handlers = self.pre_handlers.clone();
+            handlers.extend(self.post_handlers.clone());
+            // Execute all (but last() handlers sequentially.
+            let mut ctx = WXRTContext::new();
+            for handler in handlers.iter().take(handlers.len() - 1) {
+                let result = handler.execute(&ctx, info)?;
+                // Bind the result to the output variable.
+                if let Some(output) = &handler.output { ctx.bind(output, result); }
+            }
+            // Execute the last handler and return the result as the response.
+            let handler = handlers.last().unwrap();
+            Ok(ok_html(handler.execute(&ctx, info)?.to_raw()))
+        } else {
+            // Both handlers and a body are present, execute them sequentially.
+            todo!("Handlers + body is not supported yet");
+            /*
+                // TODO: Execute pre-handlers
+                let body = self.execute_body()?;
+                // TODO: Execute post-handlers, pass body result in ctx
+                if body.is_none() {
+                    return Err(WXRuntimeError {
+                        code: 500,
+                        message: "Route body is empty".into(),
+                    });
+                }
+                Ok(body.unwrap())
+            */
         }
     }
 }
@@ -97,7 +282,11 @@ impl WXRouteMap {
     /// Compile a parsed route into a runtime route.
     fn compile_route(route: &WXRoute) -> Result<WXRTRoute, WXRuntimeError> {
         let body = route.body.clone();
-        Ok(WXRTRoute { body })
+        Ok(WXRTRoute {
+            body,
+            pre_handlers: route.pre_handlers.iter().map(WXRTHandlerCall::from_handler).collect(),
+            post_handlers: route.post_handlers.iter().map(WXRTHandlerCall::from_handler).collect(),
+        })
     }
 
     /// Get a route from the route map.
@@ -138,21 +327,35 @@ pub enum WXRuntimeMessage {
     RemoveModule(WXModulePath),
 }
 
+pub struct WXRuntimeInfo {
+    pub project_root: Box<Path>,
+}
+
+impl WXRuntimeInfo {
+    pub fn new(project_root: &Path) -> Self {
+        WXRuntimeInfo {
+            project_root: project_root.to_path_buf().into_boxed_path(),
+        }
+    }
+}
+
 /// The WebX runtime.
 pub struct WXRuntime {
     source_modules: Vec<WXModule>,
     routes: WXRouteMap,
     messages: Receiver<WXRuntimeMessage>,
     mode: WXMode,
+    info: WXRuntimeInfo,
 }
 
 impl WXRuntime {
-    pub fn new(rx: Receiver<WXRuntimeMessage>, mode: WXMode) -> Self {
+    pub fn new(rx: Receiver<WXRuntimeMessage>, mode: WXMode, info: WXRuntimeInfo) -> Self {
         WXRuntime {
             source_modules: Vec::new(),
             routes: WXRouteMap::new(),
             messages: rx,
             mode,
+            info,
         }
     }
 
@@ -295,7 +498,7 @@ impl WXRuntime {
                         request.uri().path()
                     ),
                 );
-                let response = match route.execute() {
+                let response = match route.execute(&self.info) {
                     Ok(response) => response,
                     Err(err) => {
                         error_code(format!("{}", err.message), err.code);

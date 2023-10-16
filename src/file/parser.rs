@@ -12,7 +12,7 @@ use std::{
 
 use super::webx::{
     WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteHandler, WXRouteReqBody,
-    WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment, WXROOT_PATH, WXInfoField, WXModulePath,
+    WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment, WXROOT_PATH, WXInfoField, WXModulePath, WXLiteralValue,
 };
 
 struct WebXFileParser<'a> {
@@ -203,7 +203,7 @@ impl<'a> WebXFileParser<'a> {
         None
     }
 
-    fn read_until_any_of(&mut self, cs: Vec<char>) -> String {
+    fn read_while<F: Fn(char) -> bool>(&mut self, f: F) -> String {
         let mut s = String::new();
         loop {
             let nc = self.peek();
@@ -211,13 +211,18 @@ impl<'a> WebXFileParser<'a> {
                 break;
             }
             let nc = nc.unwrap();
-            if cs.contains(&nc) {
+            if f(nc) {
+                s.push(nc);
+                self.next(); // consume
+            } else {
                 break;
             }
-            s.push(nc);
-            self.next(); // consume
         }
         s
+    }
+
+    fn read_until_any_of(&mut self, cs: Vec<char>) -> String {
+        self.read_while(|c| !cs.contains(&c))
     }
 
     fn read_until(&mut self, c: char) -> String {
@@ -376,24 +381,66 @@ impl<'a> WebXFileParser<'a> {
         pairs
     }
 
-    fn parse_arguments(&mut self, end: char) -> Vec<String> {
+    fn parse_literal(&mut self) -> WXLiteralValue {
+        let context = "parsing a literal value";
+        self.skip_whitespace(true);
+        let nc = self.peek();
+        if nc.is_none() {
+            exit_error_unexpected("EOF".to_string(), context, self.line, self.column, ERROR_SYNTAX);
+        }
+        let nc = nc.unwrap();
+        match nc {
+            '"' => {
+                self.expect_next_specific('"', context);
+                WXLiteralValue::String(self.parse_string())
+            },
+            c if c.is_numeric() => {
+                let integer = self.read_while(|c| c.is_numeric());
+                let mut fraction = "0".to_string();
+                if self.peek().is_some() && self.peek().unwrap() == '.' {
+                    self.next(); // Consume the dot.
+                    fraction = self.read_while(|c| c.is_numeric());
+                }
+                WXLiteralValue::Number(integer.parse::<u32>().unwrap(), fraction.parse::<u32>().unwrap())
+            },
+            c if c.is_alphabetic() => {
+                let mut name = c.to_string();
+                name.push_str(&self.parse_identifier());
+                if name == "true" { WXLiteralValue::Boolean(true) }
+                else if name == "false" { WXLiteralValue::Boolean(false) }
+                else { WXLiteralValue::Identifier(name) }
+            }
+            _ => exit_error_unexpected_char(nc, context, self.line, self.column, ERROR_SYNTAX),
+        }
+    }
+
+    fn parse_arguments(&mut self, end: char) -> Vec<WXLiteralValue> {
         let mut args = vec![];
+        if let Some(nc) = self.peek() {
+            if nc == end { return args; } // Empty arguments.
+        }
         loop {
-            self.skip_whitespace(true);
-            let arg = self.read_until_any_of(vec![',', end]).trim().to_string();
-            if arg.is_empty() {
-                break; // Empty name means end of arguments.
+            args.push(self.parse_literal());
+            if let Some(nc) = self.peek() {
+                if nc == end { break; }
+                else if nc == ',' { self.next(); } // Consume the comma.
+                else { exit_error_expected_any_of_but_found(
+                    format!("',' or '{}'", end),
+                    nc,
+                    "parsing arguments",
+                    self.line,
+                    self.column,
+                    ERROR_SYNTAX,
+                ); }
+            } else {
+                exit_error_unexpected(
+                    "EOF".to_string(),
+                    "parsing arguments",
+                    self.line,
+                    self.column,
+                    ERROR_SYNTAX,
+                );
             }
-            args.push(arg);
-            let nc = self.peek();
-            if nc.is_none() {
-                break;
-            }
-            let nc = nc.unwrap();
-            if nc != ',' {
-                break; // No comma means end of arguments.
-            }
-            self.next(); // Consume the comma.
         }
         args
     }

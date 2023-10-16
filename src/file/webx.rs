@@ -324,19 +324,65 @@ impl Debug for WXRouteReqBody {
     }
 }
 
+/// Literal values in WebX.
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+pub enum WXLiteralValue {
+    Identifier(String),
+    String(String),
+    /// Number(integer, decimal)
+    Number(u32, u32),
+    Boolean(bool),
+    Null,
+    Array(Vec<WXLiteralValue>),
+    Object(Vec<(String, WXLiteralValue)>),
+}
+
+impl ToString for WXLiteralValue {
+    fn to_string(&self) -> String {
+        match self {
+            WXLiteralValue::Identifier(name) => name.clone(),
+            WXLiteralValue::String(string) => format!("\"{}\"", string),
+            WXLiteralValue::Number(integer, decimal) => format!("{}.{}", integer, decimal),
+            WXLiteralValue::Boolean(boolean) => boolean.to_string(),
+            WXLiteralValue::Null => "null".to_string(),
+            WXLiteralValue::Array(array) => {
+                let mut s = "[".to_string();
+                for (i, value) in array.iter().enumerate() {
+                    if i > 0 {
+                        s.push_str(", ");
+                    }
+                    s.push_str(&value.to_string());
+                }
+                s.push(']');
+                s
+            }
+            WXLiteralValue::Object(object) => {
+                let mut s = "{".to_string();
+                for (i, (key, value)) in object.iter().enumerate() {
+                    if i > 0 {
+                        s.push_str(", ");
+                    }
+                    s.push_str(&format!("{}: {}", key, value.to_string()));
+                }
+                s.push('}');
+                s
+            }
+        }
+    }
+}
+
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub struct WXRouteHandler {
     pub name: String,
-    pub args: Vec<String>,
+    pub args: Vec<WXLiteralValue>,
     pub output: Option<String>,
 }
 
 impl fmt::Debug for WXRouteHandler {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}({})", self.name, self.args.join(", "))?;
-        if let Some(output) = &self.output {
-            write!(f, " : {}", output)?;
-        }
+        let vals = self.args.iter().map(WXLiteralValue::to_string).collect::<Vec<String>>();
+        write!(f, "{}({})", self.name, vals.join(", "))?;
+        if let Some(output) = &self.output { write!(f, ": {}", output)?; }
         Ok(())
     }
 }

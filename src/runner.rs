@@ -8,7 +8,7 @@ use colored::Colorize;
 use notify::{self, Watcher, Error, Event};
 
 use crate::analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes};
-use crate::engine::runtime::{WXRuntime, WXRuntimeMessage};
+use crate::engine::runtime::{WXRuntime, WXRuntimeMessage, WXRuntimeInfo};
 use crate::file::parser::parse_webx_file;
 use crate::file::webx::{WXModule, WXModulePath};
 use crate::file::project::{load_modules, load_project_config};
@@ -202,7 +202,7 @@ pub fn run(root: &Path, mode: WXMode) {
     analyse_module_routes(&webx_modules);
     print_start_info(&webx_modules, mode, time_start.elapsed());
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
-    let mut runtime = WXRuntime::new(rt_rx, mode);
+    let mut runtime = WXRuntime::new(rt_rx, mode, WXRuntimeInfo::new(root));
     runtime.load_modules(webx_modules);
     if mode.is_dev() {
         let fw_rt_tx = rt_tx.clone();
