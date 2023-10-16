@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     io::Write,
     net::{SocketAddr, TcpListener, TcpStream},
-    sync::mpsc::Receiver, path::{Path, PathBuf},
+    sync::mpsc::Receiver, path::Path,
 };
 
 use http::{Method, Response, Uri};
