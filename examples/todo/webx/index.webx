@@ -9,6 +9,8 @@ get / (<html>
     </body>
 </html>)
 
+get /index -> static("index.html")
+
 post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
     const a = [5];
     if true { console.log(text); }
