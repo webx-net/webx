@@ -80,15 +80,6 @@ impl Hash for WXUrlPath {
     }
 }
 
-pub type WXPathBindings = Vec<(String, String)>;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WXPathResolution {
-    None,
-    Perfect(WXPathBindings),
-    Partial(WXPathBindings),
-}
-
 impl WXUrlPath {
     pub fn combine(&self, other: &WXUrlPath) -> WXUrlPath {
         let mut path = self.0.clone();
@@ -98,47 +89,6 @@ impl WXUrlPath {
 
     pub fn segments(&self) -> usize {
         self.0.len()
-    }
-
-    fn get_url_segments(url: &Uri) -> Vec<&str> {
-        url.path().split('/').skip(1).filter(|s| !s.is_empty()).collect::<Vec<_>>()
-    }
-
-    pub fn matches(&self, url: &Uri) -> WXPathResolution {
-        let url = WXUrlPath::get_url_segments(url);
-        let url_count = url.len();
-        // dbg!(url.clone().collect::<Vec<_>>(), url_count, self.segments());
-        let mut bindings = WXPathBindings::new();
-
-        let match_segment = |(pattern, part): (&WXUrlPathSegment, &&str)| -> bool {
-            match pattern {
-                WXUrlPathSegment::Literal(literal) => literal.as_str() == *part,
-                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => {
-                    // TODO: Check type.
-                    bindings.push((name.clone(), part.to_string()));
-                    true
-                }
-                WXUrlPathSegment::Regex(regex_name, regex) => {
-                    let re = regex::Regex::new(regex).unwrap();
-                    if re.is_match(part) {
-                        bindings.push((regex_name.clone(), part.to_string()));
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
-        };
-
-        if self.segments() == url_count {
-            if self.0.iter().zip(&url).all(match_segment) { return WXPathResolution::Perfect(bindings); }
-        } else if self.segments() > url_count {
-            if self.0.iter().zip(url.iter().chain(std::iter::repeat(&""))).all(match_segment) {
-                if url_count == self.segments() - 1 { return WXPathResolution::Partial(bindings); }
-            }
-        }
-    
-        WXPathResolution::None
     }
 }
 

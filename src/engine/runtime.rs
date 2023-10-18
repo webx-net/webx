@@ -9,7 +9,7 @@ use http::{Method, Response, Uri};
 
 use crate::{
     analysis::routes::verify_model_routes,
-    file::webx::{WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXUrlPath, WXPathResolution, WXPathBindings, WXRouteHandler, WXLiteralValue},
+    file::webx::{WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXUrlPath, WXRouteHandler, WXLiteralValue, WXUrlPathSegment, WXTypedIdentifier},
     reporting::{debug::info, error::error_code, warning::warning},
     runner::WXMode,
 };
@@ -25,6 +25,7 @@ pub struct WXRuntimeError {
     pub message: String,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct WXRTContext {
     pub values: HashMap<String, WXRTValue>,
 }
@@ -175,7 +176,55 @@ impl WXRTHandlerCall {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WXPathResolution {
+    None,
+    Perfect(WXRTContext),
+    Partial(WXRTContext),
+}
 
+impl WXUrlPath {
+    fn get_url_segments(url: &Uri) -> Vec<&str> {
+        url.path().split('/').skip(1).filter(|s| !s.is_empty()).collect::<Vec<_>>()
+    }
+
+    pub fn matches(&self, url: &Uri) -> WXPathResolution {
+        let url = WXUrlPath::get_url_segments(url);
+        let url_count = url.len();
+        // dbg!(url.clone().collect::<Vec<_>>(), url_count, self.segments());
+        let mut bindings = WXRTContext::new();
+
+        let match_segment = |(pattern, part): (&WXUrlPathSegment, &&str)| -> bool {
+            match pattern {
+                WXUrlPathSegment::Literal(literal) => literal.as_str() == *part,
+                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => {
+                    // TODO: Check type.
+                    bindings.bind(&name, WXRTValue::String(part.to_string()));
+                    true
+                }
+                WXUrlPathSegment::Regex(regex_name, regex) => {
+                    let re = regex::Regex::new(regex).unwrap();
+                    if re.is_match(part) {
+                        bindings.bind(&regex_name, WXRTValue::String(part.to_string()));
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+        };
+
+        if self.segments() == url_count {
+            if self.0.iter().zip(&url).all(match_segment) { return WXPathResolution::Perfect(bindings); }
+        } else if self.segments() > url_count {
+            if self.0.iter().zip(url.iter().chain(std::iter::repeat(&""))).all(match_segment) {
+                if url_count == self.segments() - 1 { return WXPathResolution::Partial(bindings); }
+            }
+        }
+    
+        WXPathResolution::None
+    }
+}
 /// A runtime flat-route.
 #[derive(Debug)]
 pub struct WXRTRoute {
@@ -204,7 +253,7 @@ impl WXRTRoute {
     /// ## Note
     /// This function will **not** check if the route is valid.
     /// 
-    fn execute(&self, info: &WXRuntimeInfo) -> Result<Response<String>, WXRuntimeError> {
+    fn execute(&self, ctx: &mut WXRTContext, info: &WXRuntimeInfo) -> Result<Response<String>, WXRuntimeError> {
         // TODO: Refactor this function to combine all logic into a better structure.
         if self.pre_handlers.len() == 0 && self.body.is_none() && self.post_handlers.len() == 0 {
             // No handlers or body are present, return an empty response.
@@ -221,7 +270,6 @@ impl WXRTRoute {
             let mut handlers = self.pre_handlers.clone();
             handlers.extend(self.post_handlers.clone());
             // Execute all (but last() handlers sequentially.
-            let mut ctx = WXRTContext::new();
             for handler in handlers.iter().take(handlers.len() - 1) {
                 let result = handler.execute(&ctx, info)?;
                 // Bind the result to the output variable.
@@ -297,7 +345,7 @@ impl WXRouteMap {
     /// ## Note
     /// This function will **not** check for duplicate routes.
     /// This is done in the `analyse_module_routes` function.
-    fn resolve(&self, method: &Method, path: &Uri) -> Option<(&WXUrlPath, WXPathBindings, &WXRTRoute)> {
+    fn resolve(&self, method: &Method, path: &Uri) -> Option<(&WXUrlPath, WXRTContext, &WXRTRoute)> {
         let routes = self.0.get(method)?;
         // Sort all routes by path length in descending order.
         // This is required to ensure that the most specific routes are matched first.
@@ -489,7 +537,7 @@ impl WXRuntime {
             if self.mode.debug_level().is_max() { info(self.mode, &format!("Request from: {}\n{:#?}", addr, &request)); }
             else if self.mode.debug_level().is_high() { info(self.mode, &format!("Request from: {}", addr)); }
             // Match the request to a route.
-            if let Some((path, _bindings, route)) = self.routes.resolve(request.method(), request.uri()) {
+            if let Some((path, mut ctx, route)) = self.routes.resolve(request.method(), request.uri()) {
                 info(
                     self.mode,
                     &format!(
@@ -499,7 +547,7 @@ impl WXRuntime {
                         request.uri().path()
                     ),
                 );
-                let response = match route.execute(&self.info) {
+                let response = match route.execute(&mut ctx, &self.info) {
                     Ok(response) => response,
                     Err(err) => {
                         error_code(format!("{}", err.message), err.code);
