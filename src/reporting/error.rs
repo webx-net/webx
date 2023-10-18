@@ -1,4 +1,5 @@
 use colored::*;
+use chrono::prelude::*;
 
 use crate::file::webx::WXInfoField;
 
@@ -31,7 +32,9 @@ fn error_generic(message: String, error_name: &str) {
 }
 
 fn error_generic_code(message: String, code: i32, error_name: &str) {
-    error_generic(message, format!("[{} ({})]", error_name, code_to_name(code)).as_str());
+    let now = Local::now();
+    let time = now.format("%d/%m %H:%M:%S");
+    error_generic(message, format!("[{} {} ({})]", error_name, time, code_to_name(code)).as_str());
 }
 
 fn exit_error_generic_code(message: String, code: i32, error_name: &str) -> ! {
@@ -40,7 +43,9 @@ fn exit_error_generic_code(message: String, code: i32, error_name: &str) -> ! {
 }
 
 pub fn error(message: String) {
-    error_generic(message, "[Error]");
+    let now = Local::now();
+    let time = now.format("%d/%m %H:%M:%S");
+    error_generic(message, format!("[Error {}]", time).as_str());
 }
 
 pub fn error_code(message: String, code: i32) {
