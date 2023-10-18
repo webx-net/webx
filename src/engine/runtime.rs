@@ -306,7 +306,6 @@ impl WXRouteMap {
         // Go through all routes and try to match the path.
         let mut best_match = None;
         for (route_path, route) in routes {
-            // dbg!("Checking", route_path, route, route_path.matches(path));
             match route_path.matches(path) {
                 WXPathResolution::None => continue,
                 WXPathResolution::Perfect(bindings) => {
