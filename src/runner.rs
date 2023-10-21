@@ -11,7 +11,7 @@ use crate::analysis::{dependencies::analyse_module_deps, routes::analyse_module_
 use crate::engine::runtime::{WXRuntime, WXRuntimeMessage, WXRuntimeInfo};
 use crate::file::parser::parse_webx_file;
 use crate::file::webx::{WXModule, WXModulePath};
-use crate::file::project::{load_modules, load_project_config};
+use crate::file::project::{load_modules, load_project_config, ProjectConfig};
 use crate::reporting::debug::info;
 use crate::reporting::error::{ERROR_PROJECT, exit_error_hint};
 use crate::reporting::warning::warning;
@@ -133,10 +133,12 @@ impl PartialEq<WXMode> for WXMode {
     }
 }
 
-fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, start_duration: std::time::Duration) {
+fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, config: &ProjectConfig, start_duration: std::time::Duration) {
     let width = 28;
     println!("{}{} {}{} {}", "+".bright_black(), "-".repeat(3).bright_black(), "Web", "X".bright_blue(), "-".repeat(width - 6 - 3).bright_black());
     let prefix = "|".bright_black();
+    // Project Name
+    println!("{} {}: {}", prefix, "Project".bold(), config.name);
     // Modules
     if modules.len() == 0 {
         println!("{} No modules found", prefix);
@@ -200,7 +202,7 @@ pub fn run(root: &Path, mode: WXMode) {
     let webx_modules = load_modules(&source_root);
     analyse_module_deps(&webx_modules);
     analyse_module_routes(&webx_modules);
-    print_start_info(&webx_modules, mode, time_start.elapsed());
+    print_start_info(&webx_modules, mode, &config, time_start.elapsed());
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     if mode.is_dev() {
         let fw_rt_tx = rt_tx.clone();
