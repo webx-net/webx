@@ -394,6 +394,31 @@ impl<'a> WebXFileParser<'a> {
                 self.expect_next_specific('"', context);
                 WXLiteralValue::String(self.parse_string())
             },
+            '[' => {
+                self.expect_next_specific('[', context);
+                let mut values = vec![];
+                loop {
+                    values.push(self.parse_literal());
+                    let nc = self.expect_next_any_of(vec![',', ']'], context);
+                    if nc == ']' { break; }
+                    self.next(); // Consume the comma.
+                }
+                WXLiteralValue::Array(values)
+            },
+            '{' => {
+                self.expect_next_specific('{', context);
+                let mut values = vec![];
+                loop {
+                    let name = self.parse_identifier();
+                    self.expect_next_specific(':', context);
+                    let value = self.parse_literal();
+                    values.push((name, value));
+                    let nc = self.expect_next_any_of(vec![',', '}'], context);
+                    if nc == '}' { break; }
+                    self.next(); // Consume the comma.
+                }
+                WXLiteralValue::Object(values)
+            },
             c if c.is_numeric() => {
                 let integer = self.read_while(|c| c.is_numeric());
                 let mut fraction = "0".to_string();
@@ -407,6 +432,7 @@ impl<'a> WebXFileParser<'a> {
                 let name = self.parse_identifier();
                 if name == "true" { WXLiteralValue::Boolean(true) }
                 else if name == "false" { WXLiteralValue::Boolean(false) }
+                else if name == "null" { WXLiteralValue::Null }
                 else { WXLiteralValue::Identifier(name) }
             }
             _ => exit_error_unexpected_char(nc, context, self.line, self.column, ERROR_SYNTAX),
