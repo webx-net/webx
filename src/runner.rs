@@ -44,22 +44,6 @@ impl DebugLevel {
         }
     }
 
-    pub fn to_u8(&self) -> u8 {
-        match self {
-            Self::Low => 1,
-            Self::Medium => 2,
-            Self::High => 3,
-            Self::Max => 4,
-        }
-    }
-
-    pub fn is_low(&self) -> bool {
-        match self {
-            Self::Low | Self::Medium | Self::High | Self::Max => true,
-            _ => false
-        }
-    }
-
     pub fn is_medium(&self) -> bool {
         match self {
             Self::Medium | Self::High | Self::Max => true,

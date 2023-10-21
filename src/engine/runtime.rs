@@ -17,7 +17,7 @@ use crate::{
 
 use super::{http::{
     parse_request_tcp, serialize_response,
-    Responses::{self, ok_html},
+    responses::{ok_html, self},
 }, stdlib};
 
 /// A runtime error.
@@ -198,7 +198,7 @@ impl WXUrlPath {
         let match_segment = |(pattern, part): (&WXUrlPathSegment, &&str)| -> bool {
             match pattern {
                 WXUrlPathSegment::Literal(literal) => literal.as_str() == *part,
-                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_ }) => {
+                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_: _ }) => {
                     // TODO: Check type.
                     bindings.bind(&name, WXRTValue::String(part.to_string()));
                     true
@@ -571,7 +571,7 @@ impl WXRuntime {
                     Ok(response) => response,
                     Err(err) => {
                         error_code(format!("{}", err.message), err.code);
-                        Responses::internal_server_error_default_webx(self.mode, err.message)
+                        responses::internal_server_error_default_webx(self.mode, err.message)
                     }
                 };
                 stream
@@ -587,7 +587,7 @@ impl WXRuntime {
                 warning(self.mode, format!("No route match: {}", request.uri().path()));
                 stream
                     .write(
-                        serialize_response(&Responses::not_found_default_webx(self.mode))
+                        serialize_response(&responses::not_found_default_webx(self.mode))
                             .as_bytes(),
                     )
                     .unwrap();

@@ -56,7 +56,7 @@ pub fn serialize_response<D: Default + ToString>(response: &Response<D>) -> Stri
     result
 }
 
-pub mod Responses {
+pub mod responses {
     use crate::runner::WXMode;
 
     pub fn ok_html(body: String) -> http::Response<String> {

@@ -3,8 +3,6 @@ use std::{
     path::PathBuf, hash::{Hash, Hasher},
 };
 
-use http::Uri;
-
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct WXInfoField {
     pub path: WXModulePath,
