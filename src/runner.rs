@@ -202,16 +202,21 @@ pub fn run(root: &Path, mode: WXMode) {
     analyse_module_routes(&webx_modules);
     print_start_info(&webx_modules, mode, time_start.elapsed());
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
-    let mut runtime = WXRuntime::new(rt_rx, mode, WXRuntimeInfo::new(root));
-    runtime.load_modules(webx_modules);
     if mode.is_dev() {
         let fw_rt_tx = rt_tx.clone();
         let fw_hnd = std::thread::spawn(move || run_filewatcher(mode, &source_root, fw_rt_tx));
-        let runtime_hnd = std::thread::spawn(move || runtime.run());
+        let info = WXRuntimeInfo::new(root);
+        let runtime_hnd = std::thread::spawn(move || {
+            let mut runtime = WXRuntime::new(rt_rx, mode, info);
+            runtime.load_modules(webx_modules);
+            runtime.run();
+        });
         runtime_hnd.join().unwrap();
         fw_hnd.join().unwrap();
     } else {
         // If we are in production mode, run in main thread.
+        let mut runtime = WXRuntime::new(rt_rx, mode, WXRuntimeInfo::new(root));
+        runtime.load_modules(webx_modules);
         runtime.run();
     }
     // Check ps info: `ps | ? ProcessName -eq "webx"`
