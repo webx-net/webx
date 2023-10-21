@@ -32,7 +32,7 @@ Below is a high-level overview of the existing (implemented) and planned feature
   
 - [X] Hot reloading 🔥
 - [ ] DDOS protection 🛡️
-- [ ] Static file serving 📁
+- [X] Static file serving 📁
 - [ ] Package manager 📦 *(`NPM`-like, for WebX handlers, modules, and drivers)*
 - [ ] Built-in modules and services (stdlib):
   - [ ] Database integration (PostgreSQL, MySQL, and SQLite drivers)
@@ -50,16 +50,17 @@ Below is a high-level overview of the existing (implemented) and planned feature
     - [X] AST for WebX modules
   - [X] Comments
   - [ ] Model definitions (ORM, Prism like)
-    - [ ] Fields
-    - [ ] Types
+    - [X] Fields
+    - [X] Types
     - [ ] Constraints
     - [ ] Relations
     - [ ] Migrations
     - [ ] Queries (CRUD operations)
   - [ ] Native SSR (HTML templating)
-    - [ ] JSX support
+    - [X] JSX support
     - [ ] ~~HyperScript support~~
   - [ ] TypeScript support
+    - [X] Deno runtime
     - [ ] WebAssembly AoT compilation
     - [ ] Unified type definitions (shared between client and server)
   - [ ] Validation (Serialize/Deserialize for req/res data)
@@ -79,14 +80,19 @@ Below is a high-level overview of the existing (implemented) and planned feature
     - [ ] Custom formats (plugins)
   - [ ] Route definitions
     - [X] HTTP methods
-    - [ ] Path parameters (URL/segments/)
+    - [X] Path parameters (URL/segments/)
     - [ ] Query parameters (?key=value)
     - [ ] Request headers
     - [ ] Request Body parameters (POST/PUT/PATCH)
     - [ ] Body serialization (JSON, XML, etc.)
     - [ ] Body deserialization and validation
-    - [ ] Return result destructuring (for handlers)
     - [ ] Dependency injection (between handlers)
+    - [ ] Middleware (before/after handlers)
+    - [ ] Endpoint body code block types
+      - [ ] TypeScript (TS)
+      - [ ] Typescript-React (TSX)
+
+
 ```typescript
 get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin(user) { ... }
 ```
@@ -97,22 +103,22 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
       - [ ] Error handling (opinionated!)
       - [ ] Dependency injection
       - [ ] Return result destructuring
-    - [ ] Request handlers, used for:
-      - Data manipulation
-      - Business logic
-      - Authentication
-      - Authorization
-      - Logging
-      - Caching
-      - Sessions
-      - Database
-      - Integrated Services
-    - [ ] Response handlers, used for:
-      - Templating
-      - Error handling
-      - Logging
-      - Caching
-  - [X] Error handling
+  - [ ] Built-in handlers (stdlib)
+    - [ ] Data manipulation
+    - [ ] Business logic
+    - [ ] Authentication
+    - [ ] Authorization
+    - [ ] Logging
+    - [ ] Caching
+    - [ ] Sessions
+    - [ ] Database
+    - [ ] Integrated Services
+    - [ ] Static file serving
+    - [ ] Templating
+    - [ ] Error handling
+    - [ ] Logging
+    - [ ] Caching
+- [X] Error handling
     - [X] Server errors
     - [X] Client errors
     - [X] Network errors
