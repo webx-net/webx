@@ -164,7 +164,10 @@ fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, config: &ProjectConfi
     let now: DateTime<Local> = Local::now();
     let time = now.time().format("%H:%M");
     println!("{} {}: {:?} at {}", prefix, "Build".bold(), now.date_naive(), time);
-
+    // WebX version
+    println!("{} {}: {}", prefix, "WebX Version".bold(), env!("CARGO_PKG_VERSION"));
+    // WebX homepage
+    println!("{} {}: {}", prefix, "Website".bold(), env!("CARGO_PKG_HOMEPAGE"));
     println!("{}{}", "+".bright_black(), "-".repeat(width).bright_black());
 }
 

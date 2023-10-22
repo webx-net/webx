@@ -4,6 +4,9 @@ version = "1.0.0"
 edition = "2021"
 description = "A language and framework for building web server backends."
 authors = ["William Rågstad"]
+homepage = "https://webx.sh"
+documentation = "https://webx.sh/docs"
+repository = "https://github.com/webx-net/webx"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
