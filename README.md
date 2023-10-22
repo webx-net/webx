@@ -1,6 +1,5 @@
-
-<br>
-<img src="assets/logo.png" height="80px" />
+<div align="center">
+  <img src="assets/logo_grad.png" height="200px">
 
 ![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/webx-net/webx/rust.yml)
 ![GitHub all releases](https://img.shields.io/github/downloads/webx-net/webx/total)
@@ -10,8 +9,8 @@
 [![Discord](https://img.shields.io/discord/1163101679760179220?label=Discord)](https://discord.gg/WBYrWf6u7x)
 ![GitHub Sponsors](https://img.shields.io/github/sponsors/webx-net)
 
-
-
+</div>
+<br>
 
 This is the official repository for the WebX web server project.
 A framework for building minimal but powerful **web app backends**, **REST APIs** and **hypermedia systems**.\
