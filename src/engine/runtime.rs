@@ -398,9 +398,16 @@ pub struct WXRuntime {
     routes: WXRouteMap,
     /// All WebX TypeScript runtimes.
     /// 
+    /// ## Hotswapping
     /// These are persistent between hotswapping modules in dev mode.
     /// They are only created or destroyed when modules are added or removed.
     /// This allows us to keep the state of the application between hotswaps.
+    /// 
+    /// ## Persistent state
+    /// Each JS runtime maintains a JavaScript execution context,
+    /// which means that it keeps track of its own persistent state, variables,
+    /// functions, and other constructs will persist between script executions
+    /// as long as they are run in the same runtime instance.
     runtimes: HashMap<WXModulePath, JsRuntime>,
 }
 
