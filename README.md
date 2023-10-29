@@ -32,14 +32,14 @@ Below is a high-level overview of the existing (implemented) and planned feature
 - [X] Hot reloading 🔥
 - [X] Static file serving 📁
 - [ ] Package manager 📦 *(`NPM`-like, for WebX handlers, modules, and drivers)*
-- [ ] Built-in modules and services (stdlib):
-  - [ ] Database integration 🗃️ (PostgreSQL, MySQL, and SQLite drivers)
+- [ ] Built-in modules and services:
+  - [ ] Database integration 🗃️ *(PostgreSQL, MySQL, and SQLite drivers)*
   - [ ] Authentication 🔑
   - [ ] Authorization 🔑
   - [ ] Caching 🗄️
   - [ ] Sessions 🍪
   - [ ] WebSockets 🌐
-- [X] [VSC extension](https://github.com/webx-net/webx-extension) (syntax highlighting, snippets, etc.)
+- [X] [VSC extension](https://github.com/webx-net/webx-extension) *(syntax highlighting, snippets, etc.)*
 - [ ] WebX Playground
 - [ ] WebX Docs
 - [ ] Protected and secure by default 🔒
