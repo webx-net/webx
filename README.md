@@ -30,16 +30,30 @@ Below is a high-level overview of the existing (implemented) and planned feature
 <details><summary>Batteries included 🔋</summary>
   
 - [X] Hot reloading 🔥
-- [ ] DDOS protection 🛡️
 - [X] Static file serving 📁
 - [ ] Package manager 📦 *(`NPM`-like, for WebX handlers, modules, and drivers)*
 - [ ] Built-in modules and services (stdlib):
-  - [ ] Database integration (PostgreSQL, MySQL, and SQLite drivers)
-  - [ ] Authentication integration
-  - [ ] Sessions
-  - [ ] Caching
-  - [ ] WebSockets
+  - [ ] Database integration 🗃️ (PostgreSQL, MySQL, and SQLite drivers)
+  - [ ] Authentication 🔑
+  - [ ] Authorization 🔑
+  - [ ] Caching 🗄️
+  - [ ] Sessions 🍪
+  - [ ] WebSockets 🌐
 - [X] [VSC extension](https://github.com/webx-net/webx-extension) (syntax highlighting, snippets, etc.)
+- [ ] WebX Playground
+- [ ] WebX Documentation
+- [ ] WebX Website
+- [ ] WebX CLI tool
+- [ ] WebX Package Registry
+- [ ] WebX Deploy (to cloud)
+- [ ] Protected and secure by default 🔒
+  - [ ] DDOS 🛡️
+  - [ ] CORS 🛡️
+  - [ ] CSRF 🛡️
+  - [ ] XSS 🛡️
+  - [ ] SQL injection 🛡️
+  - [ ] Rate limiting ⏱️
+  - [ ] TLS/SSL/HTTPS 🔒
 
 </details>
 
@@ -113,11 +127,11 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
     - [ ] Database
     - [ ] Integrated Services
     - [ ] Static file serving
-    - [ ] Templating
-    - [ ] Error handling
+    - [ ] Templating 📄
     - [ ] Logging
     - [ ] Caching
-- [X] Error handling
+  - [ ] Integrated services 📦
+- [X] Error handling 🚨
     - [X] Server errors
     - [X] Client errors
     - [X] Network errors
