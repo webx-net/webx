@@ -33,7 +33,13 @@ Below is a high-level overview of the existing (implemented) and planned feature
 - [X] Static file serving 📁
 - [ ] Package manager 📦 *(`NPM`-like, for WebX handlers, modules, and drivers)*
 - [ ] Built-in modules and services:
-  - [ ] Database integration 🗃️ *(PostgreSQL, MySQL, and SQLite drivers)*
+  - [ ] Database driver integration 🗃️
+    - [ ] PostgreSQL
+    - [ ] MySQL
+    - [ ] SQLite
+    - [ ] MariaDB
+    - [ ] MongoDB
+    - [ ] Redis
   - [ ] Authentication 🔑
   - [ ] Authorization 🔑
   - [ ] Caching 🗄️
@@ -141,31 +147,35 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
   - [ ] Project
     - [X] Scaffolding (init new project)
     - [ ] Configuration
-  - [ ] Build
+  - [ ] Build (AoT compilation)
     - [ ] Static files
     - [ ] TypeScript to WebAssembly
-  - [ ] Run
+  - [ ] Run (JIT compilation)
     - [ ] Development mode
+      - [X] Hot reloading
+      - [X] Logging
+      - [X] Error handling
+      - [ ] Debugging
     - [ ] Production mode
-  - [ ] Test
+      - [ ] Optimizations
+      - [ ] Caching
+      - [ ] Compression
+      - [ ] Security
+      - [ ] Logging
+      - [ ] Error handling
+  - [ ] Test 🧪
     - [ ] Unit tests
     - [ ] Integration tests
     - [ ] End-to-end tests
-  - [ ] Deploy (to cloud)
+  - [ ] Deploy ☁️
+    - [ ] Docker
+    - [ ] Kubernetes
+    - [ ] Cloud
   - [ ] Documentation (auto-generated)
   - [ ] Publish (to package registry)
   - [ ] Versioning
   - [ ] Linting
   - [ ] Formatting
-  - [ ] Security configuration
-    - [ ] Rate limiting
-    - [ ] TLS/SSL/HTTPS
-    - [ ] Protection and mitigation against:
-      - [ ] DDOS
-      - [ ] CORS
-      - [ ] CSRF
-      - [ ] XSS
-      - [ ] SQL injection
 
 </details>
 <details><summary>WebX Runtime</summary>
@@ -199,13 +209,6 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
     - [ ] ~~GraphQL API~~
     - [ ] Hypermedia API
     - [ ] WebSockets API
-  - [ ] Database drivers
-    - [ ] PostgreSQL
-    - [ ] MySQL
-    - [ ] SQLite
-    - [ ] MariaDB
-    - [ ] MongoDB
-    - [ ] Redis
 
 </details>
 
