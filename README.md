@@ -41,11 +41,7 @@ Below is a high-level overview of the existing (implemented) and planned feature
   - [ ] WebSockets 🌐
 - [X] [VSC extension](https://github.com/webx-net/webx-extension) (syntax highlighting, snippets, etc.)
 - [ ] WebX Playground
-- [ ] WebX Documentation
-- [ ] WebX Website
-- [ ] WebX CLI tool
-- [ ] WebX Package Registry
-- [ ] WebX Deploy (to cloud)
+- [ ] WebX Docs
 - [ ] Protected and secure by default 🔒
   - [ ] DDOS 🛡️
   - [ ] CORS 🛡️
