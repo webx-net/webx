@@ -237,11 +237,6 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
 
 <br>
 
-Do you have any suggestions for additional features?
-Create an issue or a pull request!
-[Read more](#contributing) about contributing below.
-
-<br>
 
 ## Getting started
 ### Installation
@@ -342,3 +337,7 @@ HyperScript is a front-end JavaScript DSL for creating and manipulating HTML DOM
 ## Contributing
 Contributions are welcome!
 If you have any suggestions or find any bugs, please create an issue or a pull request.
+
+Do you have any suggestions for additional features?
+Create an issue or a pull request!
+[Read more](#contributing) about contributing below.
