@@ -52,7 +52,7 @@ Below is a high-level overview of the existing (implemented) and planned feature
   - [ ] Caching 🗄️
   - [ ] Sessions 🍪
   - [ ] WebSockets 🌐
-- [X] [VSC extension](https://github.com/webx-net/webx-extension) *(syntax highlighting, snippets, etc.)*
+- [X] [VSC extension](https://github.com/webx-net/webx-extension) *(Syntax Highlighting, Snippets, and more)*
 - [ ] WebX Playground 🛝
 - [ ] WebX Docs 📖
 - [ ] Package manager 📦 *(`NPM`-like, for WebX handlers, modules, and drivers)*
