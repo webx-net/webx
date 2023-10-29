@@ -17,7 +17,7 @@ use crate::{
 
 use super::{http::{
     parse_request_tcp, serialize_response,
-    responses::{ok_html, self},
+    responses::{ok_html, self}, read_all_from_stream, parse_request_from_string,
 }, stdlib};
 
 /// A runtime error.
@@ -560,8 +560,9 @@ impl WXRuntime {
 
     /// Handle an incoming request.
     fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
-        if let Some(request) = parse_request_tcp::<()>(&stream) {
-            if self.mode.debug_level().is_max() { info(self.mode, &format!("Request from: {}\n{:#?}", addr, &request)); }
+        let raw_request = read_all_from_stream(&stream);
+        if let Some(request) = parse_request_from_string::<()>(&raw_request) {
+            if self.mode.debug_level().is_max() { info(self.mode, &format!("Request from: {}\n{}", addr, raw_request)); }
             else if self.mode.debug_level().is_high() { info(self.mode, &format!("Request from: {}", addr)); }
             // Match the request to a route.
             if let Some((path, mut ctx, route)) = self.routes.resolve(request.method(), request.uri()) {
@@ -581,12 +582,10 @@ impl WXRuntime {
                         responses::internal_server_error_default_webx(self.mode, err.message)
                     }
                 };
-                stream
-                    .write(serialize_response(&response).as_bytes())
-                    .unwrap();
+                let http_response = serialize_response(&response);
+                stream.write(http_response.as_bytes()).unwrap();
                 if self.mode.debug_level().is_max() {
-                    info(self.mode, &format!("Response to: {}\n{:#?}", addr, &response));
-                    info(self.mode, &format!("Response body:\n{}", &response.body()));
+                    info(self.mode, &format!("Response to: {}\n{}", addr, http_response));
                 } else if self.mode.debug_level().is_high() {
                     info(self.mode, &format!("Response to: {}", addr));
                 }
@@ -602,7 +601,7 @@ impl WXRuntime {
             }
             stream.flush().unwrap();
         } else {
-            warning(self.mode, format!("Request read failure: {}", addr));
+            warning(self.mode, format!("Invalid request: {}", addr));
         }
     }
 }

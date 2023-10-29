@@ -2,9 +2,20 @@ use std::{io::{BufReader, BufRead, Read}, net::TcpStream};
 
 use http::{Request, Version, request::Builder, Response};
 
+pub fn read_all_from_stream(stream: &TcpStream) -> String {
+    let mut reader = BufReader::new(stream);
+    let mut result = String::new();
+    reader.read_to_string(&mut result).unwrap_or(0);
+    result
+}
+
 pub fn parse_request_tcp<D: Default>(stream: &TcpStream) -> Option<Request<D>> {
     let reader = BufReader::new(stream);
     parse_request(reader)
+}
+
+pub fn parse_request_from_string<D: Default>(request: &str) -> Option<Request<D>> {
+    parse_request(BufReader::new(request.as_bytes()))
 }
 
 pub fn parse_request<D: Default, T: Read>(reader: BufReader<T>) -> Option<Request<D>> {
@@ -47,7 +58,7 @@ fn parse_request_headers(lines: impl Iterator<Item=String>, request: Builder) ->
 }
 
 pub fn serialize_response<D: Default + ToString>(response: &Response<D>) -> String {
-    let mut result = format!("HTTP/1.1 {} {}\r\n", response.status(), response.status().canonical_reason().unwrap_or("Unknown"));
+    let mut result = format!("HTTP/1.1 {}\r\n", response.status());
     for (header, value) in response.headers() {
         result.push_str(&format!("{}: {}\r\n", header, value.to_str().unwrap_or("")));
     }
