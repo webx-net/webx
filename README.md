@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo_grad.png" height="200px">
+  <img src="assets/logo_grad.png" width="200px">
 
 ![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/webx-net/webx/rust.yml)
 ![GitHub all releases](https://img.shields.io/github/downloads/webx-net/webx/total)
@@ -13,10 +13,10 @@
 <br>
 
 This is the official repository for the WebX web server project.
-A framework for building minimal but powerful **web app backends**, **REST APIs** and **hypermedia systems**.\
+A framework for building minimal but powerful **web app backends**, **REST APIs**, and **hypermedia systems**.\
 ▸ [Get started](#getting-started) or [read more](#why-webx) about the project below.
 
-> **⚠️ WebX is still in early development and is not ready for use in production.**
+> **⚠️ WebX is still in early development and not ready for production use.**
 
 
 ## Features & Roadmap
@@ -62,7 +62,7 @@ Below is a high-level overview of the existing (implemented) and planned feature
   - [X] Parser
     - [X] AST for WebX modules
   - [X] Comments
-  - [ ] Model definitions (ORM, Prism like)
+  - [ ] Model definitions (ORM, Prism-like)
     - [X] Fields
     - [X] Types
     - [ ] Constraints
@@ -226,22 +226,22 @@ Create an issue or a pull request!
 Download the latest prebuilt binaries from the [releases page](https://github.com/WilliamRagstad/WebX/releases) and extract it to a folder of your choice.
 
 ### Usage
-To start the development web server for a project, use:
+To start the web server in `dev` mode for a project, use:
 ```sh
 webx run
 ```
-This enable **hot reloading** 🔥, **extensive logging**, **safe real-time error reporting**, and other useful features.
+This enables **hot reloading** 🔥, **extensive logging**, **safe real-time error reporting**, and other useful features.
 <br><br>
 To run the project in production mode, use:
 ```sh
 webx run --prod
 ```
-This enable **optimizations** 🚀 (*for speed and memory performance improvements*), **caching**, **compression**, and other useful features. It also *disables hot reloading and logging* to **not leak any sensitive information**.
+This enables **optimizations** 🚀 (*for speed and memory performance improvements*), **caching**, **compression**, and other valuable features. It also *disables hot reloading and logging* to **not leak any sensitive information**.
 
 <br>
 
 ## Examples
-The following is an example of a simple WebX todo list application.
+The following is an example of a simple WebX to-do list application.
 ```typescript
 include "../common.webx"
 
@@ -298,7 +298,7 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):a, isAdmin(a.
 ## Why <b>Web<font color="#3d72d7">X</font></b>?
 **Our vision** is to reduce the boilerplate and complexity of building backends and APIs.\
 ▸ WebX is designed to be **simple**, **minimal**, **easy to learn**, and **intuitive** while still being **versatile** and **flexible**.
-It is capable of building complex applications **quickly** while still being **lightweight🪶** and **blazingly fast🔥**.
+It can build complex applications **quickly** while still being **lightweight🪶** and **blazingly fast🔥**.
 
 > **Backends shouldn't be bloated and complex**, but focus on what's most important.
 > Don't reinvent the wheel for every new project,\
@@ -306,9 +306,9 @@ It is capable of building complex applications **quickly** while still being **l
 
 ### ❤️ Perfect match for <b><<font color="#3d72d7">/</font>> htm<font color="#3d72d7">x</font></b>
 WebX is designed to be a minimalistic web framework that is easy to learn and use.
-It is ***intended*** to be used with **HTMX**, which is a great alternative to frameworks like React, Vue, and Angular (or other stacks).
-HTMX allows you to build dynamic web applications without having to learn a new language or framework for the frontend.
-WebX is designed to be versatile and flexible, and it is easy to build backends for complex applications quickly.\
+It is ***intended*** to be used with **HTMX**, a great alternative to frameworks like React, Vue, and Angular (or other stacks).
+HTMX allows you to build dynamic web applications without learning a new language or framework for the front end.
+WebX is designed to be versatile and flexible, and it is easy to quickly build backends for complex applications.\
 ▸ [Read more about HTMX](https://htmx.org/)
 ### What about <b><font color="#3d72d7">///_h</font>yper<font color="#3d72d7">s</font>cript</b>?
 HyperScript is a front-end JavaScript DSL for creating and manipulating HTML DOM elements. It is lightweight, tightly coupled with your HTML code, and is easy to learn.\
