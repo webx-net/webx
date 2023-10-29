@@ -30,9 +30,16 @@ Below is a high-level overview of the existing (implemented) and planned feature
 <details><summary>Batteries included 🔋</summary>
   
 - [X] Hot reloading 🔥
-- [X] Static file serving 📁
-- [ ] Package manager 📦 *(`NPM`-like, for WebX handlers, modules, and drivers)*
-- [ ] Built-in modules and services:
+- [ ] Protected and secure by default 🔒
+  - [ ] DDOS 🛡️
+  - [ ] CORS 🛡️
+  - [ ] CSRF 🛡️
+  - [ ] XSS 🛡️
+  - [ ] SQL injection 🛡️
+  - [ ] Rate limiting ⏱️
+  - [ ] TLS/SSL/HTTPS 🔒
+- [ ] Built-in modules and services 📦
+  - [X] Static file serving 📁
   - [ ] Database driver integration 🗃️
     - [ ] PostgreSQL
     - [ ] MySQL
@@ -46,16 +53,9 @@ Below is a high-level overview of the existing (implemented) and planned feature
   - [ ] Sessions 🍪
   - [ ] WebSockets 🌐
 - [X] [VSC extension](https://github.com/webx-net/webx-extension) *(syntax highlighting, snippets, etc.)*
-- [ ] WebX Playground
-- [ ] WebX Docs
-- [ ] Protected and secure by default 🔒
-  - [ ] DDOS 🛡️
-  - [ ] CORS 🛡️
-  - [ ] CSRF 🛡️
-  - [ ] XSS 🛡️
-  - [ ] SQL injection 🛡️
-  - [ ] Rate limiting ⏱️
-  - [ ] TLS/SSL/HTTPS 🔒
+- [ ] WebX Playground 🛝
+- [ ] WebX Docs 📖
+- [ ] Package manager 📦 *(`NPM`-like, for WebX handlers, modules, and drivers)*
 
 </details>
 
@@ -64,27 +64,27 @@ Below is a high-level overview of the existing (implemented) and planned feature
   - [X] Parser
     - [X] AST for WebX modules
   - [X] Comments
-  - [ ] Model definitions (ORM, Prism-like)
+  - [ ] Model definitions *(ORM, Prism-like)*
     - [X] Fields
     - [X] Types
     - [ ] Constraints
     - [ ] Relations
     - [ ] Migrations
-    - [ ] Queries (CRUD operations)
-  - [ ] Native SSR (HTML templating)
+    - [ ] Queries *(CRUD operations)*
+  - [ ] Native SSR *(templating)*
     - [X] JSX support
     - [ ] ~~HyperScript support~~
   - [ ] TypeScript support
     - [X] Deno runtime
-    - [ ] WebAssembly AoT compilation
-    - [ ] Unified type definitions (shared between client and server)
-  - [ ] Validation (Serialize/Deserialize for req/res data)
-    - [ ] Input sanitization (safe defaults)
-    - [ ] Output sanitization (safe defaults)
+    - [ ] ~~WebAssembly AoT compilation~~
+    - [ ] Unified type definitions *(shared between client and server)*
+  - [ ] Validation *(Serialize/Deserialize for req/res data)*
+    - [ ] Input sanitization *(safe defaults)*
+    - [ ] Output sanitization *(safe defaults)*
     - [ ] Type checking
     - [ ] Constraints
     - [ ] Relations
-    - [ ] Formats:
+    - [ ] Formats
       - [ ] JSON
       - [ ] JSON5
       - [ ] XML
@@ -92,47 +92,70 @@ Below is a high-level overview of the existing (implemented) and planned feature
       - [ ] CSV
       - [ ] YAML
       - [ ] TOML
-    - [ ] Custom formats (plugins)
+      - [ ] Custom *(plugins)*
   - [ ] Route definitions
     - [X] HTTP methods
-    - [X] Path parameters (URL/segments/)
-    - [ ] Query parameters (?key=value)
+    - [X] Path parameters *(URL/segments/)*
+    - [ ] Query parameters *(`?key=value`)*
     - [ ] Request headers
-    - [ ] Request Body parameters (POST/PUT/PATCH)
-    - [ ] Body serialization (JSON, XML, etc.)
+    - [ ] Request Body parameters *(POST/PUT/PATCH)*
+    - [ ] Body serialization *(JSON, XML, etc.)*
     - [ ] Body deserialization and validation
-    - [ ] Dependency injection (between handlers)
-    - [ ] Middleware (before/after handlers)
+    - [ ] Dependency injection *(between handlers)*
+    - [ ] Middleware *(before/after handlers)*
     - [ ] Endpoint body code block types
-      - [ ] TypeScript (TS)
-      - [ ] Typescript-React (TSX)
+      - [ ] TypeScript *(TS)*
+      - [ ] Typescript-React *(TSX)*
 
 
 ```typescript
 get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin(user) { ... }
 ```
-  - [ ] Handlers (middleware)
+  - [ ] Handlers *(middleware)*
     - [ ] Design choices
       - [ ] Async vs sync
-      - [ ] Return types (explicit)
-      - [ ] Error handling (opinionated!)
+      - [ ] Return types *(explicit)*
+      - [ ] Error handling *(opinionated!)*
       - [ ] Dependency injection
       - [ ] Return result destructuring
-  - [ ] Built-in handlers (stdlib)
+  - [ ] Built-in handlers 📦 *(stdlib)*
     - [ ] Data manipulation
     - [ ] Business logic
     - [ ] Authentication
+      - [ ] OAuth
+      - [ ] OpenID
+      - [ ] JWT
+      - [ ] SAML
+      - [ ] LDAP
+      - [ ] Kerberos
+      - [ ] Basic
+      - [ ] Digest
+      - [ ] Bearer
+      - [ ] API keys
+      - [ ] HMAC
+      - [ ] Mutual TLS
     - [ ] Authorization
+      - [ ] RBAC
+      - [ ] ABAC
+      - [ ] PBAC
+      - [ ] LBAC
+      - [ ] DAC
     - [ ] Logging
+      - [ ] Request logging
+      - [ ] Error logging
+      - [ ] Audit logging
+      - [ ] Security logging
+      - [ ] Performance logging
+      - [ ] Debug logging
+      - [ ] Custom logging *(plugins)*
     - [ ] Caching
+      - [ ] In-memory
+      - [ ] Redis
+      - [ ] Memcached
     - [ ] Sessions
-    - [ ] Database
-    - [ ] Integrated Services
-    - [ ] Static file serving
+    - [ ] Database drivers
+    - [X] Static file serving
     - [ ] Templating 📄
-    - [ ] Logging
-    - [ ] Caching
-  - [ ] Integrated services 📦
 - [X] Error handling 🚨
     - [X] Server errors
     - [X] Client errors
@@ -145,12 +168,12 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
 <details><summary>WebX CLI tool</summary>
   
   - [ ] Project
-    - [X] Scaffolding (init new project)
+    - [X] Scaffolding *(init new project)*
     - [ ] Configuration
-  - [ ] Build (AoT compilation)
+  - [ ] Build *(AoT compilation)*
     - [ ] Static files
     - [ ] TypeScript to WebAssembly
-  - [ ] Run (JIT compilation)
+  - [ ] Run *(JIT compilation)*
     - [ ] Development mode
       - [X] Hot reloading
       - [X] Logging
@@ -171,8 +194,8 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
     - [ ] Docker
     - [ ] Kubernetes
     - [ ] Cloud
-  - [ ] Documentation (auto-generated)
-  - [ ] Publish (to package registry)
+  - [ ] Documentation *(auto-generated)*
+  - [ ] Publish *(to package registry)*
   - [ ] Versioning
   - [ ] Linting
   - [ ] Formatting
