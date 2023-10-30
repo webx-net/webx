@@ -82,31 +82,27 @@ pub mod responses {
     }
 
     pub fn not_found_default_webx(mode: WXMode) -> http::Response<String> {
-        let body = if mode.is_dev() { format!(r#"
-                <html>
-                    <head>
-                        <title>404 Not Found</title>
-                    </head>
-                    <body>
-                        <h1>404 Not Found</h1>
-                        <p>The requested URL was not found on this server.</p>
-                        <hr>
-                        <address>webx/0.1.0 (Unix) (webx/{})</address>
-                    </body>
-                </html>
-            "#, env!("CARGO_PKG_VERSION")) } else { format!(r#"
-                <html>
-                    <head>
-                        <title>404 Not Found</title>
-                    </head>
-                    <body>
-                        <h1>404 Not Found</h1>
-                        <p>The requested URL was not found on this server.</p>
-                        <hr>
-                        <address>webx/0.1.0 (Unix)</address>
-                    </body>
-                </html>
-            "#) };
+        let body = if mode.is_dev() { format!(r#"<html>
+    <head>
+        <title>404 Not Found</title>
+    </head>
+    <body>
+        <h1>404 Not Found</h1>
+        <p>The requested URL was not found on this server.</p>
+        <hr>
+        <address>webx/0.1.0 (Unix) (webx/{})</address>
+    </body>
+</html>"#, env!("CARGO_PKG_VERSION")) } else { format!(r#"<html>
+    <head>
+        <title>404 Not Found</title>
+    </head>
+    <body>
+        <h1>404 Not Found</h1>
+        <p>The requested URL was not found on this server.</p>
+        <hr>
+        <address>webx/0.1.0 (Unix)</address>
+    </body>
+</html>"#) };
         http::Response::builder()
             .status(http::StatusCode::NOT_FOUND)
             .header("Access-Control-Allow-Origin", "*")
@@ -123,44 +119,40 @@ pub mod responses {
     }
 
     pub fn internal_server_error_default_webx(mode: WXMode, message: String) -> http::Response<String> {
-        let body = if mode.is_dev() { format!(r#"
-                <html>
-                    <head>
-                        <title>500 Internal Server Error</title>
-                    </head>
-                    <body>
-                        <h1>500 Internal Server Error</h1>
-                        <p>
-                            The server encountered an internal error and was unable to complete your request. <br>
-                            Either the server is overloaded or there is an error in the application.
-                        </p>
-                        <h2>Debugging Information</h2>
-                        <p>
-                            <strong>Message:</strong>
-                            <pre>
+        let body = if mode.is_dev() { format!(r#"<html>
+    <head>
+        <title>500 Internal Server Error</title>
+    </head>
+    <body>
+        <h1>500 Internal Server Error</h1>
+        <p>
+            The server encountered an internal error and was unable to complete your request. <br>
+            Either the server is overloaded or there is an error in the application.
+        </p>
+        <h2>Debugging Information</h2>
+        <p>
+            <strong>Message:</strong>
+            <pre>
 {}
-                            </pre>
-                        </p>
-                        <hr>
-                        <address>webx/{} development mode</address>
-                    </body>
-                </html>
-            "#, message, env!("CARGO_PKG_VERSION")) } else { format!(r#"
-                <html>
-                    <head>
-                        <title>500 Internal Server Error</title>
-                    </head>
-                    <body>
-                        <h1>500 Internal Server Error</h1>
-                        <p>
-                            The server encountered an internal error and was unable to complete your request. <br>
-                            Either the server is overloaded or there is an error in the application.
-                        </p>
-                        <hr>
-                        <address>webx prouction mode</address>
-                    </body>
-                </html>
-            "#) };
+            </pre>
+        </p>
+        <hr>
+        <address>webx/{} development mode</address>
+    </body>
+</html>"#, message, env!("CARGO_PKG_VERSION")) } else { format!(r#"<html>
+    <head>
+        <title>500 Internal Server Error</title>
+    </head>
+    <body>
+        <h1>500 Internal Server Error</h1>
+        <p>
+            The server encountered an internal error and was unable to complete your request. <br>
+            Either the server is overloaded or there is an error in the application.
+        </p>
+        <hr>
+        <address>webx prouction mode</address>
+    </body>
+</html>"#) };
         http::Response::builder()
             .status(http::StatusCode::INTERNAL_SERVER_ERROR)
             .header("Access-Control-Allow-Origin", "*")
