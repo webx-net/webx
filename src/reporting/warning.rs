@@ -12,5 +12,5 @@ fn warning_generic(mode: WXMode, message: String, warning_name: &str) {
 pub fn warning(mode: WXMode, message: String) {
     let now = Local::now();
     let time = now.format("%d/%m %H:%M:%S");
-    warning_generic(mode, message, format!("[Warning {}]", time).as_str());
+    warning_generic(mode, message, format!("[Warn {}]", time).as_str());
 }
