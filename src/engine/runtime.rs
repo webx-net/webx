@@ -581,17 +581,28 @@ impl WXRuntime {
     /// - start the runtime with the `run` function.
     /// - trigger a module hotswap in `dev` mode.
     pub fn load_modules(&mut self, modules: Vec<WXModule>) {
-        modules.iter().for_each(|m| self.add_runtime(&m.path));
-        self.source_modules.extend(modules);
+        modules.into_iter().for_each(|m| self.load_module(m));
     }
 
-    fn add_runtime(&mut self, module_path: &WXModulePath) {
-        self.runtimes
-            .insert(module_path.clone(), JsRuntime::new(Default::default()));
+    /// Load a single module into the runtime.
+    /// This function will **NOT** recompile the route map.
+    /// To recompile the route map, either:
+    /// - start the runtime with the `run` function.
+    /// - trigger a module hotswap in `dev` mode.
+    /// - call the `recompile` function.
+    /// 
+    /// ## Note
+    /// Only call this function once per module.
+    /// This should **NOT** be called when hotswapping modules.
+    pub fn load_module(&mut self, module: WXModule) {
+        self.runtimes.insert(module.path.clone(), JsRuntime::new(Default::default()));
+        self.initialize_module_runtime(&module);
+        self.source_modules.push(module);
     }
 
-    fn remove_runtime(&mut self, module_path: &WXModulePath) {
-        self.runtimes.remove(module_path);
+    fn remove_module(&mut self, module_path: &WXModulePath) {
+        self.runtimes.remove(&module_path);
+        self.source_modules.retain(|m| m.path != *module_path);
     }
 
     /// Tries to recompile all loaded modules at once and replace the runtime route map.
@@ -626,6 +637,27 @@ impl WXRuntime {
             for (method, path) in routes {
                 println!(" - {} {}", method, path);
             }
+        }
+    }
+
+    /// Execute the global scope in the runtime for a specific module
+    fn initialize_module_runtime(&mut self, module: &WXModule) {
+        if let Some(rt) = self.runtimes.get_mut(&module.path) {
+            let ts = module.scope.global_ts.clone();
+            let result = rt.execute_script("[webx global scope]", ts.into());
+            if let Err(e) = result {
+                error_code(
+                    format!("Failed to execute global scope for module '{}':\n{}", module.path.module_name(), e),
+                    500,
+                );
+            }
+            info(self.mode, &format!("Initialized runtime for module '{}'", module.path.module_name()));
+        } else {
+            dbg!(&self.runtimes.keys());
+            error_code(
+                format!("Module runtime not found for module '{}'", module.path.module_name()),
+                500,
+            );
         }
     }
 
@@ -671,8 +703,7 @@ impl WXRuntime {
                         self.mode,
                         &format!("New module: {}", module.path.module_name()),
                     );
-                    self.add_runtime(&module.path);
-                    self.source_modules.push(module);
+                    self.load_module(module);
                     self.recompile();
                 }
                 WXRuntimeMessage::SwapModule(path, module) => {
@@ -690,8 +721,7 @@ impl WXRuntime {
                         self.mode,
                         &format!("Removed module: {}", path.module_name()),
                     );
-                    self.remove_runtime(&path);
-                    self.source_modules.retain(|m| m.path != path);
+                    self.remove_module(&path);
                     self.recompile();
                 }
             }
