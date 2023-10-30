@@ -25,7 +25,7 @@ fn webx_static(relative_path: &WXRTValue, info: &WXRuntimeInfo) -> Result<WXRTVa
     })
 }
 
-pub fn try_call(name: &str, args: Vec<WXRTValue>, info: &WXRuntimeInfo) -> Option<Result<WXRTValue, WXRuntimeError>> {
+pub fn try_call(name: &str, args: &Vec<WXRTValue>, info: &WXRuntimeInfo) -> Option<Result<WXRTValue, WXRuntimeError>> {
     let assert_args = |n: usize| {
         if args.len() != n {
             return Some(Err::<WXRTValue, WXRuntimeError>(WXRuntimeError {
