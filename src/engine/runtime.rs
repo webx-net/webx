@@ -25,7 +25,7 @@ use crate::{
 
 use super::{
     http::{
-        parse_request_from_string, parse_request_tcp, read_all_from_stream,
+        parse_request_from_string, read_all_from_stream,
         responses::{self, ok_html},
         serialize_response,
     },
@@ -127,7 +127,7 @@ impl WXRTValue {
         let mut handle_scope = v8::HandleScope::new(&mut isolate);
         let context = v8::Context::new(&mut handle_scope);
         let mut scope = &mut v8::ContextScope::new(&mut handle_scope, context);
-        let val: &crate::engine::runtime::v8::Value = val.borrow();
+        let val: &crate::engine::runtime::v8::Value = val;
         if val.is_undefined() {
             return Ok(WXRTValue::Null);
         }
@@ -347,7 +347,7 @@ pub struct WXRTRoute {
 }
 
 impl WXRTRoute {
-    fn execute_body(&self, ctx: &mut WXRTContext) -> Result<WXRTValue, WXRuntimeError> {
+    fn execute_body(&self, _ctx: &mut WXRTContext) -> Result<WXRTValue, WXRuntimeError> {
         assert!(self.body.is_some());
         let body = self.body.as_ref().unwrap();
         match body.body_type {

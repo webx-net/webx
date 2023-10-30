@@ -9,11 +9,6 @@ pub fn read_all_from_stream(stream: &TcpStream) -> String {
     result
 }
 
-pub fn parse_request_tcp<D: Default>(stream: &TcpStream) -> Option<Request<D>> {
-    let reader = BufReader::new(stream);
-    parse_request(reader)
-}
-
 pub fn parse_request_from_string<D: Default>(request: &str) -> Option<Request<D>> {
     parse_request(BufReader::new(request.as_bytes()))
 }
