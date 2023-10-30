@@ -480,6 +480,16 @@ impl<'a> WebXFileParser<'a> {
         WXModel { name, fields }
     }
 
+    fn de_indent_block(s: String) -> String {
+        let last_indent = s.lines().last().unwrap_or("").chars().take_while(|c| c.is_whitespace()).count();
+        s.lines().map(|l| {
+            let indent = l.chars().take_while(|c| c.is_whitespace()).count();
+            if indent >= last_indent { l.chars().skip(last_indent).collect::<String>() } else { l.to_string() }
+        })
+        .collect::<Vec<String>>()
+        .join("\n")
+    }
+
     fn parse_code_body(&mut self) -> Option<WXBody> {
         self.skip_whitespace(true);
         match self.peek() {
@@ -487,14 +497,14 @@ impl<'a> WebXFileParser<'a> {
                 self.next();
                 Some(WXBody {
                     body_type: WXBodyType::TS,
-                    body: self.parse_block('{', '}'),
+                    body: Self::de_indent_block(self.parse_block('{', '}')),
                 })
             }
             Some('(') => {
                 self.next();
                 Some(WXBody {
                     body_type: WXBodyType::TSX,
-                    body: self.parse_block('(', ')'),
+                    body: Self::de_indent_block(self.parse_block('(', ')')),
                 })
             }
             _ => None,
