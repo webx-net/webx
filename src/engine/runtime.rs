@@ -1,24 +1,36 @@
 use std::{
+    borrow::Borrow,
     collections::HashMap,
     io::Write,
     net::{SocketAddr, TcpListener, TcpStream},
-    sync::mpsc::Receiver, path::Path,
+    path::Path,
+    sync::mpsc::Receiver,
 };
 
-use deno_core::JsRuntime;
+use deno_core::{
+    v8::{self, GetPropertyNamesArgs},
+    JsRuntime,
+};
 use http::{Method, Response, Uri};
 
 use crate::{
     analysis::routes::verify_model_routes,
-    file::webx::{WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXUrlPath, WXRouteHandler, WXLiteralValue, WXUrlPathSegment, WXTypedIdentifier},
+    file::webx::{
+        WXBody, WXBodyType, WXLiteralValue, WXModule, WXModulePath, WXRoute, WXRouteHandler,
+        WXTypedIdentifier, WXUrlPath, WXUrlPathSegment,
+    },
     reporting::{debug::info, error::error_code, warning::warning},
     runner::WXMode,
 };
 
-use super::{http::{
-    parse_request_tcp, serialize_response,
-    responses::{ok_html, self}, read_all_from_stream, parse_request_from_string,
-}, stdlib};
+use super::{
+    http::{
+        parse_request_from_string, parse_request_tcp, read_all_from_stream,
+        responses::{self, ok_html},
+        serialize_response,
+    },
+    stdlib,
+};
 
 /// A runtime error.
 pub struct WXRuntimeError {
@@ -72,7 +84,7 @@ impl WXRTValue {
                     values.push(value.to_js());
                 }
                 format!("[{}]", values.join(", "))
-            },
+            }
             WXRTValue::Object(obj) => {
                 let mut values = Vec::new();
                 for (key, value) in obj.iter() {
@@ -268,7 +280,11 @@ pub enum WXPathResolution {
 
 impl WXUrlPath {
     fn get_url_segments(url: &Uri) -> Vec<&str> {
-        url.path().split('/').skip(1).filter(|s| !s.is_empty()).collect::<Vec<_>>()
+        url.path()
+            .split('/')
+            .skip(1)
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
     }
 
     pub fn matches(&self, url: &Uri) -> WXPathResolution {
@@ -298,13 +314,22 @@ impl WXUrlPath {
         };
 
         if self.segments() == url_count {
-            if self.0.iter().zip(&url).all(match_segment) { return WXPathResolution::Perfect(bindings); }
+            if self.0.iter().zip(&url).all(match_segment) {
+                return WXPathResolution::Perfect(bindings);
+            }
         } else if self.segments() > url_count {
-            if self.0.iter().zip(url.iter().chain(std::iter::repeat(&""))).all(match_segment) {
-                if url_count == self.segments() - 1 { return WXPathResolution::Partial(bindings); }
+            if self
+                .0
+                .iter()
+                .zip(url.iter().chain(std::iter::repeat(&"")))
+                .all(match_segment)
+            {
+                if url_count == self.segments() - 1 {
+                    return WXPathResolution::Partial(bindings);
+                }
             }
         }
-    
+
         WXPathResolution::None
     }
 }
@@ -315,13 +340,14 @@ pub struct WXRTRoute {
     // TODO: - handler functions
     // TODO: - global typescript code
     // TODO: - models ORM and types
+    module_path: WXModulePath,
     body: Option<WXBody>,
     pre_handlers: Vec<WXRTHandlerCall>,
     post_handlers: Vec<WXRTHandlerCall>,
 }
 
 impl WXRTRoute {
-    fn execute_body(&self) -> Result<WXRTValue, WXRuntimeError> {
+    fn execute_body(&self, ctx: &mut WXRTContext) -> Result<WXRTValue, WXRuntimeError> {
         assert!(self.body.is_some());
         let body = self.body.as_ref().unwrap();
         match body.body_type {
@@ -335,8 +361,13 @@ impl WXRTRoute {
     ///
     /// ## Note
     /// This function will **not** check if the route is valid.
-    /// 
-    fn execute(&self, ctx: &mut WXRTContext, info: &WXRuntimeInfo) -> Result<Response<String>, WXRuntimeError> {
+    ///
+    fn execute(
+        &self,
+        ctx: &mut WXRTContext,
+        rt: &mut JsRuntime,
+        info: &WXRuntimeInfo,
+    ) -> Result<Response<String>, WXRuntimeError> {
         // TODO: Refactor this function to combine all logic into a better structure.
         if self.pre_handlers.len() == 0 && self.body.is_none() && self.post_handlers.len() == 0 {
             // No handlers or body are present, return an empty response.
@@ -344,9 +375,12 @@ impl WXRTRoute {
                 code: 500,
                 message: "Route is empty".into(),
             });
-        } else if self.pre_handlers.len() == 0 && self.body.is_some() && self.post_handlers.len() == 0 {
+        } else if self.pre_handlers.len() == 0
+            && self.body.is_some()
+            && self.post_handlers.len() == 0
+        {
             // Only a body is present, execute it and return the result.
-            Ok(ok_html(self.execute_body()?.to_raw()))
+            Ok(ok_html(self.execute_body(ctx)?.to_raw()))
         } else if self.body.is_none() {
             // Only handlers are present, execute them sequentially.
             // Merge all pre and post handlers into a single handler vector.
@@ -354,28 +388,43 @@ impl WXRTRoute {
             handlers.extend(self.post_handlers.clone());
             // Execute all (but last() handlers sequentially.
             for handler in handlers.iter().take(handlers.len() - 1) {
-                let result = handler.execute(&ctx, info)?;
+                let result = handler.execute(&ctx, rt, info)?;
                 // Bind the result to the output variable.
-                if let Some(output) = &handler.output { ctx.bind(output, result); }
+                if let Some(output) = &handler.output {
+                    ctx.bind(output, result);
+                }
             }
             // Execute the last handler and return the result as the response.
             let handler = handlers.last().unwrap();
-            Ok(ok_html(handler.execute(&ctx, info)?.to_raw()))
+            Ok(ok_html(handler.execute(&ctx, rt, info)?.to_raw()))
         } else {
-            // Both handlers and a body are present, execute them sequentially.
-            todo!("Handlers + body is not supported yet");
-            /*
-                // TODO: Execute pre-handlers
-                let body = self.execute_body()?;
-                // TODO: Execute post-handlers, pass body result in ctx
-                if body.is_none() {
-                    return Err(WXRuntimeError {
-                        code: 500,
-                        message: "Route body is empty".into(),
-                    });
+            // Both handlers and a body are present.
+            // Execute pre-handlers sequentially.
+            for handler in self.pre_handlers.iter() {
+                let result = handler.execute(&ctx, rt, info)?;
+                if let Some(output) = &handler.output {
+                    ctx.bind(output, result);
                 }
-                Ok(body.unwrap())
-            */
+            }
+            let body = self.execute_body(ctx)?;
+            if self.post_handlers.len() == 0 {
+                // No post-handlers are present, return the body result.
+                return Ok(ok_html(body.to_raw()));
+            }
+            // Execute post-handlers sequentially.
+            for handler in self.post_handlers.iter().take(self.post_handlers.len() - 1) {
+                let result = handler.execute(&ctx, rt, info)?;
+                if let Some(output) = &handler.output {
+                    ctx.bind(output, result);
+                }
+            }
+            Ok(ok_html(
+                self.post_handlers
+                    .last()
+                    .unwrap()
+                    .execute(&ctx, rt, info)?
+                    .to_raw(),
+            ))
         }
     }
 }
@@ -407,18 +456,33 @@ impl WXRouteMap {
             let method_map = route_map
                 .entry(route.method.clone())
                 .or_insert(HashMap::new());
-            method_map.insert(path.clone(), Self::compile_route(route)?);
+            method_map.insert(
+                path.clone(),
+                Self::compile_route(route, route.info.path.clone())?,
+            );
         }
         Ok(WXRouteMap(route_map))
     }
 
     /// Compile a parsed route into a runtime route.
-    fn compile_route(route: &WXRoute) -> Result<WXRTRoute, WXRuntimeError> {
+    fn compile_route(
+        route: &WXRoute,
+        module_path: WXModulePath,
+    ) -> Result<WXRTRoute, WXRuntimeError> {
         let body = route.body.clone();
         Ok(WXRTRoute {
+            module_path,
             body,
-            pre_handlers: route.pre_handlers.iter().map(WXRTHandlerCall::from_handler).collect(),
-            post_handlers: route.post_handlers.iter().map(WXRTHandlerCall::from_handler).collect(),
+            pre_handlers: route
+                .pre_handlers
+                .iter()
+                .map(WXRTHandlerCall::from_handler)
+                .collect(),
+            post_handlers: route
+                .post_handlers
+                .iter()
+                .map(WXRTHandlerCall::from_handler)
+                .collect(),
         })
     }
 
@@ -428,7 +492,11 @@ impl WXRouteMap {
     /// ## Note
     /// This function will **not** check for duplicate routes.
     /// This is done in the `analyse_module_routes` function.
-    fn resolve(&self, method: &Method, path: &Uri) -> Option<(&WXUrlPath, WXRTContext, &WXRTRoute)> {
+    fn resolve(
+        &self,
+        method: &Method,
+        path: &Uri,
+    ) -> Option<(&WXUrlPath, WXRTContext, &WXRTRoute)> {
         let routes = self.0.get(method)?;
         // Sort all routes by path length in descending order.
         // This is required to ensure that the most specific routes are matched first.
@@ -442,10 +510,10 @@ impl WXRouteMap {
                 WXPathResolution::Perfect(bindings) => {
                     best_match = Some((route_path, bindings, route));
                     break;
-                },
+                }
                 WXPathResolution::Partial(bindings) => {
                     best_match = Some((route_path, bindings, route));
-                },
+                }
             }
         }
         best_match
@@ -479,12 +547,12 @@ pub struct WXRuntime {
     messages: Receiver<WXRuntimeMessage>,
     routes: WXRouteMap,
     /// All WebX TypeScript runtimes.
-    /// 
+    ///
     /// ## Hotswapping
     /// These are persistent between hotswapping modules in dev mode.
     /// They are only created or destroyed when modules are added or removed.
     /// This allows us to keep the state of the application between hotswaps.
-    /// 
+    ///
     /// ## Persistent state
     /// Each JS runtime maintains a JavaScript execution context,
     /// which means that it keeps track of its own persistent state, variables,
@@ -518,7 +586,8 @@ impl WXRuntime {
     }
 
     fn add_runtime(&mut self, module_path: &WXModulePath) {
-        self.runtimes.insert(module_path.clone(), JsRuntime::new(Default::default()));
+        self.runtimes
+            .insert(module_path.clone(), JsRuntime::new(Default::default()));
     }
 
     fn remove_runtime(&mut self, module_path: &WXModulePath) {
@@ -634,30 +703,32 @@ impl WXRuntime {
     /// ## Blocking
     /// This function is **non-blocking** and will return immediately depending on the
     /// value of `listener.set_nonblocking` in the `run` function.
-    fn listen_for_requests(&self, listener: &TcpListener) {
-        let Ok((stream, addr)) = listener.accept() else { return };
+    fn listen_for_requests(&mut self, listener: &TcpListener) {
+        let Ok((stream, addr)) = listener.accept() else {
+            return;
+        };
         self.handle_request(stream, addr);
         // TODO: Add multi-threading pool
     }
 
     /// Handle an incoming request.
-    fn handle_request(&self, mut stream: TcpStream, addr: SocketAddr) {
+    fn handle_request(&mut self, mut stream: TcpStream, addr: SocketAddr) {
         let raw_request = read_all_from_stream(&stream);
         if let Some(request) = parse_request_from_string::<()>(&raw_request) {
-            if self.mode.debug_level().is_max() { info(self.mode, &format!("Request from: {}\n{}", addr, raw_request)); }
-            else if self.mode.debug_level().is_high() { info(self.mode, &format!("Request from: {}", addr)); }
-            // Match the request to a route.
-            if let Some((path, mut ctx, route)) = self.routes.resolve(request.method(), request.uri()) {
+            if self.mode.debug_level().is_max() {
                 info(
                     self.mode,
-                    &format!(
-                        "Route: {} {}, matches '{}'",
-                        request.method(),
-                        path,
-                        request.uri().path()
-                    ),
+                    &format!("Request ({} bytes) from: {}\n{}", raw_request.len(), addr, raw_request),
                 );
-                let response = match route.execute(&mut ctx, &self.info) {
+            } else if self.mode.debug_level().is_high() {
+                info(self.mode, &format!("Request from: {}", addr));
+            }
+            // Match the request to a route.
+            if let Some((_path, mut ctx, route)) =
+                self.routes.resolve(request.method(), request.uri())
+            {
+                let module_runtime = self.runtimes.get_mut(&route.module_path).unwrap();
+                let response = match route.execute(&mut ctx, module_runtime, &self.info) {
                     Ok(response) => response,
                     Err(err) => {
                         error_code(format!("{}", err.message), err.code);
@@ -665,21 +736,30 @@ impl WXRuntime {
                     }
                 };
                 let http_response = serialize_response(&response);
-                stream.write(http_response.as_bytes()).unwrap();
-                if self.mode.debug_level().is_max() {
-                    info(self.mode, &format!("Response to: {}\n{}", addr, http_response));
-                } else if self.mode.debug_level().is_high() {
-                    info(self.mode, &format!("Response to: {}", addr));
+                if let Ok(sent) = stream.write(http_response.as_bytes()) {
+                    if self.mode.debug_level().is_max() {
+                        info(
+                            self.mode,
+                            &format!("Response ({} bytes) to: {}\n{}", sent, addr, http_response),
+                        );
+                    } else if self.mode.debug_level().is_high() {
+                        info(self.mode, &format!("Response to: {}", addr));
+                    }
+                } else {
+                    warning(self.mode, format!("Failed to send response to: {}", addr));
                 }
             } else {
-                warning(self.mode, format!("No route match: {}", request.uri().path()));
-                stream
-                    .write(
-                        serialize_response(&responses::not_found_default_webx(self.mode))
-                            .as_bytes(),
-                    )
-                    .unwrap();
-                info(self.mode, &format!("Response to: {}", addr));
+                warning(
+                    self.mode,
+                    format!("No route match: {}", request.uri().path()),
+                );
+                let response = responses::not_found_default_webx(self.mode);
+                let sent = stream.write(serialize_response(&response).as_bytes());
+                if let Ok(n) = sent {
+                    info(self.mode, &format!("{} response ({} bytes) to: {}", response.status(), n, addr));
+                } else {
+                    warning(self.mode, format!("Failed to send response to: {}\n{}", addr, sent.unwrap_err()));
+                }
             }
             stream.flush().unwrap();
         } else {
