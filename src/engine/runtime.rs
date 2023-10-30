@@ -26,7 +26,7 @@ pub struct WXRuntimeError {
     pub message: String,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct WXRTContext {
     pub values: HashMap<String, WXRTValue>,
 }
@@ -48,10 +48,10 @@ impl WXRTContext {
 }
 
 /// Runtime values in WebX.
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum WXRTValue {
     String(String),
-    Number(u32, u32),
+    Number(f64),
     Boolean(bool),
     Null,
     Array(Vec<WXRTValue>),
@@ -63,8 +63,8 @@ impl WXRTValue {
     pub fn to_js(&self) -> String {
         match self {
             WXRTValue::String(s) => format!("\"{}\"", s),
-            WXRTValue::Number(i, d) => format!("{}{}", i, d),
-            WXRTValue::Boolean(b) => format!("{}", b),
+            WXRTValue::Number(f) => f.to_string(),
+            WXRTValue::Boolean(b) => b.to_string(),
             WXRTValue::Null => "null".into(),
             WXRTValue::Array(arr) => {
                 let mut values = Vec::new();
@@ -79,7 +79,7 @@ impl WXRTValue {
                     values.push(format!("{}: {}", key, value.to_js()));
                 }
                 format!("{{{}}}", values.join(", "))
-            },
+            }
         }
     }
 
@@ -90,8 +90,8 @@ impl WXRTValue {
     pub fn to_raw(&self) -> String {
         match self {
             WXRTValue::String(s) => s.clone(),
-            WXRTValue::Number(i, d) => format!("{}{}", i, d),
-            WXRTValue::Boolean(b) => format!("{}", b),
+            WXRTValue::Number(f) => f.to_string(),
+            WXRTValue::Boolean(b) => b.to_string(),
             WXRTValue::Null => "null".into(),
             WXRTValue::Array(arr) => {
                 let mut values = Vec::new();
@@ -99,22 +99,79 @@ impl WXRTValue {
                     values.push(value.to_raw());
                 }
                 format!("[{}]", values.join(", "))
-            },
+            }
             WXRTValue::Object(obj) => {
                 let mut values = Vec::new();
                 for (key, value) in obj.iter() {
                     values.push(format!("{}: {}", key, value.to_raw()));
                 }
                 format!("{{{}}}", values.join(", "))
-            },
+            }
         }
+    }
+
+    pub fn from_js_value(val: &v8::Value) -> Result<Self, String> {
+        let mut isolate = v8::Isolate::new(Default::default());
+        let mut handle_scope = v8::HandleScope::new(&mut isolate);
+        let context = v8::Context::new(&mut handle_scope);
+        let mut scope = &mut v8::ContextScope::new(&mut handle_scope, context);
+        let val: &crate::engine::runtime::v8::Value = val.borrow();
+        if val.is_undefined() {
+            return Ok(WXRTValue::Null);
+        }
+        if val.is_null() {
+            return Ok(WXRTValue::Null);
+        }
+        if val.is_string() {
+            return Ok(WXRTValue::String(val.to_rust_string_lossy(&mut scope)));
+        }
+        if val.is_number() {
+            return Ok(WXRTValue::Number(val.number_value(scope).unwrap()));
+        }
+        if val.is_boolean() {
+            return Ok(WXRTValue::Boolean(val.boolean_value(scope)));
+        }
+        if val.is_array() {
+            let mut values = Vec::new();
+            let arr_obj = val.to_object(scope).unwrap();
+            let len_str = v8::String::new(scope, "length").unwrap();
+            let len = arr_obj.get(scope, len_str.into()).unwrap();
+            let len = len.number_value(scope).unwrap() as usize;
+            for i in 0..len {
+                let val = arr_obj.get_index(scope, i as u32).unwrap();
+                let val = WXRTValue::from_js_value(&val).unwrap();
+                values.push(val);
+            }
+            return Ok(WXRTValue::Array(values));
+        }
+        if val.is_object() {
+            let mut fields = Vec::new();
+            let obj = val.to_object(scope).unwrap();
+            let keys = obj
+                .get_own_property_names(scope, GetPropertyNamesArgs::default())
+                .unwrap();
+            let len = keys.length() as usize;
+            for i in 0..len {
+                let key = keys.get_index(scope, i as u32).unwrap();
+                let key = key.to_string(scope).unwrap();
+                let key = key.to_rust_string_lossy(scope);
+                let key_str = v8::String::new(scope, &key).unwrap();
+                let val = obj.get(scope, key_str.into()).unwrap();
+                let val = WXRTValue::from_js_value(&val).unwrap();
+                fields.push((key, val));
+            }
+            return Ok(WXRTValue::Object(fields));
+        }
+        Err("Unsupported value type".into())
     }
 }
 
 fn eval_literal(literal: &WXLiteralValue, ctx: &WXRTContext) -> Result<WXRTValue, WXRuntimeError> {
     match literal {
         WXLiteralValue::String(s) => Ok(WXRTValue::String(s.clone())),
-        WXLiteralValue::Number(i, d) => Ok(WXRTValue::Number(*i, *d)),
+        WXLiteralValue::Number(i, d) => Ok(WXRTValue::Number(
+            format!("{}.{}", i, d).parse::<f64>().unwrap(),
+        )),
         WXLiteralValue::Boolean(b) => Ok(WXRTValue::Boolean(*b)),
         WXLiteralValue::Null => Ok(WXRTValue::Null),
         WXLiteralValue::Array(arr) => {
@@ -123,14 +180,14 @@ fn eval_literal(literal: &WXLiteralValue, ctx: &WXRTContext) -> Result<WXRTValue
                 values.push(eval_literal(value, ctx)?);
             }
             Ok(WXRTValue::Array(values))
-        },
+        }
         WXLiteralValue::Object(obj) => {
             let mut values = Vec::new();
             for (key, value) in obj.iter() {
                 values.push((key.clone(), eval_literal(value, ctx)?));
             }
             Ok(WXRTValue::Object(values))
-        },
+        }
         WXLiteralValue::Identifier(ident) => {
             if let Some(value) = ctx.resolve(&ident) {
                 Ok(value)
@@ -140,7 +197,7 @@ fn eval_literal(literal: &WXLiteralValue, ctx: &WXRTContext) -> Result<WXRTValue
                     message: format!("Identifier '{}' not found in context", ident),
                 })
             }
-        },
+        }
     }
 }
 
@@ -165,19 +222,44 @@ impl WXRTHandlerCall {
     }
 
     /// Execute the handler in the given context and return the result.
-    fn execute(&self, ctx: &WXRTContext, info: &WXRuntimeInfo) -> Result<WXRTValue, WXRuntimeError> {
-        let args = self.args.iter().map(|arg| eval_literal(arg, &ctx)).collect::<Result<Vec<_>, _>>()?;
+    fn execute(
+        &self,
+        ctx: &WXRTContext,
+        rt: &mut JsRuntime,
+        info: &WXRuntimeInfo,
+    ) -> Result<WXRTValue, WXRuntimeError> {
+        let args = self
+            .args
+            .iter()
+            .map(|arg| eval_literal(arg, &ctx))
+            .collect::<Result<Vec<_>, _>>()?;
         // Try to call a native handler.
-        // TODO: Add support for custom user-defined handlers
-        Err(WXRuntimeError {
-            code: 500,
-            message: format!("Handler '{}' not found", self.name),
-        })
-        if let Some(native_res) = stdlib::try_call(&self.name, &args, info) { return native_res; }
+        if let Some(native_res) = stdlib::try_call(&self.name, &args, info) {
+            return native_res;
+        }
+        // User-defined handler
+        let js_args = args.iter().map(WXRTValue::to_js).collect::<Vec<_>>();
+        let js_call = format!("{}({})", self.name, js_args.join(", "));
+        match rt.execute_script("[webx handler code]", js_call.into()) {
+            Ok(val) => {
+                let val: &v8::Value = val.borrow();
+                if val.is_null_or_undefined() {
+                    return Ok(WXRTValue::Null);
+                }
+                WXRTValue::from_js_value(val).map_err(|e| WXRuntimeError {
+                    code: 500,
+                    message: format!("Handler '{}' returned an invalid value:\n{}", self.name, e),
+                })
+            }
+            Err(e) => Err(WXRuntimeError {
+                code: 500,
+                message: format!("Handler '{}' threw an error:\n{}", self.name, e.to_string()),
+            }),
+        }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum WXPathResolution {
     None,
     Perfect(WXRTContext),
