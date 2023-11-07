@@ -65,13 +65,14 @@ Below is a high-level overview of the existing (implemented) and planned feature
   - [X] Parser
     - [X] AST for WebX modules
   - [X] Comments
-  - [ ] Model definitions *(ORM, Prism-like)*
+  - [ ] Model definitions ~~*(ORM, Prism-like)*~~
     - [X] Fields
     - [X] Types
-    - [ ] Constraints
-    - [ ] Relations
-    - [ ] Migrations
-    - [ ] Queries *(CRUD operations)*
+    - [ ] Value Constraints
+    - [ ] Serde Validation
+    - [ ] ~~Relations~~
+    - [ ] ~~Migrations~~
+    - [ ] ~~Queries *(CRUD operations)*~~
   - [ ] Native SSR *(templating)*
     - [X] JSX support
     - [ ] ~~HyperScript support~~
