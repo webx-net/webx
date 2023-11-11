@@ -55,7 +55,7 @@ impl WXRTContext {
     }
 
     fn resolve(&self, ident: &str) -> Option<WXRTValue> {
-        self.values.get(ident).map(|v| v.clone())
+        self.values.get(ident).cloned()
     }
 }
 
@@ -135,7 +135,7 @@ impl WXRTValue {
             return Ok(WXRTValue::Null);
         }
         if val.is_string() {
-            return Ok(WXRTValue::String(val.to_rust_string_lossy(&mut scope)));
+            return Ok(WXRTValue::String(val.to_rust_string_lossy(scope)));
         }
         if val.is_number() {
             return Ok(WXRTValue::Number(val.number_value(scope).unwrap()));
@@ -201,7 +201,7 @@ fn eval_literal(literal: &WXLiteralValue, ctx: &WXRTContext) -> Result<WXRTValue
             Ok(WXRTValue::Object(values))
         }
         WXLiteralValue::Identifier(ident) => {
-            if let Some(value) = ctx.resolve(&ident) {
+            if let Some(value) = ctx.resolve(ident) {
                 Ok(value)
             } else {
                 Err(WXRuntimeError {
@@ -243,7 +243,7 @@ impl WXRTHandlerCall {
         let args = self
             .args
             .iter()
-            .map(|arg| eval_literal(arg, &ctx))
+            .map(|arg| eval_literal(arg, ctx))
             .collect::<Result<Vec<_>, _>>()?;
         // Try to call a native handler.
         if let Some(native_res) = stdlib::try_call(&self.name, &args, info) {
@@ -265,7 +265,7 @@ impl WXRTHandlerCall {
             }
             Err(e) => Err(WXRuntimeError {
                 code: 500,
-                message: format!("Handler '{}' threw an error:\n{}", self.name, e.to_string()),
+                message: format!("Handler '{}' threw an error:\n{}", self.name, e),
             }),
         }
     }
@@ -298,13 +298,13 @@ impl WXUrlPath {
                 WXUrlPathSegment::Literal(literal) => literal.as_str() == *part,
                 WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_: _ }) => {
                     // TODO: Check type.
-                    bindings.bind(&name, WXRTValue::String(part.to_string()));
+                    bindings.bind(name, WXRTValue::String(part.to_string()));
                     true
                 }
                 WXUrlPathSegment::Regex(regex_name, regex) => {
                     let re = regex::Regex::new(regex).unwrap();
                     if re.is_match(part) {
-                        bindings.bind(&regex_name, WXRTValue::String(part.to_string()));
+                        bindings.bind(regex_name, WXRTValue::String(part.to_string()));
                         true
                     } else {
                         false
@@ -317,17 +317,12 @@ impl WXUrlPath {
             if self.0.iter().zip(&url).all(match_segment) {
                 return WXPathResolution::Perfect(bindings);
             }
-        } else if self.segments() > url_count {
-            if self
+        } else if self.segments() > url_count && self
                 .0
                 .iter()
                 .zip(url.iter().chain(std::iter::repeat(&"")))
-                .all(match_segment)
-            {
-                if url_count == self.segments() - 1 {
-                    return WXPathResolution::Partial(bindings);
-                }
-            }
+                .all(match_segment) && url_count == self.segments() - 1 {
+            return WXPathResolution::Partial(bindings);
         }
 
         WXPathResolution::None
@@ -369,15 +364,15 @@ impl WXRTRoute {
         info: &WXRuntimeInfo,
     ) -> Result<Response<String>, WXRuntimeError> {
         // TODO: Refactor this function to combine all logic into a better structure.
-        if self.pre_handlers.len() == 0 && self.body.is_none() && self.post_handlers.len() == 0 {
+        if self.pre_handlers.is_empty() && self.body.is_none() && self.post_handlers.is_empty() {
             // No handlers or body are present, return an empty response.
-            return Err(WXRuntimeError {
+            Err(WXRuntimeError {
                 code: 500,
                 message: "Route is empty".into(),
-            });
-        } else if self.pre_handlers.len() == 0
+            })
+        } else if self.pre_handlers.is_empty()
             && self.body.is_some()
-            && self.post_handlers.len() == 0
+            && self.post_handlers.is_empty()
         {
             // Only a body is present, execute it and return the result.
             Ok(ok_html(self.execute_body(ctx)?.to_raw()))
@@ -388,7 +383,7 @@ impl WXRTRoute {
             handlers.extend(self.post_handlers.clone());
             // Execute all (but last() handlers sequentially.
             for handler in handlers.iter().take(handlers.len() - 1) {
-                let result = handler.execute(&ctx, rt, info)?;
+                let result = handler.execute(ctx, rt, info)?;
                 // Bind the result to the output variable.
                 if let Some(output) = &handler.output {
                     ctx.bind(output, result);
@@ -396,24 +391,24 @@ impl WXRTRoute {
             }
             // Execute the last handler and return the result as the response.
             let handler = handlers.last().unwrap();
-            Ok(ok_html(handler.execute(&ctx, rt, info)?.to_raw()))
+            Ok(ok_html(handler.execute(ctx, rt, info)?.to_raw()))
         } else {
             // Both handlers and a body are present.
             // Execute pre-handlers sequentially.
             for handler in self.pre_handlers.iter() {
-                let result = handler.execute(&ctx, rt, info)?;
+                let result = handler.execute(ctx, rt, info)?;
                 if let Some(output) = &handler.output {
                     ctx.bind(output, result);
                 }
             }
             let body = self.execute_body(ctx)?;
-            if self.post_handlers.len() == 0 {
+            if self.post_handlers.is_empty() {
                 // No post-handlers are present, return the body result.
                 return Ok(ok_html(body.to_raw()));
             }
             // Execute post-handlers sequentially.
             for handler in self.post_handlers.iter().take(self.post_handlers.len() - 1) {
-                let result = handler.execute(&ctx, rt, info)?;
+                let result = handler.execute(ctx, rt, info)?;
                 if let Some(output) = &handler.output {
                     ctx.bind(output, result);
                 }
@@ -422,7 +417,7 @@ impl WXRTRoute {
                 self.post_handlers
                     .last()
                     .unwrap()
-                    .execute(&ctx, rt, info)?
+                    .execute(ctx, rt, info)?
                     .to_raw(),
             ))
         }
@@ -455,7 +450,7 @@ impl WXRouteMap {
         for ((route, path), _) in routes.unwrap().iter() {
             let method_map = route_map
                 .entry(route.method.clone())
-                .or_insert(HashMap::new());
+                .or_default();
             method_map.insert(
                 path.clone(),
                 Self::compile_route(route, route.info.path.clone())?,
@@ -522,9 +517,9 @@ impl WXRouteMap {
 
 /// Channel message for the runtime.
 pub enum WXRuntimeMessage {
-    NewModule(WXModule),
-    SwapModule(WXModulePath, WXModule),
-    RemoveModule(WXModulePath),
+    New(WXModule),
+    Swap(WXModulePath, WXModule),
+    Remove(WXModulePath),
 }
 
 pub struct WXRuntimeInfo {
@@ -602,7 +597,7 @@ impl WXRuntime {
     }
 
     fn remove_module(&mut self, module_path: &WXModulePath) {
-        self.runtimes.remove(&module_path);
+        self.runtimes.remove(module_path);
         self.source_modules.retain(|m| m.path != *module_path);
     }
 
@@ -712,7 +707,7 @@ impl WXRuntime {
     fn sync_channel_messages(&mut self) {
         while let Ok(msg) = self.messages.try_recv() {
             match msg {
-                WXRuntimeMessage::NewModule(module) => {
+                WXRuntimeMessage::New(module) => {
                     info(
                         self.mode,
                         &format!("New module: {}", module.path.module_name()),
@@ -720,7 +715,7 @@ impl WXRuntime {
                     self.load_module(module);
                     self.recompile();
                 }
-                WXRuntimeMessage::SwapModule(path, module) => {
+                WXRuntimeMessage::Swap(path, module) => {
                     info(
                         self.mode,
                         &format!("Reloaded module: {}", module.path.module_name()),
@@ -730,7 +725,7 @@ impl WXRuntime {
                     self.source_modules.push(module);
                     self.recompile();
                 }
-                WXRuntimeMessage::RemoveModule(path) => {
+                WXRuntimeMessage::Remove(path) => {
                     info(
                         self.mode,
                         &format!("Removed module: {}", path.module_name()),
@@ -780,7 +775,7 @@ impl WXRuntime {
                 let response = match route.execute(&mut ctx, module_runtime, &self.info) {
                     Ok(response) => response,
                     Err(err) => {
-                        error_code(format!("{}", err.message), err.code);
+                        error_code(err.message.to_string(), err.code);
                         responses::internal_server_error_default_webx(self.mode, err.message)
                     }
                 };

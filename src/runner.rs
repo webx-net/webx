@@ -118,10 +118,9 @@ fn print_start_info(
 ) {
     let width = 28;
     println!(
-        "{}{} {}{} {}",
+        "{}{} Web{} {}",
         "+".bright_black(),
         "-".repeat(3).bright_black(),
-        "Web",
         "X".bright_blue(),
         "-".repeat(width - 6 - 3).bright_black()
     );
@@ -129,7 +128,7 @@ fn print_start_info(
     // Project Name
     println!("{} {}: {}", prefix, "Project".bold(), config.name);
     // Modules
-    if modules.len() == 0 {
+    if modules.is_empty() {
         println!("{} No modules found", prefix);
         return;
     } else if modules.len() == 1 {
@@ -145,7 +144,7 @@ fn print_start_info(
             .iter()
             .map(|module| module.path.module_name())
             .collect::<Vec<_>>();
-        names.sort_by(|a, b| a.cmp(b));
+        names.sort();
         for name in names.iter() {
             println!("{}   - {}", prefix, name);
         }
@@ -295,7 +294,7 @@ fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeM
                         if !event.is_duplicate(&last_event) {
                             match parse_webx_file(&event.path.inner) {
                                 Ok(module) => {
-                                    rt_tx.send(WXRuntimeMessage::NewModule(module)).unwrap()
+                                    rt_tx.send(WXRuntimeMessage::New(module)).unwrap()
                                 }
                                 Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e)),
                             }
@@ -307,7 +306,7 @@ fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeM
                         if !event.is_duplicate(&last_event) {
                             match parse_webx_file(&event.path.inner) {
                                 Ok(module) => rt_tx
-                                    .send(WXRuntimeMessage::SwapModule(event.path.clone(), module))
+                                    .send(WXRuntimeMessage::Swap(event.path.clone(), module))
                                     .unwrap(),
                                 Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e)),
                             }
@@ -318,7 +317,7 @@ fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeM
                         let event = FSWEvent::new(event.kind, &event.paths[0]);
                         if !event.is_duplicate(&last_event) {
                             rt_tx
-                                .send(WXRuntimeMessage::RemoveModule(event.path.clone()))
+                                .send(WXRuntimeMessage::Remove(event.path.clone()))
                                 .unwrap();
                         }
                         last_event = event; // Update last event
@@ -331,7 +330,7 @@ fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeM
     })
     .unwrap();
     watcher
-        .watch(&source_root, notify::RecursiveMode::Recursive)
+        .watch(source_root, notify::RecursiveMode::Recursive)
         .unwrap();
     info(mode, "Hot reloading is enabled.");
     loop {

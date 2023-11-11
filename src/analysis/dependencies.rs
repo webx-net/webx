@@ -24,7 +24,7 @@ fn construct_dependency_tree(files: &Vec<WXModule>) -> DependencyTree {
         for dependency in file.scope.includes.iter() {
             let dependency_target = file.path.inner.join(dependency);
             tree.entry(dependency_target)
-                .or_insert(Vec::new())
+                .or_default()
                 .push(file.path.inner.clone());
         }
     }
