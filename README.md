@@ -269,16 +269,16 @@ global {
 }
 
 model User {
-  id: number @primary @autoincrement;
+  id: number;
   name: string[maxLength(50))]
   email: string?;
   isAdmin: boolean;
 }
 
 model Todo {
-  id: number @primary @autoincrement;
+  id: number;
   task: string;
-  userId: number @foreign(User.id);
+  userId: number;
 }
 
 handler initServices() {
