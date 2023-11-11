@@ -181,7 +181,7 @@ impl<'a> WebXFileParser<'a> {
                 break;
             }
             let c = c.unwrap();
-            if c == ' ' || c == '\t' || (skip_newlines && c == '\n') {
+            if c == ' ' || c == '\t' || c == '\r' || (skip_newlines && c == '\n') {
                 self.next();
             } else {
                 break;
@@ -196,7 +196,7 @@ impl<'a> WebXFileParser<'a> {
                 break;
             }
             let c = c.unwrap();
-            if c == ' ' || c == '\t' || (skip_newlines && c == '\n') {
+            if c == ' ' || c == '\t' || c == '\r' || (skip_newlines && c == '\n') {
                 continue;
             }
             return Some(c); // Return the first non-whitespace character.
