@@ -293,9 +293,7 @@ fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeM
                         let event = FSWEvent::new(event.kind, &event.paths[0]);
                         if !event.is_duplicate(&last_event) {
                             match parse_webx_file(&event.path.inner) {
-                                Ok(module) => {
-                                    rt_tx.send(WXRuntimeMessage::New(module)).unwrap()
-                                }
+                                Ok(module) => rt_tx.send(WXRuntimeMessage::New(module)).unwrap(),
                                 Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e)),
                             }
                         }

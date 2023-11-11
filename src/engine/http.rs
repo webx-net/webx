@@ -111,7 +111,8 @@ pub mod responses {
         <hr>
         <address>webx/0.1.0 (Unix)</address>
     </body>
-</html>"#.to_string()
+</html>"#
+                .to_string()
         };
         http::Response::builder()
             .status(http::StatusCode::NOT_FOUND)
@@ -172,7 +173,8 @@ pub mod responses {
         <hr>
         <address>webx prouction mode</address>
     </body>
-</html>"#.to_string()
+</html>"#
+                .to_string()
         };
         http::Response::builder()
             .status(http::StatusCode::INTERNAL_SERVER_ERROR)

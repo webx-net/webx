@@ -317,11 +317,14 @@ impl WXUrlPath {
             if self.0.iter().zip(&url).all(match_segment) {
                 return WXPathResolution::Perfect(bindings);
             }
-        } else if self.segments() > url_count && self
+        } else if self.segments() > url_count
+            && self
                 .0
                 .iter()
                 .zip(url.iter().chain(std::iter::repeat(&"")))
-                .all(match_segment) && url_count == self.segments() - 1 {
+                .all(match_segment)
+            && url_count == self.segments() - 1
+        {
             return WXPathResolution::Partial(bindings);
         }
 
@@ -448,9 +451,7 @@ impl WXRouteMap {
         let mut route_map: WXRouteMapInner = HashMap::new();
         // Insert all routes into each method map category.
         for ((route, path), _) in routes.unwrap().iter() {
-            let method_map = route_map
-                .entry(route.method.clone())
-                .or_default();
+            let method_map = route_map.entry(route.method.clone()).or_default();
             method_map.insert(
                 path.clone(),
                 Self::compile_route(route, route.info.path.clone())?,
