@@ -85,10 +85,11 @@ impl WXMode {
     pub const MAX: WXMode = WXMode::Dev(DebugLevel::Max);
 
     pub fn is_dev(&self) -> bool {
-        match self {
-            Self::Dev(_) => true,
-            _ => false
-        }
+        matches!(self, Self::Dev(_))
+    }
+
+    pub fn is_prod(&self) -> bool {
+        matches!(self, Self::Prod)
     }
 
     pub fn debug_level(&self) -> DebugLevel {
@@ -97,23 +98,12 @@ impl WXMode {
             _ => DebugLevel::Low
         }
     }
-
-    pub fn is_prod(&self) -> bool {
-        match self {
-            Self::Prod => true,
-            _ => false
-        }
-    }
 }
 
 //* Implement PartialEq for WXMode without taking DebugLevel into account
 impl PartialEq<WXMode> for WXMode {
     fn eq(&self, other: &WXMode) -> bool {
-        match (self, other) {
-            (WXMode::Dev(_), WXMode::Dev(_)) => true,
-            (WXMode::Prod, WXMode::Prod) => true,
-            _ => false
-        }
+        matches!((self, other), (WXMode::Dev(_), WXMode::Dev(_)) | (WXMode::Prod, WXMode::Prod))
     }
 }
 
