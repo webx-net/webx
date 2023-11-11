@@ -2,11 +2,19 @@ use colored::*;
 
 use std::collections::HashMap;
 
-use crate::{file::webx::{WXModule, WXScope, WXUrlPath, WXROOT_PATH, WXInfoField, WXRoute}, reporting::error::{exit_error, ERROR_DUPLICATE_ROUTE, format_info_field, ERROR_INVALID_ROUTE}};
+use crate::{
+    file::webx::{WXInfoField, WXModule, WXRoute, WXScope, WXUrlPath, WXROOT_PATH},
+    reporting::error::{exit_error, format_info_field, ERROR_DUPLICATE_ROUTE, ERROR_INVALID_ROUTE},
+};
 
 type FlatRoutes = HashMap<(WXRoute, WXUrlPath), Vec<WXInfoField>>;
 
-fn flatten_scopes(module_name: String, scope: &WXScope, path_prefix: WXUrlPath, routes: &mut FlatRoutes) {
+fn flatten_scopes(
+    module_name: String,
+    scope: &WXScope,
+    path_prefix: WXUrlPath,
+    routes: &mut FlatRoutes,
+) {
     for route in scope.routes.iter() {
         let flat_path = path_prefix.combine(&route.path);
         let route_key = (route.clone(), flat_path);
@@ -25,7 +33,12 @@ fn flatten_scopes(module_name: String, scope: &WXScope, path_prefix: WXUrlPath, 
 pub fn extract_flat_routes(modules: &Vec<WXModule>) -> FlatRoutes {
     let mut routes = HashMap::new();
     for module in modules.iter() {
-        flatten_scopes(module.path.module_name(), &module.scope, WXROOT_PATH, &mut routes);
+        flatten_scopes(
+            module.path.module_name(),
+            &module.scope,
+            WXROOT_PATH,
+            &mut routes,
+        );
     }
     routes
 }
@@ -35,10 +48,7 @@ pub fn extract_duplicate_routes(routes: &FlatRoutes) -> Vec<String> {
         .iter()
         .filter(|(_, modules)| modules.len() > 1)
         .map(|((route, path), modules)| {
-            let locations = modules
-                .iter()
-                .map(format_info_field)
-                .collect::<Vec<_>>();
+            let locations = modules.iter().map(format_info_field).collect::<Vec<_>>();
             format!(
                 "Route {} {} is defined in modules:\n    - {}",
                 route.method.to_string().green(),
@@ -53,10 +63,13 @@ pub fn analyse_duplicate_routes(modules: &Vec<WXModule>) -> Result<FlatRoutes, (
     let routes = extract_flat_routes(modules);
     let duplicate_routes = extract_duplicate_routes(&routes);
     if !duplicate_routes.is_empty() {
-        return Err((format!(
-            "Duplicate routes detected:\n  - {}",
-            duplicate_routes.join("\n  - ")
-        ), ERROR_DUPLICATE_ROUTE));
+        return Err((
+            format!(
+                "Duplicate routes detected:\n  - {}",
+                duplicate_routes.join("\n  - ")
+            ),
+            ERROR_DUPLICATE_ROUTE,
+        ));
     }
     Ok(routes)
 }
@@ -64,12 +77,10 @@ pub fn analyse_duplicate_routes(modules: &Vec<WXModule>) -> Result<FlatRoutes, (
 fn extract_invalid_routes(routes: &FlatRoutes) -> Vec<String> {
     routes
         .iter()
-        .filter(|((route, _), _)| {
-            match route.method {
-                http::Method::GET | http::Method::DELETE => route.body_format.is_some(),
-                http::Method::POST | http::Method::PUT => route.body_format.is_none(),
-                _ => false,
-            }
+        .filter(|((route, _), _)| match route.method {
+            http::Method::GET | http::Method::DELETE => route.body_format.is_some(),
+            http::Method::POST | http::Method::PUT => route.body_format.is_none(),
+            _ => false,
         })
         .map(|((route, path), info)| {
             format!(
@@ -91,10 +102,13 @@ pub fn analyse_invalid_routes(modules: &Vec<WXModule>) -> Result<(), (String, i3
     let routes = extract_flat_routes(modules);
     let invalid_routes = extract_invalid_routes(&routes);
     if !invalid_routes.is_empty() {
-        return Err((format!(
-            "Invalid routes detected:\n  - {}",
-            invalid_routes.join("\n  - ")
-        ), ERROR_INVALID_ROUTE));
+        return Err((
+            format!(
+                "Invalid routes detected:\n  - {}",
+                invalid_routes.join("\n  - ")
+            ),
+            ERROR_INVALID_ROUTE,
+        ));
     }
     Ok(())
 }

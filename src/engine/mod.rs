@@ -1,4 +1,4 @@
-pub mod runtime;
-mod test;
 mod http;
+pub mod runtime;
 mod stdlib;
+mod test;

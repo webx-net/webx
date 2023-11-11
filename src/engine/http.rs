@@ -1,6 +1,9 @@
-use std::{io::{BufReader, BufRead, Read}, net::TcpStream};
+use std::{
+    io::{BufRead, BufReader, Read},
+    net::TcpStream,
+};
 
-use http::{Request, Version, request::Builder, Response};
+use http::{request::Builder, Request, Response, Version};
 
 pub fn read_all_from_stream(stream: &TcpStream) -> String {
     let mut reader = BufReader::new(stream);
@@ -14,7 +17,10 @@ pub fn parse_request_from_string<D: Default>(request: &str) -> Option<Request<D>
 }
 
 pub fn parse_request<D: Default, T: Read>(reader: BufReader<T>) -> Option<Request<D>> {
-    let mut lines = reader.lines().map(|l| l.unwrap_or("".into())).take_while(|l| !l.is_empty());
+    let mut lines = reader
+        .lines()
+        .map(|l| l.unwrap_or("".into()))
+        .take_while(|l| !l.is_empty());
     let r = Request::builder();
     let r = parse_request_line(lines.next()?, r)?;
     let r = parse_request_headers(lines, r)?;
@@ -40,14 +46,11 @@ fn parse_request_line(line: String, request: Builder) -> Option<Builder> {
     Some(request.method(method).uri(path).version(version))
 }
 
-fn parse_request_headers(lines: impl Iterator<Item=String>, request: Builder) -> Option<Builder> {
+fn parse_request_headers(lines: impl Iterator<Item = String>, request: Builder) -> Option<Builder> {
     let mut request = request;
     for line in lines {
         let mut header = line.splitn(2, ':');
-        request = request.header(
-            header.next()?.trim(),
-            header.next()?.trim()
-        );
+        request = request.header(header.next()?.trim(), header.next()?.trim());
     }
     Some(request)
 }
@@ -82,7 +85,9 @@ pub mod responses {
     }
 
     pub fn not_found_default_webx(mode: WXMode) -> http::Response<String> {
-        let body = if mode.is_dev() { format!(r#"<html>
+        let body = if mode.is_dev() {
+            format!(
+                r#"<html>
     <head>
         <title>404 Not Found</title>
     </head>
@@ -92,7 +97,12 @@ pub mod responses {
         <hr>
         <address>webx/0.1.0 (Unix) (webx/{})</address>
     </body>
-</html>"#, env!("CARGO_PKG_VERSION")) } else { format!(r#"<html>
+</html>"#,
+                env!("CARGO_PKG_VERSION")
+            )
+        } else {
+            format!(
+                r#"<html>
     <head>
         <title>404 Not Found</title>
     </head>
@@ -102,7 +112,9 @@ pub mod responses {
         <hr>
         <address>webx/0.1.0 (Unix)</address>
     </body>
-</html>"#) };
+</html>"#
+            )
+        };
         http::Response::builder()
             .status(http::StatusCode::NOT_FOUND)
             .header("Access-Control-Allow-Origin", "*")
@@ -118,8 +130,13 @@ pub mod responses {
             .unwrap()
     }
 
-    pub fn internal_server_error_default_webx(mode: WXMode, message: String) -> http::Response<String> {
-        let body = if mode.is_dev() { format!(r#"<html>
+    pub fn internal_server_error_default_webx(
+        mode: WXMode,
+        message: String,
+    ) -> http::Response<String> {
+        let body = if mode.is_dev() {
+            format!(
+                r#"<html>
     <head>
         <title>500 Internal Server Error</title>
     </head>
@@ -139,7 +156,13 @@ pub mod responses {
         <hr>
         <address>webx/{} development mode</address>
     </body>
-</html>"#, message, env!("CARGO_PKG_VERSION")) } else { format!(r#"<html>
+</html>"#,
+                message,
+                env!("CARGO_PKG_VERSION")
+            )
+        } else {
+            format!(
+                r#"<html>
     <head>
         <title>500 Internal Server Error</title>
     </head>
@@ -152,7 +175,9 @@ pub mod responses {
         <hr>
         <address>webx prouction mode</address>
     </body>
-</html>"#) };
+</html>"#
+            )
+        };
         http::Response::builder()
             .status(http::StatusCode::INTERNAL_SERVER_ERROR)
             .header("Access-Control-Allow-Origin", "*")

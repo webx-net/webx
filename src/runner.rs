@@ -1,19 +1,19 @@
+use chrono::offset::Local;
+use chrono::DateTime;
+use chrono::{self};
+use colored::Colorize;
+use notify::{self, Error, Event, Watcher};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
-use std::time::{Instant, Duration};
-use chrono::offset::Local;
-use chrono::{self};
-use chrono::DateTime;
-use colored::Colorize;
-use notify::{self, Watcher, Error, Event};
+use std::time::{Duration, Instant};
 
 use crate::analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes};
-use crate::engine::runtime::{WXRuntime, WXRuntimeMessage, WXRuntimeInfo};
+use crate::engine::runtime::{WXRuntime, WXRuntimeInfo, WXRuntimeMessage};
 use crate::file::parser::parse_webx_file;
-use crate::file::webx::{WXModule, WXModulePath};
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
+use crate::file::webx::{WXModule, WXModulePath};
 use crate::reporting::debug::info;
-use crate::reporting::error::{ERROR_PROJECT, exit_error_hint};
+use crate::reporting::error::{exit_error_hint, ERROR_PROJECT};
 use crate::reporting::warning::warning;
 
 pub fn get_project_config_file_path(root: &Path) -> PathBuf {
@@ -40,28 +40,28 @@ impl DebugLevel {
             2 => Self::Medium,
             3 => Self::High,
             4 => Self::Max,
-            _ => Self::Low
+            _ => Self::Low,
         }
     }
 
     pub fn is_medium(&self) -> bool {
         match self {
             Self::Medium | Self::High | Self::Max => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_high(&self) -> bool {
         match self {
             Self::High | Self::Max => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_max(&self) -> bool {
         match self {
             Self::Max => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -95,7 +95,7 @@ impl WXMode {
     pub fn debug_level(&self) -> DebugLevel {
         match self {
             Self::Dev(level) => *level,
-            _ => DebugLevel::Low
+            _ => DebugLevel::Low,
         }
     }
 }
@@ -103,13 +103,28 @@ impl WXMode {
 //* Implement PartialEq for WXMode without taking DebugLevel into account
 impl PartialEq<WXMode> for WXMode {
     fn eq(&self, other: &WXMode) -> bool {
-        matches!((self, other), (WXMode::Dev(_), WXMode::Dev(_)) | (WXMode::Prod, WXMode::Prod))
+        matches!(
+            (self, other),
+            (WXMode::Dev(_), WXMode::Dev(_)) | (WXMode::Prod, WXMode::Prod)
+        )
     }
 }
 
-fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, config: &ProjectConfig, start_duration: std::time::Duration) {
+fn print_start_info(
+    modules: &Vec<WXModule>,
+    mode: WXMode,
+    config: &ProjectConfig,
+    start_duration: std::time::Duration,
+) {
     let width = 28;
-    println!("{}{} {}{} {}", "+".bright_black(), "-".repeat(3).bright_black(), "Web", "X".bright_blue(), "-".repeat(width - 6 - 3).bright_black());
+    println!(
+        "{}{} {}{} {}",
+        "+".bright_black(),
+        "-".repeat(3).bright_black(),
+        "Web",
+        "X".bright_blue(),
+        "-".repeat(width - 6 - 3).bright_black()
+    );
     let prefix = "|".bright_black();
     // Project Name
     println!("{} {}: {}", prefix, "Project".bold(), config.name);
@@ -118,21 +133,33 @@ fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, config: &ProjectConfi
         println!("{} No modules found", prefix);
         return;
     } else if modules.len() == 1 {
-        println!("{} {}: {}", prefix, "Module".bold(), modules[0].path.module_name());
+        println!(
+            "{} {}: {}",
+            prefix,
+            "Module".bold(),
+            modules[0].path.module_name()
+        );
     } else {
         println!("{} {} ({}):", prefix, "Modules".bold(), modules.len());
-        let mut names = modules.iter().map(|module| module.path.module_name()).collect::<Vec<_>>();
+        let mut names = modules
+            .iter()
+            .map(|module| module.path.module_name())
+            .collect::<Vec<_>>();
         names.sort_by(|a, b| a.cmp(b));
         for name in names.iter() {
             println!("{}   - {}", prefix, name);
         }
     }
-    // Mode    
+    // Mode
     println!(
         "{} {}: {}",
         prefix,
         "Mode".bold(),
-        if mode.is_prod() { "production" } else { "development" }
+        if mode.is_prod() {
+            "production"
+        } else {
+            "development"
+        }
     );
     // Debug level
     if mode.is_dev() {
@@ -144,36 +171,53 @@ fn print_start_info(modules: &Vec<WXModule>, mode: WXMode, config: &ProjectConfi
         );
     }
     // Build duration
-    println!(
-        "{} {}: {:?}",
-        prefix,
-        "Took".bold(),
-        start_duration
-    );
+    println!("{} {}: {:?}", prefix, "Took".bold(), start_duration);
     // Build time
     let now: DateTime<Local> = Local::now();
     let time = now.time().format("%H:%M");
-    println!("{} {}: {:?} at {}", prefix, "Build".bold(), now.date_naive(), time);
+    println!(
+        "{} {}: {:?} at {}",
+        prefix,
+        "Build".bold(),
+        now.date_naive(),
+        time
+    );
     // WebX version
-    println!("{} {}: {}", prefix, "WebX Version".bold(), env!("CARGO_PKG_VERSION"));
+    println!(
+        "{} {}: {}",
+        prefix,
+        "WebX Version".bold(),
+        env!("CARGO_PKG_VERSION")
+    );
     // WebX homepage
-    println!("{} {}: {}", prefix, "Website".bold(), env!("CARGO_PKG_HOMEPAGE"));
+    println!(
+        "{} {}: {}",
+        prefix,
+        "Website".bold(),
+        env!("CARGO_PKG_HOMEPAGE")
+    );
     println!("{}{}", "+".bright_black(), "-".repeat(width).bright_black());
 }
 
 /// Run a WebX **project** from the given root path.
-/// 
+///
 /// ## Arguments
 /// - `root` - The root path of the project.
 /// - `mode` - The mode to run in.
 pub fn run(root: &Path, mode: WXMode) {
     let time_start = Instant::now();
     let config_file = get_project_config_file_path(root);
-    let config = if let Some(config) = load_project_config(&config_file) { config} else {
-        exit_error_hint("Failed to open WebX configuration.", &[
-            "Have you created a WebX project?",
-            "Are you in the project root directory?"
-        ], ERROR_PROJECT);
+    let config = if let Some(config) = load_project_config(&config_file) {
+        config
+    } else {
+        exit_error_hint(
+            "Failed to open WebX configuration.",
+            &[
+                "Have you created a WebX project?",
+                "Are you in the project root directory?",
+            ],
+            ERROR_PROJECT,
+        );
     };
     let source_root = root.join(&config.src);
     let webx_modules = load_modules(&source_root);
@@ -215,7 +259,7 @@ impl FSWEvent {
             kind,
             path: WXModulePath::new(path.clone()),
             timestamp: Instant::now(),
-            is_empty_state: false
+            is_empty_state: false,
         }
     }
 
@@ -224,16 +268,18 @@ impl FSWEvent {
             kind: notify::EventKind::default(),
             path: WXModulePath::new(PathBuf::default()),
             timestamp: Instant::now(),
-            is_empty_state: true
+            is_empty_state: true,
         }
     }
 
     fn is_duplicate(&self, earlier: &Self) -> bool {
-        if self.is_empty_state || earlier.is_empty_state { return false; }
+        if self.is_empty_state || earlier.is_empty_state {
+            return false;
+        }
         const EPSILON: u128 = 100; // ms
-        self.kind == earlier.kind &&
-        self.path == earlier.path &&
-        self.timestamp.duration_since(earlier.timestamp).as_millis() < EPSILON
+        self.kind == earlier.kind
+            && self.path == earlier.path
+            && self.timestamp.duration_since(earlier.timestamp).as_millis() < EPSILON
     }
 }
 
@@ -248,36 +294,45 @@ fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeM
                         let event = FSWEvent::new(event.kind, &event.paths[0]);
                         if !event.is_duplicate(&last_event) {
                             match parse_webx_file(&event.path.inner) {
-                                Ok(module) => rt_tx.send(WXRuntimeMessage::NewModule(module)).unwrap(),
-                                Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e))
+                                Ok(module) => {
+                                    rt_tx.send(WXRuntimeMessage::NewModule(module)).unwrap()
+                                }
+                                Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e)),
                             }
                         }
                         last_event = event; // Update last event
-                    },
+                    }
                     notify::EventKind::Modify(_) => {
                         let event = FSWEvent::new(event.kind, &event.paths[0]);
                         if !event.is_duplicate(&last_event) {
                             match parse_webx_file(&event.path.inner) {
-                                Ok(module) => rt_tx.send(WXRuntimeMessage::SwapModule(event.path.clone(), module)).unwrap(),
-                                Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e))
+                                Ok(module) => rt_tx
+                                    .send(WXRuntimeMessage::SwapModule(event.path.clone(), module))
+                                    .unwrap(),
+                                Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e)),
                             }
                         }
                         last_event = event; // Update last event
-                    },
+                    }
                     notify::EventKind::Remove(_) => {
                         let event = FSWEvent::new(event.kind, &event.paths[0]);
                         if !event.is_duplicate(&last_event) {
-                            rt_tx.send(WXRuntimeMessage::RemoveModule(event.path.clone())).unwrap();
+                            rt_tx
+                                .send(WXRuntimeMessage::RemoveModule(event.path.clone()))
+                                .unwrap();
                         }
                         last_event = event; // Update last event
-                    },
-                    _ => ()
+                    }
+                    _ => (),
                 }
-            },
-            Err(e) => warning(mode, format!("watch error: {:?}", e))
+            }
+            Err(e) => warning(mode, format!("watch error: {:?}", e)),
         }
-    }).unwrap();
-    watcher.watch(&source_root, notify::RecursiveMode::Recursive).unwrap();
+    })
+    .unwrap();
+    watcher
+        .watch(&source_root, notify::RecursiveMode::Recursive)
+        .unwrap();
     info(mode, "Hot reloading is enabled.");
     loop {
         std::thread::sleep(Duration::from_millis(1000));

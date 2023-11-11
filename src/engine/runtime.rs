@@ -590,12 +590,13 @@ impl WXRuntime {
     /// - start the runtime with the `run` function.
     /// - trigger a module hotswap in `dev` mode.
     /// - call the `recompile` function.
-    /// 
+    ///
     /// ## Note
     /// Only call this function once per module.
     /// This should **NOT** be called when hotswapping modules.
     pub fn load_module(&mut self, module: WXModule) {
-        self.runtimes.insert(module.path.clone(), JsRuntime::new(Default::default()));
+        self.runtimes
+            .insert(module.path.clone(), JsRuntime::new(Default::default()));
         self.initialize_module_runtime(&module);
         self.source_modules.push(module);
     }
@@ -647,15 +648,28 @@ impl WXRuntime {
             let result = rt.execute_script("[webx global scope]", ts.into());
             if let Err(e) = result {
                 error_code(
-                    format!("Failed to execute global scope for module '{}':\n{}", module.path.module_name(), e),
+                    format!(
+                        "Failed to execute global scope for module '{}':\n{}",
+                        module.path.module_name(),
+                        e
+                    ),
                     500,
                 );
             }
-            info(self.mode, &format!("Initialized runtime for module '{}'", module.path.module_name()));
+            info(
+                self.mode,
+                &format!(
+                    "Initialized runtime for module '{}'",
+                    module.path.module_name()
+                ),
+            );
         } else {
             dbg!(&self.runtimes.keys());
             error_code(
-                format!("Module runtime not found for module '{}'", module.path.module_name()),
+                format!(
+                    "Module runtime not found for module '{}'",
+                    module.path.module_name()
+                ),
                 500,
             );
         }
@@ -748,7 +762,12 @@ impl WXRuntime {
             if self.mode.debug_level().is_max() {
                 info(
                     self.mode,
-                    &format!("Request ({} bytes) from: {}\n{}", raw_request.len(), addr, raw_request),
+                    &format!(
+                        "Request ({} bytes) from: {}\n{}",
+                        raw_request.len(),
+                        addr,
+                        raw_request
+                    ),
                 );
             } else if self.mode.debug_level().is_high() {
                 info(self.mode, &format!("Request from: {}", addr));
@@ -786,9 +805,19 @@ impl WXRuntime {
                 let response = responses::not_found_default_webx(self.mode);
                 let sent = stream.write(serialize_response(&response).as_bytes());
                 if let Ok(n) = sent {
-                    info(self.mode, &format!("{} response ({} bytes) to: {}", response.status(), n, addr));
+                    info(
+                        self.mode,
+                        &format!("{} response ({} bytes) to: {}", response.status(), n, addr),
+                    );
                 } else {
-                    warning(self.mode, format!("Failed to send response to: {}\n{}", addr, sent.unwrap_err()));
+                    warning(
+                        self.mode,
+                        format!(
+                            "Failed to send response to: {}\n{}",
+                            addr,
+                            sent.unwrap_err()
+                        ),
+                    );
                 }
             }
             stream.flush().unwrap();

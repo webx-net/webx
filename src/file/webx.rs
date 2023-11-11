@@ -1,6 +1,7 @@
 use std::{
-    fmt::{self, Formatter, Display, Debug},
-    path::PathBuf, hash::{Hash, Hasher},
+    fmt::{self, Debug, Display, Formatter},
+    hash::{Hash, Hasher},
+    path::PathBuf,
 };
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -72,7 +73,9 @@ impl Hash for WXUrlPath {
                     name.hash(state);
                     type_.hash(state);
                 }
-                WXUrlPathSegment::Regex(regex_name, regex) => format!("{}{}", regex_name, regex).hash(state),
+                WXUrlPathSegment::Regex(regex_name, regex) => {
+                    format!("{}{}", regex_name, regex).hash(state)
+                }
             }
         }
     }
@@ -103,7 +106,7 @@ pub struct WXModule {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct  WXModulePath {
+pub struct WXModulePath {
     pub inner: PathBuf,
 }
 
@@ -296,9 +299,15 @@ pub struct WXRouteHandler {
 
 impl fmt::Debug for WXRouteHandler {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let vals = self.args.iter().map(WXLiteralValue::to_string).collect::<Vec<String>>();
+        let vals = self
+            .args
+            .iter()
+            .map(WXLiteralValue::to_string)
+            .collect::<Vec<String>>();
         write!(f, "{}({})", self.name, vals.join(", "))?;
-        if let Some(output) = &self.output { write!(f, ": {}", output)?; }
+        if let Some(output) = &self.output {
+            write!(f, ": {}", output)?;
+        }
         Ok(())
     }
 }

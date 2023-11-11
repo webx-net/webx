@@ -2,7 +2,12 @@
 mod tests {
     use std::path::Path;
 
-    use crate::{runner::{WXMode, get_project_config_file_path, DebugLevel}, file::project::{load_project_config, load_modules}, analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes}, engine::runtime::{WXRuntime, WXRuntimeInfo}};
+    use crate::{
+        analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes},
+        engine::runtime::{WXRuntime, WXRuntimeInfo},
+        file::project::{load_modules, load_project_config},
+        runner::{get_project_config_file_path, DebugLevel, WXMode},
+    };
 
     /// Kill the runtime after `TIMEOUT` seconds.
     /// This is useful for debugging the runtime

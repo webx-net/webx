@@ -5,11 +5,12 @@ use std::{
 };
 
 use crate::{
-    file::{webx::WXModule, parser::parse_webx_file},
+    file::{parser::parse_webx_file, webx::WXModule},
     reporting::{
         error::{exit_error, ERROR_READ_WEBX_FILES},
         warning::warning,
-    }, runner::WXMode,
+    },
+    runner::WXMode,
 };
 
 /// The configuration for a WebX project.
@@ -107,8 +108,11 @@ pub struct CacheConfig {
 /// The project configuration.
 pub fn load_project_config(config_file: &PathBuf) -> Option<ProjectConfig> {
     match fs::read_to_string(config_file) {
-        Ok(txt) => Some(serde_json::from_str::<ProjectConfig>(&txt).expect("Failed to parse project configuration.")),
-        Err(_) => None
+        Ok(txt) => Some(
+            serde_json::from_str::<ProjectConfig>(&txt)
+                .expect("Failed to parse project configuration."),
+        ),
+        Err(_) => None,
     }
 }
 
@@ -126,7 +130,10 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
     let src = src.to_path_buf();
     if !src.exists() {
         exit_error(
-            format!("Failed to locate webx program files due to missing directory '{}'", src.display()),
+            format!(
+                "Failed to locate webx program files due to missing directory '{}'",
+                src.display()
+            ),
             ERROR_READ_WEBX_FILES,
         );
     }
@@ -138,7 +145,11 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
             // Recursively find all .webx files in the directory.
             files.append(&mut locate_files(&path));
         } else if path.is_file() {
-            files.push(path.canonicalize().map_err(|e| e.to_string()).expect("Failed to canonicalize path."));
+            files.push(
+                path.canonicalize()
+                    .map_err(|e| e.to_string())
+                    .expect("Failed to canonicalize path."),
+            );
         } else {
             panic!(
                 "The path '{}' is neither a file nor a directory.",
@@ -153,7 +164,7 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
 /// This function will recursively find all `.webx` files in the given directory,
 /// parse them, and return a vector of the parsed modules.
 /// If any of the files fail to parse, an error is reported and the program exits.
-/// 
+///
 /// ## Note
 /// This function does not perform any static analysis on the modules
 /// such as detecting circular dependencies.
@@ -206,7 +217,10 @@ pub fn create_new_project(mode: WXMode, name: String, root_dir: &PathBuf, overri
     let index_file = src_dir.join("index.webx");
 
     if config_file.exists() && !override_existing {
-        warning(mode, "A WebX project already exists in this directory.".into());
+        warning(
+            mode,
+            "A WebX project already exists in this directory.".into(),
+        );
         return;
     }
 

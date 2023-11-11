@@ -1,5 +1,5 @@
-use colored::*;
 use chrono::prelude::*;
+use colored::*;
 
 use crate::file::webx::WXInfoField;
 
@@ -34,7 +34,10 @@ fn error_generic(message: String, error_name: &str) {
 fn error_generic_code(message: String, code: i32, error_name: &str) {
     let now = Local::now();
     let time = now.format("%d/%m %H:%M:%S");
-    error_generic(message, format!("[{} {} ({})]", error_name, time, code_to_name(code)).as_str());
+    error_generic(
+        message,
+        format!("[{} {} ({})]", error_name, time, code_to_name(code)).as_str(),
+    );
 }
 
 fn exit_error_generic_code(message: String, code: i32, error_name: &str) -> ! {
@@ -56,31 +59,86 @@ pub fn exit_error(message: String, code: i32) -> ! {
     exit_error_generic_code(message, code, "Error");
 }
 
-pub fn exit_error_unexpected(what: String, context: &str, line: usize, column: usize, code: i32) -> ! {
-    exit_error(format!("Unexpected {} while {} at line {}, column {}", what, context, line, column), code);
+pub fn exit_error_unexpected(
+    what: String,
+    context: &str,
+    line: usize,
+    column: usize,
+    code: i32,
+) -> ! {
+    exit_error(
+        format!(
+            "Unexpected {} while {} at line {}, column {}",
+            what, context, line, column
+        ),
+        code,
+    );
 }
 
-pub fn exit_error_expected_but_found(expected: String, found: String, context: &str, line: usize, column: usize, code: i32) -> ! {
-    exit_error(format!("Expected {} but found '{}' while {} at line {}, column {}", expected, found, context, line, column), code);
+pub fn exit_error_expected_but_found(
+    expected: String,
+    found: String,
+    context: &str,
+    line: usize,
+    column: usize,
+    code: i32,
+) -> ! {
+    exit_error(
+        format!(
+            "Expected {} but found '{}' while {} at line {}, column {}",
+            expected, found, context, line, column
+        ),
+        code,
+    );
 }
 
-pub fn exit_error_expected_any_of_but_found(expected: String, found: char, context: &str, line: usize, column: usize, code: i32) -> ! {
-    exit_error(format!("Expected any of {} but found '{}' while {} at line {}, column {}", expected, found, context, line, column), code);
+pub fn exit_error_expected_any_of_but_found(
+    expected: String,
+    found: char,
+    context: &str,
+    line: usize,
+    column: usize,
+    code: i32,
+) -> ! {
+    exit_error(
+        format!(
+            "Expected any of {} but found '{}' while {} at line {}, column {}",
+            expected, found, context, line, column
+        ),
+        code,
+    );
 }
 
-pub fn exit_error_unexpected_char(what: char, context: &str, line: usize, column: usize, code: i32) -> ! {
+pub fn exit_error_unexpected_char(
+    what: char,
+    context: &str,
+    line: usize,
+    column: usize,
+    code: i32,
+) -> ! {
     exit_error_unexpected(format!("character '{}'", what), context, line, column, code);
 }
 
 pub fn format_info_field(info: &WXInfoField) -> String {
-    format!("{} line {}", info.path.module_name(), info.line).bright_black().to_string()
+    format!("{} line {}", info.path.module_name(), info.line)
+        .bright_black()
+        .to_string()
 }
 
 pub fn exit_error_hint(message: &str, hints: &[&str], code: i32) -> ! {
-    if hints.len() == 0 { exit_error(message.into(), code); }
+    if hints.len() == 0 {
+        exit_error(message.into(), code);
+    }
     let hints = if hints.len() > 1 {
         const HINT_SEP: &str = "\n - ";
-        format!("{}: {}{}", "Hints".bright_yellow(), HINT_SEP, hints.join(HINT_SEP))
-    } else { format!("{}: {}", "Hint".bright_yellow(),hints[0]) };
+        format!(
+            "{}: {}{}",
+            "Hints".bright_yellow(),
+            HINT_SEP,
+            hints.join(HINT_SEP)
+        )
+    } else {
+        format!("{}: {}", "Hint".bright_yellow(), hints[0])
+    };
     exit_error(format!("{}\n{}", message, hints), code)
 }

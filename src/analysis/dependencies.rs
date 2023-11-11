@@ -1,7 +1,9 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::{file::webx::WXModule, reporting::error::{exit_error, ERROR_CIRCULAR_DEPENDENCY}};
-
+use crate::{
+    file::webx::WXModule,
+    reporting::error::{exit_error, ERROR_CIRCULAR_DEPENDENCY},
+};
 
 type DependencyTree = HashMap<PathBuf, Vec<PathBuf>>;
 

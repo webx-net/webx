@@ -1,5 +1,5 @@
-use colored::Colorize;
 use chrono::prelude::*;
+use colored::Colorize;
 
 use crate::runner::WXMode;
 

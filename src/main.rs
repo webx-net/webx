@@ -1,13 +1,13 @@
-mod runner;
-mod engine;
 mod analysis;
-mod reporting;
+mod engine;
 mod file;
+mod reporting;
+mod runner;
 
-use clap::{Arg, Command, ArgAction};
+use clap::{Arg, ArgAction, Command};
 use colored::*;
 use reporting::error::error;
-use runner::{WXMode, DebugLevel};
+use runner::{DebugLevel, WXMode};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const NAME: &str = "webx";
@@ -93,9 +93,18 @@ fn main() {
             }
         };
         let override_existing = matches.get_flag("override");
-        file::project::create_new_project(WXMode::MAX, name, &std::env::current_dir().unwrap(), override_existing);
+        file::project::create_new_project(
+            WXMode::MAX,
+            name,
+            &std::env::current_dir().unwrap(),
+            override_existing,
+        );
     } else if let Some(matches) = matches.subcommand_matches("run") {
-        let mode = if matches.get_flag("production") { WXMode::Prod } else { WXMode::Dev(parse_debug_level(matches)) };
+        let mode = if matches.get_flag("production") {
+            WXMode::Prod
+        } else {
+            WXMode::Dev(parse_debug_level(matches))
+        };
         let dir = std::env::current_dir().unwrap();
         runner::run(&dir, mode);
     } else if let Some(_matches) = matches.subcommand_matches("test") {

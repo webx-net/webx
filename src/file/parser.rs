@@ -11,8 +11,9 @@ use std::{
 };
 
 use super::webx::{
-    WXBody, WXBodyType, WXHandler, WXModel, WXRoute, WXRouteHandler, WXRouteReqBody,
-    WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment, WXROOT_PATH, WXInfoField, WXModulePath, WXLiteralValue,
+    WXBody, WXBodyType, WXHandler, WXInfoField, WXLiteralValue, WXModel, WXModulePath, WXRoute,
+    WXRouteHandler, WXRouteReqBody, WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment,
+    WXROOT_PATH,
 };
 
 struct WebXFileParser<'a> {
@@ -386,25 +387,33 @@ impl<'a> WebXFileParser<'a> {
         self.skip_whitespace(true);
         let nc = self.peek();
         if nc.is_none() {
-            exit_error_unexpected("EOF".to_string(), context, self.line, self.column, ERROR_SYNTAX);
+            exit_error_unexpected(
+                "EOF".to_string(),
+                context,
+                self.line,
+                self.column,
+                ERROR_SYNTAX,
+            );
         }
         let nc = nc.unwrap();
         match nc {
             '"' => {
                 self.expect_next_specific('"', context);
                 WXLiteralValue::String(self.parse_string())
-            },
+            }
             '[' => {
                 self.expect_next_specific('[', context);
                 let mut values = vec![];
                 loop {
                     values.push(self.parse_literal());
                     let nc = self.expect_next_any_of(vec![',', ']'], context);
-                    if nc == ']' { break; }
+                    if nc == ']' {
+                        break;
+                    }
                     self.next(); // Consume the comma.
                 }
                 WXLiteralValue::Array(values)
-            },
+            }
             '{' => {
                 self.expect_next_specific('{', context);
                 let mut values = vec![];
@@ -414,11 +423,13 @@ impl<'a> WebXFileParser<'a> {
                     let value = self.parse_literal();
                     values.push((name, value));
                     let nc = self.expect_next_any_of(vec![',', '}'], context);
-                    if nc == '}' { break; }
+                    if nc == '}' {
+                        break;
+                    }
                     self.next(); // Consume the comma.
                 }
                 WXLiteralValue::Object(values)
-            },
+            }
             c if c.is_numeric() => {
                 let integer = self.read_while(|c| c.is_numeric());
                 let mut fraction = "0".to_string();
@@ -426,14 +437,22 @@ impl<'a> WebXFileParser<'a> {
                     self.next(); // Consume the dot.
                     fraction = self.read_while(|c| c.is_numeric());
                 }
-                WXLiteralValue::Number(integer.parse::<u32>().unwrap(), fraction.parse::<u32>().unwrap())
-            },
+                WXLiteralValue::Number(
+                    integer.parse::<u32>().unwrap(),
+                    fraction.parse::<u32>().unwrap(),
+                )
+            }
             c if c.is_alphabetic() => {
                 let name = self.parse_identifier();
-                if name == "true" { WXLiteralValue::Boolean(true) }
-                else if name == "false" { WXLiteralValue::Boolean(false) }
-                else if name == "null" { WXLiteralValue::Null }
-                else { WXLiteralValue::Identifier(name) }
+                if name == "true" {
+                    WXLiteralValue::Boolean(true)
+                } else if name == "false" {
+                    WXLiteralValue::Boolean(false)
+                } else if name == "null" {
+                    WXLiteralValue::Null
+                } else {
+                    WXLiteralValue::Identifier(name)
+                }
             }
             _ => exit_error_unexpected_char(nc, context, self.line, self.column, ERROR_SYNTAX),
         }
@@ -442,21 +461,29 @@ impl<'a> WebXFileParser<'a> {
     fn parse_arguments(&mut self, end: char) -> Vec<WXLiteralValue> {
         let mut args = vec![];
         if let Some(nc) = self.peek() {
-            if nc == end { return args; } // Empty arguments.
+            if nc == end {
+                return args;
+            } // Empty arguments.
         }
         loop {
             args.push(self.parse_literal());
             if let Some(nc) = self.peek() {
-                if nc == end { break; }
-                else if nc == ',' { self.next(); } // Consume the comma.
-                else { exit_error_expected_any_of_but_found(
-                    format!("',' or '{}'", end),
-                    nc,
-                    "parsing arguments",
-                    self.line,
-                    self.column,
-                    ERROR_SYNTAX,
-                ); }
+                if nc == end {
+                    break;
+                } else if nc == ',' {
+                    self.next();
+                }
+                // Consume the comma.
+                else {
+                    exit_error_expected_any_of_but_found(
+                        format!("',' or '{}'", end),
+                        nc,
+                        "parsing arguments",
+                        self.line,
+                        self.column,
+                        ERROR_SYNTAX,
+                    );
+                }
             } else {
                 exit_error_unexpected(
                     "EOF".to_string(),
@@ -481,13 +508,24 @@ impl<'a> WebXFileParser<'a> {
     }
 
     fn de_indent_block(s: String) -> String {
-        let last_indent = s.lines().last().unwrap_or("").chars().take_while(|c| c.is_whitespace()).count();
-        s.lines().map(|l| {
-            let indent = l.chars().take_while(|c| c.is_whitespace()).count();
-            if indent >= last_indent { l.chars().skip(last_indent).collect::<String>() } else { l.to_string() }
-        })
-        .collect::<Vec<String>>()
-        .join("\n")
+        let last_indent = s
+            .lines()
+            .last()
+            .unwrap_or("")
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .count();
+        s.lines()
+            .map(|l| {
+                let indent = l.chars().take_while(|c| c.is_whitespace()).count();
+                if indent >= last_indent {
+                    l.chars().skip(last_indent).collect::<String>()
+                } else {
+                    l.to_string()
+                }
+            })
+            .collect::<Vec<String>>()
+            .join("\n")
     }
 
     fn parse_code_body(&mut self) -> Option<WXBody> {
@@ -570,9 +608,12 @@ impl<'a> WebXFileParser<'a> {
                     self.expect_next_specific(')', context);
                 }
                 '*' => {
-                    segments.push(WXUrlPathSegment::Regex(format!("g{}", regex_counter), "*".to_string()));
+                    segments.push(WXUrlPathSegment::Regex(
+                        format!("g{}", regex_counter),
+                        "*".to_string(),
+                    ));
                     regex_counter += 1;
-                },
+                }
                 '/' => {
                     let nc = self.peek();
                     if let Some(nc) = nc {
@@ -594,7 +635,11 @@ impl<'a> WebXFileParser<'a> {
         }
         // Remove all empty segments.
         segments.retain(|s| {
-            if let WXUrlPathSegment::Literal(s) = s { !s.is_empty() } else { true }
+            if let WXUrlPathSegment::Literal(s) = s {
+                !s.is_empty()
+            } else {
+                true
+            }
         });
         WXUrlPath(segments)
     }
@@ -698,7 +743,10 @@ impl<'a> WebXFileParser<'a> {
     /// ```
     fn parse_route(&mut self, method: http::Method) -> Result<WXRoute, String> {
         Ok(WXRoute {
-            info: WXInfoField { path: WXModulePath::new(self.file.clone()), line: self.line },
+            info: WXInfoField {
+                path: WXModulePath::new(self.file.clone()),
+                line: self.line,
+            },
             method,
             path: self.parse_url_path(),
             body_format: self.parse_body_format(),
