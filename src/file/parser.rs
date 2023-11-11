@@ -905,5 +905,5 @@ impl<'a> WebXFileParser<'a> {
 pub fn parse_webx_file(file: &PathBuf) -> Result<WXModule, String> {
     let file_contents = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
     let mut parser = WebXFileParser::new(file, &file_contents);
-    Ok(parser.parse_module()?)
+    parser.parse_module()
 }

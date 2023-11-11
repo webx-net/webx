@@ -126,7 +126,7 @@ impl WXRTValue {
         let mut isolate = v8::Isolate::new(Default::default());
         let mut handle_scope = v8::HandleScope::new(&mut isolate);
         let context = v8::Context::new(&mut handle_scope);
-        let mut scope = &mut v8::ContextScope::new(&mut handle_scope, context);
+        let scope = &mut v8::ContextScope::new(&mut handle_scope, context);
         let val: &crate::engine::runtime::v8::Value = val;
         if val.is_undefined() {
             return Ok(WXRTValue::Null);

@@ -18,10 +18,10 @@ fn flatten_scopes(
     for route in scope.routes.iter() {
         let flat_path = path_prefix.combine(&route.path);
         let route_key = (route.clone(), flat_path);
-        if routes.contains_key(&route_key) {
-            routes.get_mut(&route_key).unwrap().push(route.info.clone());
+        if let std::collections::hash_map::Entry::Vacant(e) = routes.entry(route_key.clone()) {
+            e.insert(vec![route.info.clone()]);
         } else {
-            routes.insert(route_key, vec![route.info.clone()]);
+            routes.get_mut(&route_key).unwrap().push(route.info.clone());
         }
     }
     for sub_scope in scope.scopes.iter() {
@@ -126,6 +126,6 @@ pub fn analyse_module_routes(modules: &Vec<WXModule>) {
 
 pub fn verify_model_routes(modules: &Vec<WXModule>) -> Result<FlatRoutes, (String, i32)> {
     let routes = analyse_duplicate_routes(modules)?;
-    analyse_invalid_routes(&modules)?;
+    analyse_invalid_routes(modules)?;
     Ok(routes)
 }

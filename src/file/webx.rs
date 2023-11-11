@@ -120,13 +120,13 @@ impl WXModulePath {
         let path = self.inner.canonicalize().unwrap();
         let stripped = path
             .strip_prefix(&cwd)
-            .expect(&format!("Failed to strip prefix of {:?}", path));
+            .unwrap_or_else(|_| panic!("Failed to strip prefix of {:?}", path));
         stripped
             .parent()
             .unwrap()
             .to_str()
             .unwrap()
-            .replace("\\", "/")
+            .replace('\\', "/")
     }
 
     /// "/path/to/file.webx" -> "file"

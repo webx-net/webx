@@ -170,7 +170,7 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
 /// such as detecting circular dependencies.
 pub fn load_modules(src: &Path) -> Vec<WXModule> {
     let files = locate_files(src);
-    let webx_modules = files.iter().map(|f| parse_webx_file(f)).collect::<Vec<_>>();
+    let webx_modules = files.iter().map(parse_webx_file).collect::<Vec<_>>();
     let errors = webx_modules
         .iter()
         .filter(|m| m.is_err())
@@ -297,7 +297,7 @@ location /todo {
 "#;
 
     fs::create_dir_all(&src_dir).expect("Failed to create source directory.");
-    fs::write(&index_file, DEFAULT_INDEX_FILE_CONTENTS).expect("Failed to create index file.");
+    fs::write(index_file, DEFAULT_INDEX_FILE_CONTENTS).expect("Failed to create index file.");
     fs::write(
         &config_file,
         serde_json::to_string_pretty(&default_config).unwrap(),

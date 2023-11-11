@@ -126,7 +126,7 @@ pub fn format_info_field(info: &WXInfoField) -> String {
 }
 
 pub fn exit_error_hint(message: &str, hints: &[&str], code: i32) -> ! {
-    if hints.len() == 0 {
+    if hints.is_empty() {
         exit_error(message.into(), code);
     }
     let hints = if hints.len() > 1 {
