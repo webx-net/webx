@@ -145,7 +145,11 @@ impl WXModulePath {
 
     /// "/path/to/file.webx" -> "path/to/file"
     pub fn module_name(&self) -> String {
-        format!("{}/{}", self.parent(), self.name())
+        if !self.parent().is_empty() {
+            format!("{}/{}", self.parent(), self.name())
+        } else {
+            self.name().to_string()
+        }
     }
 }
 

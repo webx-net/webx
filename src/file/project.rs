@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{
+    ffi::OsStr,
     fs,
     path::{Path, PathBuf},
 };
@@ -144,16 +145,11 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
         if path.is_dir() {
             // Recursively find all .webx files in the directory.
             files.append(&mut locate_files(&path));
-        } else if path.is_file() {
+        } else if path.extension() == Some(OsStr::new("webx")) {
             files.push(
                 path.canonicalize()
                     .map_err(|e| e.to_string())
                     .expect("Failed to canonicalize path."),
-            );
-        } else {
-            panic!(
-                "The path '{}' is neither a file nor a directory.",
-                path.display()
             );
         }
     }
