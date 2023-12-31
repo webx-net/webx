@@ -13,7 +13,7 @@
 <br>
 
 This is the official repository for the WebX web server project.
-A framework for building minimal but powerful **web app backends**, **REST APIs**, and **hypermedia systems**.\
+A framework for building minimal but powerful **web app backends**, **REST APIs**, and **hypermedia systems** using a [HTML first](https://html-first.com/) approach.\
 ▸ [Get started](#getting-started) or [read more](#why-webx) about the project below.
 
 > **⚠️ WebX is still in early development and not ready for production use.**
@@ -23,10 +23,12 @@ A framework for building minimal but powerful **web app backends**, **REST APIs*
 ## Features & Roadmap
 Below is a high-level overview of the existing (implemented) and planned features of the WebX technology (in no particular order).
 
-- [X] Blazingly fast 🔥
+- [X] Blazingly fast[^1] 🔥
 - [X] Lightweight and minimalistic 🪶
 - [X] Versatile, flexible, and powerful 🤸
 - [X] Easy to use and learn 🧠
+
+[^1]: https://www.youtube.com/watch?v=1M9hPXg-bFM
 
 <details><summary>Batteries included 🔋</summary>
   
