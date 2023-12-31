@@ -117,7 +117,7 @@ pub fn load_project_config(config_file: &PathBuf) -> Option<ProjectConfig> {
     }
 }
 
-/// Recursively find all `.webx` files in a given directory.
+/// Recursively find all `.webx` or `.wx` files in a given directory.
 ///
 /// ## Arguments
 /// - `src` - The path to the source directory.
@@ -142,15 +142,13 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     for entry in fs::read_dir(src).unwrap() {
         let path = entry.unwrap().path();
+        let cmp_ext = |ext: &str| path.extension() == Some(OsStr::new(ext));
         if path.is_dir() {
             // Recursively find all .webx files in the directory.
             files.append(&mut locate_files(&path));
-        } else if path.extension() == Some(OsStr::new("webx")) {
-            files.push(
-                path.canonicalize()
-                    .map_err(|e| e.to_string())
-                    .expect("Failed to canonicalize path."),
-            );
+        } else if cmp_ext("webx") || cmp_ext("wx") {
+            // Add the WebX module to the list of files.
+            files.push(path.canonicalize().unwrap());
         }
     }
     files
