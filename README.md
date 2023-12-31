@@ -23,10 +23,12 @@ A framework for building minimal but powerful **web app backends**, **REST APIs*
 ## Features & Roadmap
 Below is a high-level overview of the existing (implemented) and planned features of the WebX technology (in no particular order).
 
-- [X] Blazingly fast 🔥
+- [X] Blazingly fast[^1] 🔥
 - [X] Lightweight and minimalistic 🪶
 - [X] Versatile, flexible, and powerful 🤸
 - [X] Easy to use and learn 🧠
+
+[^1]: https://www.youtube.com/watch?v=1M9hPXg-bFM
 
 <details><summary>Batteries included 🔋</summary>
   
