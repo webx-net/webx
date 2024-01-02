@@ -677,7 +677,6 @@ impl WXRuntime {
     /// until the program is terminated.
     pub fn run(&mut self) {
         self.recompile(); // Ensure that we have a valid route map.
-        info(self.mode, "WebX server is running!");
         let ports = if self.mode.is_dev() {
             vec![8080]
         } else {
@@ -687,6 +686,7 @@ impl WXRuntime {
             .iter()
             .map(|port| SocketAddr::from(([127, 0, 0, 1], *port)))
             .collect::<Vec<_>>();
+        info(self.mode, &format!("WebX server is listening on: {}", ports.iter().map(|p| format!("http://localhost:{}", p)).collect::<Vec<_>>().join(", ")));
         let listener = TcpListener::bind(&addrs[..]).unwrap();
         // Don't block if in dev mode, wait and read hotswap messages.
         listener.set_nonblocking(self.mode.is_dev()).unwrap();
