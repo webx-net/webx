@@ -686,8 +686,18 @@ impl WXRuntime {
             .iter()
             .map(|port| SocketAddr::from(([127, 0, 0, 1], *port)))
             .collect::<Vec<_>>();
-        info(self.mode, &format!("WebX server is listening on: {}", ports.iter().map(|p| format!("http://localhost:{}", p)).collect::<Vec<_>>().join(", ")));
-        let listener = TcpListener::bind(&addrs[..]).unwrap();
+        info(
+            self.mode,
+            &format!(
+                "WebX server is listening on: {}",
+                ports
+                    .iter()
+                    .map(|p| format!("http://localhost:{}", p))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        );
+        let listener = tokio::net::TcpListener::bind(&addrs[..]).await.unwrap();
         // Don't block if in dev mode, wait and read hotswap messages.
         listener.set_nonblocking(self.mode.is_dev()).unwrap();
         loop {
