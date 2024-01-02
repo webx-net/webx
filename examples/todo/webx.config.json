@@ -4,7 +4,7 @@
   "description": "An example WebX project.",
   "port": 8080,
   "host": "localhost",
-  "src": "./",
+  "src": ".",
   "logLevel": null,
   "migrationsPath": null,
   "cors": {
