@@ -185,14 +185,14 @@ fn print_start_info(
     println!(
         "{} {}: {}",
         prefix,
-        "WebX Version".bold(),
+        "Version".bold(),
         env!("CARGO_PKG_VERSION")
     );
     // WebX homepage
     println!(
         "{} {}: {}",
         prefix,
-        "Website".bold(),
+        "Homepage".bold(),
         env!("CARGO_PKG_HOMEPAGE")
     );
     println!("{}{}", "+".bright_black(), "-".repeat(width).bright_black());
