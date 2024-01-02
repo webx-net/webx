@@ -320,7 +320,7 @@ impl fmt::Debug for WXRouteHandler {
 pub struct WXRoute {
     pub info: WXInfoField,
     /// HTTP method of the route.
-    pub method: http::Method,
+    pub method: hyper::Method,
     /// The path of the route.
     pub path: WXUrlPath,
     /// Request body format.

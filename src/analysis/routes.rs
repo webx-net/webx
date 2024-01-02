@@ -78,8 +78,8 @@ fn extract_invalid_routes(routes: &FlatRoutes) -> Vec<String> {
     routes
         .iter()
         .filter(|((route, _), _)| match route.method {
-            http::Method::GET | http::Method::DELETE => route.body_format.is_some(),
-            http::Method::POST | http::Method::PUT => route.body_format.is_none(),
+            hyper::Method::GET | hyper::Method::DELETE => route.body_format.is_some(),
+            hyper::Method::POST | hyper::Method::PUT => route.body_format.is_none(),
             _ => false,
         })
         .map(|((route, path), info)| {
