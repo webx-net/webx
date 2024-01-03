@@ -222,7 +222,11 @@ pub fn run(root: &Path, mode: WXMode) {
         let runtime_hnd = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rt_rx, mode, info);
             runtime.load_modules(webx_modules);
-            runtime.run();
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(runtime.run());
         });
         runtime_hnd.join().unwrap();
         fw_hnd.join().unwrap();
@@ -230,7 +234,11 @@ pub fn run(root: &Path, mode: WXMode) {
         // If we are in production mode, run in main thread.
         let mut runtime = WXRuntime::new(rt_rx, mode, WXRuntimeInfo::new(root));
         runtime.load_modules(webx_modules);
-        runtime.run();
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(runtime.run());
     }
     // Check ps info: `ps | ? ProcessName -eq "webx"`
     // On interrupt, all threads are also terminated
