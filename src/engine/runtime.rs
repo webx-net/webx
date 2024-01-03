@@ -1,19 +1,18 @@
 use std::{
     borrow::Borrow,
-    cell::{Ref, RefCell, RefMut, UnsafeCell},
+    cell::{RefCell},
     collections::HashMap,
-    io::Write,
-    net::{SocketAddr, TcpStream},
+    net::{SocketAddr},
     path::Path,
     rc::Rc,
-    sync::{mpsc::Receiver, Arc, Mutex},
+    sync::{mpsc::Receiver},
 };
 
 use deno_core::{
     v8::{self, GetPropertyNamesArgs},
     JsRuntime,
 };
-use http::{Method, Uri};
+
 use hyper::service::service_fn;
 
 use crate::{
