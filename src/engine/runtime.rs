@@ -1,6 +1,11 @@
 use std::{
-    borrow::Borrow, cell::RefCell, collections::HashMap, net::SocketAddr, path::Path, rc::Rc,
-    sync::mpsc::Receiver,
+    borrow::Borrow,
+    cell::RefCell,
+    collections::HashMap,
+    net::SocketAddr,
+    path::Path,
+    rc::Rc,
+    sync::{mpsc::Receiver, Arc, Mutex},
 };
 
 use deno_core::{
@@ -538,7 +543,7 @@ pub struct WXRuntime {
     mode: WXMode,
     info: WXRuntimeInfo,
     source_modules: Vec<WXModule>,
-    messages: Rc<Receiver<WXRuntimeMessage>>,
+    messages: Arc<Receiver<WXRuntimeMessage>>,
     routes: WXRouteMap,
     /// All WebX TypeScript runtimes.
     ///
@@ -552,7 +557,7 @@ pub struct WXRuntime {
     /// which means that it keeps track of its own persistent state, variables,
     /// functions, and other constructs will persist between script executions
     /// as long as they are run in the same runtime instance.
-    runtimes: Rc<RefCell<HashMap<WXModulePath, deno_core::JsRuntime>>>,
+    runtimes: HashMap<WXModulePath, Arc<Mutex<deno_core::JsRuntime>>>,
 }
 
 impl WXRuntime {
@@ -560,10 +565,10 @@ impl WXRuntime {
         WXRuntime {
             source_modules: Vec::new(),
             routes: WXRouteMap::new(),
-            messages: Rc::new(rx),
+            messages: Arc::new(rx),
             mode,
             info,
-            runtimes: Rc::new(RefCell::new(HashMap::new())),
+            runtimes: HashMap::new(),
         }
     }
 
@@ -589,15 +594,16 @@ impl WXRuntime {
     /// Only call this function once per module.
     /// This should **NOT** be called when hotswapping modules.
     pub fn load_module(&mut self, module: WXModule) {
-        self.runtimes
-            .borrow_mut()
-            .insert(module.path.clone(), JsRuntime::new(Default::default()));
+        self.runtimes.insert(
+            module.path.clone(),
+            Arc::new(Mutex::new(JsRuntime::new(Default::default()))),
+        );
         self.initialize_module_runtime(&module);
         self.source_modules.push(module);
     }
 
     fn remove_module(&mut self, module_path: &WXModulePath) {
-        self.runtimes.borrow_mut().remove(module_path);
+        self.runtimes.remove(module_path);
         self.source_modules.retain(|m| m.path != *module_path);
     }
 
@@ -638,9 +644,12 @@ impl WXRuntime {
 
     /// Execute the global scope in the runtime for a specific module
     fn initialize_module_runtime(&mut self, module: &WXModule) {
-        if let Some(rt) = self.runtimes.borrow_mut().get_mut(&module.path) {
+        if let Some(rt) = self.runtimes.get_mut(&module.path) {
             let ts = module.scope.global_ts.clone();
-            let result = rt.execute_script("[webx global scope]", ts.into());
+            let result = {
+                let mut rt = rt.lock().unwrap();
+                rt.execute_script("[webx global scope]", ts.into())
+            };
             if let Err(e) = result {
                 error_code(
                     format!(
@@ -659,7 +668,7 @@ impl WXRuntime {
                 ),
             );
         } else {
-            dbg!(&self.runtimes.borrow_mut().keys());
+            dbg!(&self.runtimes.keys());
             error_code(
                 format!(
                     "Module runtime not found for module '{}'",
@@ -765,7 +774,7 @@ impl WXRuntime {
         loop {
             let (stream, addr) = listener.accept().await.unwrap();
             let io = hyper_util::rt::TokioIo::new(stream);
-            // tokio::task::spawn(async move {
+            // tokio::task::spawn(async {
             if let Err(e) = hyper::server::conn::http1::Builder::new()
                 .serve_connection(
                     io,
@@ -796,9 +805,13 @@ impl WXRuntime {
             info(rt.mode, &format!("Request from: {}", addr));
         }
         if let Some((_path, mut ctx, route)) = rt.routes.resolve(req.method(), req.uri()) {
-            let mut runtimes = rt.runtimes.borrow_mut();
+            let mut runtimes = rt.runtimes;
             let module_runtime = runtimes.get_mut(&route.module_path).unwrap();
-            let response = match route.execute(&mut ctx, module_runtime, &rt.info) {
+            let route_result = {
+                let mut module_runtime = module_runtime.lock().unwrap();
+                route.execute(&mut ctx, &mut module_runtime, &rt.info)
+            };
+            let response = match route_result {
                 Ok(response) => response,
                 Err(err) => {
                     error_code(err.message.to_string(), err.code);
