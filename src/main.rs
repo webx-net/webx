@@ -68,7 +68,7 @@ fn cli() -> Command {
             info = "{name} {version}".bright_white(),
             author = "Created by {author}".italic().bright_black()
         ))
-        .after_help(format!("{}", "For more information, visit: https://github.com/WilliamRagstad/webx.".bright_black()))
+        .after_help(format!("{}{}", "More information on ".bright_black(), env!("CARGO_PKG_HOMEPAGE").bright_black()))
 }
 
 fn parse_debug_level(matches: &clap::ArgMatches) -> DebugLevel {
