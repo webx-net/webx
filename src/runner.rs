@@ -45,24 +45,15 @@ impl DebugLevel {
     }
 
     pub fn is_medium(&self) -> bool {
-        match self {
-            Self::Medium | Self::High | Self::Max => true,
-            _ => false,
-        }
+        matches!(self, Self::Medium | Self::High | Self::Max)
     }
 
     pub fn is_high(&self) -> bool {
-        match self {
-            Self::High | Self::Max => true,
-            _ => false,
-        }
+        matches!(self, Self::High | Self::Max)
     }
 
     pub fn is_max(&self) -> bool {
-        match self {
-            Self::Max => true,
-            _ => false,
-        }
+        matches!(self, Self::Max)
     }
 
     pub fn name(&self) -> &str {
@@ -111,7 +102,7 @@ impl PartialEq<WXMode> for WXMode {
 }
 
 fn print_start_info(
-    modules: &Vec<WXModule>,
+    modules: &[WXModule],
     mode: WXMode,
     config: &ProjectConfig,
     start_duration: std::time::Duration,

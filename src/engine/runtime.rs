@@ -1,11 +1,6 @@
 use std::{
-    borrow::Borrow,
-    cell::{RefCell},
-    collections::HashMap,
-    net::{SocketAddr},
-    path::Path,
-    rc::Rc,
-    sync::{mpsc::Receiver},
+    borrow::Borrow, cell::RefCell, collections::HashMap, net::SocketAddr, path::Path, rc::Rc,
+    sync::mpsc::Receiver,
 };
 
 use deno_core::{
