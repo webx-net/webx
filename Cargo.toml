@@ -14,13 +14,13 @@ repository = "https://github.com/webx-net/webx"
 chrono = "0.4.31"
 clap = { version = "4.3.21", features = ["color"] }
 colored = "2.0.4"
-deno_core = "0.222.0"
+deno_core = "0.242.0"
 http = "0.2.9"
 http-body-util = "0.1.0"
 hyper = { version = "1.1.0", features = ["full"] }
 hyper-util = { version = "0.1.2", features = ["full"] }
 notify = "6.1.1"
 regex = "1.10.1"
-serde = { version = "1.0.183", features = ["derive"]}
+serde = { version = "1.0.183", features = ["derive"] }
 serde_json = "1.0.104"
 tokio = { version = "1.35.1", features = ["full"] }
