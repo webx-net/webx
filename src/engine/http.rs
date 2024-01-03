@@ -1,3 +1,25 @@
+pub mod requests {
+
+    use hyper::body::Incoming;
+
+    pub fn serialize(request: &hyper::Request<Incoming>) -> String {
+        let mut result = format!(
+            "{} {} {:?}\r\n",
+            request.method(),
+            request.uri(),
+            request.version()
+        );
+        for (header, value) in request.headers() {
+            result.push_str(&format!("{}: {}\r\n", header, value.to_str().unwrap_or("")));
+        }
+        if matches!(*request.method(), hyper::Method::POST | hyper::Method::PUT) {
+            result.push_str("\r\n");
+            result.push_str(&format!("{:?}", request.body()));
+        }
+        result
+    }
+}
+
 pub mod responses {
     use hyper::Response;
 

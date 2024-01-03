@@ -788,7 +788,10 @@ impl WXRuntime {
     ) -> Result<hyper::Response<String>, hyper::Error> {
         // let rt = rt.lock().unwrap();
         if rt.mode.debug_level().is_max() {
-            info(rt.mode, &format!("Request from: {}\n{:?}", addr, req));
+            info(
+                rt.mode,
+                &format!("Request from: {}\n{}", addr, requests::serialize(&req)),
+            );
         } else if rt.mode.debug_level().is_high() {
             info(rt.mode, &format!("Request from: {}", addr));
         }
