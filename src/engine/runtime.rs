@@ -810,8 +810,7 @@ impl WXRuntime {
                     rt.mode,
                     &format!("Response to: {}\n{}", addr, responses::serialize(&response)),
                 );
-            }
-            if rt.mode.debug_level().is_high() {
+            } else if rt.mode.debug_level().is_high() {
                 info(rt.mode, &format!("Response to: {}", addr));
             }
 
