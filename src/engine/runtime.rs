@@ -1,10 +1,11 @@
 use std::{
     borrow::Borrow,
-    cell::UnsafeCell,
+    cell::{Ref, RefCell, RefMut, UnsafeCell},
     collections::HashMap,
     io::Write,
     net::{SocketAddr, TcpStream},
     path::Path,
+    rc::Rc,
     sync::{mpsc::Receiver, Arc, Mutex},
 };
 
@@ -330,7 +331,7 @@ impl WXUrlPath {
     }
 }
 /// A runtime flat-route.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WXRTRoute {
     // TODO: Add support for:
     // TODO: - handler functions
@@ -432,7 +433,7 @@ type WXRouteMapInner = HashMap<hyper::Method, WXMethodMapInner>;
 /// The key is the route path, and the value is the route.
 /// This map requires that **all routes are unique**.
 /// This is enforced by the `analyse_module_routes` function.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WXRouteMap(WXRouteMapInner);
 
 impl WXRouteMap {
@@ -515,12 +516,13 @@ impl WXRouteMap {
 }
 
 /// Channel message for the runtime.
+#[derive(Clone)]
 pub enum WXRuntimeMessage {
     New(WXModule),
     Swap(WXModulePath, WXModule),
     Remove(WXModulePath),
 }
-
+#[derive(Clone)]
 pub struct WXRuntimeInfo {
     pub project_root: Box<Path>,
 }
@@ -533,12 +535,13 @@ impl WXRuntimeInfo {
     }
 }
 
+#[derive(Clone)]
 /// The WebX runtime.
 pub struct WXRuntime {
     mode: WXMode,
     info: WXRuntimeInfo,
     source_modules: Vec<WXModule>,
-    messages: Receiver<WXRuntimeMessage>,
+    messages: Rc<Receiver<WXRuntimeMessage>>,
     routes: WXRouteMap,
     /// All WebX TypeScript runtimes.
     ///
@@ -552,7 +555,7 @@ pub struct WXRuntime {
     /// which means that it keeps track of its own persistent state, variables,
     /// functions, and other constructs will persist between script executions
     /// as long as they are run in the same runtime instance.
-    runtimes: Arc<Mutex<HashMap<WXModulePath, deno_core::JsRuntime>>>,
+    runtimes: Rc<RefCell<HashMap<WXModulePath, deno_core::JsRuntime>>>,
 }
 
 impl WXRuntime {
@@ -560,10 +563,10 @@ impl WXRuntime {
         WXRuntime {
             source_modules: Vec::new(),
             routes: WXRouteMap::new(),
-            messages: rx,
+            messages: Rc::new(rx),
             mode,
             info,
-            runtimes: HashMap::new(),
+            runtimes: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -590,13 +593,14 @@ impl WXRuntime {
     /// This should **NOT** be called when hotswapping modules.
     pub fn load_module(&mut self, module: WXModule) {
         self.runtimes
+            .borrow_mut()
             .insert(module.path.clone(), JsRuntime::new(Default::default()));
         self.initialize_module_runtime(&module);
         self.source_modules.push(module);
     }
 
     fn remove_module(&mut self, module_path: &WXModulePath) {
-        self.runtimes.remove(module_path);
+        self.runtimes.borrow_mut().remove(module_path);
         self.source_modules.retain(|m| m.path != *module_path);
     }
 
@@ -637,7 +641,7 @@ impl WXRuntime {
 
     /// Execute the global scope in the runtime for a specific module
     fn initialize_module_runtime(&mut self, module: &WXModule) {
-        if let Some(rt) = self.runtimes.get_mut(&module.path) {
+        if let Some(rt) = self.runtimes.borrow_mut().get_mut(&module.path) {
             let ts = module.scope.global_ts.clone();
             let result = rt.execute_script("[webx global scope]", ts.into());
             if let Err(e) = result {
@@ -658,7 +662,7 @@ impl WXRuntime {
                 ),
             );
         } else {
-            dbg!(&self.runtimes.keys());
+            dbg!(&self.runtimes.borrow_mut().keys());
             error_code(
                 format!(
                     "Module runtime not found for module '{}'",
@@ -669,21 +673,19 @@ impl WXRuntime {
         }
     }
 
-    fn ports(&self) -> &[u16] {
-        let ports = if self.mode.is_dev() {
+    fn ports(&self) -> Vec<u16> {
+        if self.mode.is_dev() {
             vec![8080]
         } else {
             vec![80, 443]
-        };
-        ports.as_slice()
+        }
     }
 
-    fn addrs(&self) -> &[std::net::SocketAddr] {
+    fn addrs(&self) -> Vec<std::net::SocketAddr> {
         self.ports()
             .iter()
             .map(|port| SocketAddr::from(([127, 0, 0, 1], *port)))
             .collect::<Vec<_>>()
-            .as_slice()
     }
 
     fn log_startup(&mut self) {
@@ -700,54 +702,55 @@ impl WXRuntime {
         );
     }
 
-    /// Runtime dev mode features for hotswapping modules.
+    /// ~~Runtime dev mode features for hotswapping modules.
     /// This function will run forever in a dedicated thread
     /// and will handle updates and incoming messages from the channel.
     /// In dev mode, we don't want the TCP listener to be blocked by
-    /// hotswapping modules, recompiling the route map, or other dev mode features.
+    /// hotswapping modules, recompiling the route map, or other dev mode features.~~
     ///
     /// ## Note
-    /// 1. This function will only run in dev mode, and **not** in production mode.
-    /// 2. This thread will **not** block the main runtime thread.
+    /// 1. ~~This function will only run in dev mode, and **not** in production mode.~~
+    /// 2. ~~This thread will **not** block the main runtime thread.~~
     pub async fn dev_run(&mut self) {
-        self.recompile(); // Ensure that we have a valid route map.
-        info(self.mode, "Dev mode enabled.");
-        loop {
-            // Look for module updates from the given channel.
-            // This function is **non-blocking**.
-            // All queued updates are applied immediately.
-            while let Ok(msg) = self.messages.try_recv() {
-                match msg {
-                    WXRuntimeMessage::New(module) => {
-                        info(
-                            self.mode,
-                            &format!("New module: {}", module.path.module_name()),
-                        );
-                        self.load_module(module);
-                        self.recompile();
-                    }
-                    WXRuntimeMessage::Swap(path, module) => {
-                        info(
-                            self.mode,
-                            &format!("Reloaded module: {}", module.path.module_name()),
-                        );
-                        // Module JS runtime is persistent between hotswaps.
-                        self.remove_module(&path);
-                        self.source_modules.push(module);
-                        self.recompile();
-                    }
-                    WXRuntimeMessage::Remove(path) => {
-                        info(
-                            self.mode,
-                            &format!("Removed module: {}", path.module_name()),
-                        );
-                        self.remove_module(&path);
-                        self.recompile();
-                    }
+        if !self.mode.is_dev() {
+            return;
+        }
+        // loop { // Don't loop, just run once.
+        // Look for module updates from the given channel.
+        // This function is **non-blocking**.
+        // All queued updates are applied immediately.
+        while let Ok(msg) = self.messages.try_recv() {
+            match msg {
+                WXRuntimeMessage::New(module) => {
+                    info(
+                        self.mode,
+                        &format!("New module: {}", module.path.module_name()),
+                    );
+                    self.load_module(module);
+                    self.recompile();
+                }
+                WXRuntimeMessage::Swap(path, module) => {
+                    info(
+                        self.mode,
+                        &format!("Reloaded module: {}", module.path.module_name()),
+                    );
+                    // Module JS runtime is persistent between hotswaps.
+                    self.remove_module(&path);
+                    self.source_modules.push(module);
+                    self.recompile();
+                }
+                WXRuntimeMessage::Remove(path) => {
+                    info(
+                        self.mode,
+                        &format!("Removed module: {}", path.module_name()),
+                    );
+                    self.remove_module(&path);
+                    self.recompile();
                 }
             }
-            std::thread::sleep(std::time::Duration::from_millis(50));
         }
+        //     std::thread::sleep(std::time::Duration::from_millis(50));
+        // }
     }
 
     /// Main runtime loop.
@@ -755,67 +758,75 @@ impl WXRuntime {
     /// and will handle all incoming requests and responses
     /// until the program is terminated.
     pub async fn run(&mut self) {
+        self.recompile(); // Ensure that we have a valid route map.
         if self.mode.is_dev() {
-            tokio::spawn(async move {
-                self.dev_run().await;
-            });
+            info(self.mode, "Dev mode enabled.");
         }
         // Multi-threading pool via asynchronous tokio.
-        let listener = tokio::net::TcpListener::bind(self.addrs()).await.unwrap();
+        let listener = tokio::net::TcpListener::bind(&self.addrs()[..])
+            .await
+            .unwrap();
         self.log_startup();
+        // let self_clone = Arc::new(Mutex::new(self.clone()));
         loop {
             let (stream, addr) = listener.accept().await.unwrap();
             let io = hyper_util::rt::TokioIo::new(stream);
-            tokio::task::spawn(async move {
-                if let Err(e) = hyper::server::conn::http1::Builder::new()
-                    .serve_connection(io, service_fn(|req| self.request_service(req, addr)))
-                    .await
-                {
-                    eprintln!("failed to serve connection: {}", e);
-                }
-                // self.handle_request(io, addr).await;
-            });
+            // tokio::task::spawn(async move {
+            if let Err(e) = hyper::server::conn::http1::Builder::new()
+                .serve_connection(
+                    io,
+                    service_fn(|req| WXRuntime::request_service(self.clone(), req, addr)),
+                )
+                .await
+            {
+                eprintln!("failed to serve connection: {}", e);
+            }
+            // self.handle_request(io, addr).await;
+            // });
+            self.dev_run().await;
         }
     }
 
     async fn request_service(
-        &mut self,
+        rt: WXRuntime,
         req: hyper::Request<hyper::body::Incoming>,
         addr: SocketAddr,
     ) -> Result<hyper::Response<String>, hyper::Error> {
-        if self.mode.debug_level().is_max() {
-            info(self.mode, &format!("Request from: {}\n{:?}", addr, req));
-        } else if self.mode.debug_level().is_high() {
-            info(self.mode, &format!("Request from: {}", addr));
+        // let rt = rt.lock().unwrap();
+        if rt.mode.debug_level().is_max() {
+            info(rt.mode, &format!("Request from: {}\n{:?}", addr, req));
+        } else if rt.mode.debug_level().is_high() {
+            info(rt.mode, &format!("Request from: {}", addr));
         }
-        if let Some((_path, mut ctx, route)) = self.routes.resolve(req.method(), req.uri()) {
-            let module_runtime = self.runtimes.get_mut(&route.module_path).unwrap();
-            let response = match route.execute(&mut ctx, module_runtime, &self.info) {
+        if let Some((_path, mut ctx, route)) = rt.routes.resolve(req.method(), req.uri()) {
+            let mut runtimes = rt.runtimes.borrow_mut();
+            let module_runtime = runtimes.get_mut(&route.module_path).unwrap();
+            let response = match route.execute(&mut ctx, module_runtime, &rt.info) {
                 Ok(response) => response,
                 Err(err) => {
                     error_code(err.message.to_string(), err.code);
-                    responses::internal_server_error_default_webx(self.mode, err.message)
+                    responses::internal_server_error_default_webx(rt.mode, err.message)
                 }
             };
-            if self.mode.debug_level().is_max() {
+            if rt.mode.debug_level().is_max() {
                 info(
-                    self.mode,
+                    rt.mode,
                     &format!("Response to: {}\n{}", addr, responses::serialize(&response)),
                 );
             }
-            if self.mode.debug_level().is_high() {
-                info(self.mode, &format!("Response to: {}", addr));
+            if rt.mode.debug_level().is_high() {
+                info(rt.mode, &format!("Response to: {}", addr));
             }
 
-            return Ok(response);
+            Ok(response)
         } else {
-            warning(self.mode, format!("No route match: {}", req.uri().path()));
-            let response = responses::not_found_default_webx(self.mode);
+            warning(rt.mode, format!("No route match: {}", req.uri().path()));
+            let response = responses::not_found_default_webx(rt.mode);
             info(
-                self.mode,
+                rt.mode,
                 &format!("{} response to: {}", response.status(), addr),
             );
-            return Ok(response);
+            Ok(response)
         }
     }
 }

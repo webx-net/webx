@@ -97,7 +97,7 @@ pub const WXROOT_PATH: WXUrlPath = WXUrlPath(vec![]);
 
 /// # WebX module
 /// A file data structure for WebX files.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WXModule {
     /// The path to the file.
     pub path: WXModulePath,
