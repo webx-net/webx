@@ -42,7 +42,7 @@ pub mod responses {
             .header("Content-Type", "text/html; charset=utf-8")
             .header("Content-Length", body.len().to_string())
             .header("Connection", "close")
-            .header("Server", "webx")
+            .header("Server", &format!("webx/{}", env!("CARGO_PKG_VERSION")))
             .header("Date", chrono::Utc::now().to_rfc2822())
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
