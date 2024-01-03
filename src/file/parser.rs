@@ -741,7 +741,7 @@ impl<'a> WebXFileParser<'a> {
     ///     // ...
     /// }
     /// ```
-    fn parse_route(&mut self, method: http::Method) -> Result<WXRoute, String> {
+    fn parse_route(&mut self, method: hyper::Method) -> Result<WXRoute, String> {
         Ok(WXRoute {
             info: WXInfoField {
                 path: WXModulePath::new(self.file.clone()),
@@ -819,7 +819,7 @@ impl<'a> WebXFileParser<'a> {
                     }
                     'e' => {
                         self.expect_specific_str("head", 2, context);
-                        scope.routes.push(self.parse_route(http::Method::HEAD)?);
+                        scope.routes.push(self.parse_route(hyper::Method::HEAD)?);
                     }
                     c => exit_error_expected_any_of_but_found(
                         "handler or head".to_string(),
@@ -833,7 +833,7 @@ impl<'a> WebXFileParser<'a> {
                 'g' => match self.expect(context) {
                     'e' => {
                         self.expect_specific_str("get", 2, context);
-                        scope.routes.push(self.parse_route(http::Method::GET)?);
+                        scope.routes.push(self.parse_route(hyper::Method::GET)?);
                     }
                     'l' => {
                         self.expect_specific_str("global", 2, context);
@@ -853,15 +853,15 @@ impl<'a> WebXFileParser<'a> {
                 'p' => match self.expect(context) {
                     'o' => {
                         self.expect_specific_str("post", 2, context);
-                        scope.routes.push(self.parse_route(http::Method::POST)?);
+                        scope.routes.push(self.parse_route(hyper::Method::POST)?);
                     }
                     'u' => {
                         self.expect_specific_str("put", 2, context);
-                        scope.routes.push(self.parse_route(http::Method::PUT)?);
+                        scope.routes.push(self.parse_route(hyper::Method::PUT)?);
                     }
                     'a' => {
                         self.expect_specific_str("patch", 2, context);
-                        scope.routes.push(self.parse_route(http::Method::PATCH)?);
+                        scope.routes.push(self.parse_route(hyper::Method::PATCH)?);
                     }
                     c => exit_error_expected_any_of_but_found(
                         "post, put or patch".to_string(),
@@ -874,19 +874,19 @@ impl<'a> WebXFileParser<'a> {
                 },
                 'd' => {
                     self.expect_specific_str("delete", 1, context);
-                    scope.routes.push(self.parse_route(http::Method::DELETE)?);
+                    scope.routes.push(self.parse_route(hyper::Method::DELETE)?);
                 }
                 'c' => {
                     self.expect_specific_str("connect", 1, context);
-                    scope.routes.push(self.parse_route(http::Method::CONNECT)?);
+                    scope.routes.push(self.parse_route(hyper::Method::CONNECT)?);
                 }
                 'o' => {
                     self.expect_specific_str("options", 1, context);
-                    scope.routes.push(self.parse_route(http::Method::OPTIONS)?);
+                    scope.routes.push(self.parse_route(hyper::Method::OPTIONS)?);
                 }
                 't' => {
                     self.expect_specific_str("trace", 1, context);
-                    scope.routes.push(self.parse_route(http::Method::TRACE)?);
+                    scope.routes.push(self.parse_route(hyper::Method::TRACE)?);
                 }
                 _ => exit_error_unexpected_char(c, context, self.line, self.column, ERROR_SYNTAX),
             }
