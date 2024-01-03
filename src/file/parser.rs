@@ -534,14 +534,14 @@ impl<'a> WebXFileParser<'a> {
             Some('{') => {
                 self.next();
                 Some(WXBody {
-                    body_type: WXBodyType::TS,
+                    body_type: WXBodyType::Ts,
                     body: Self::de_indent_block(self.parse_block('{', '}')),
                 })
             }
             Some('(') => {
                 self.next();
                 Some(WXBody {
-                    body_type: WXBodyType::TSX,
+                    body_type: WXBodyType::Tsx,
                     body: Self::de_indent_block(self.parse_block('(', ')')),
                 })
             }

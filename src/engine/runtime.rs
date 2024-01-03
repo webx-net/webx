@@ -345,9 +345,9 @@ impl WXRTRoute {
         assert!(self.body.is_some());
         let body = self.body.as_ref().unwrap();
         match body.body_type {
-            WXBodyType::TS => todo!("TS body type is not supported yet"),
+            WXBodyType::Ts => todo!("TS body type is not supported yet"),
             // TODO: Resolve bindings, render and execute JSX (dynamic)
-            WXBodyType::TSX => Ok(WXRTValue::String(body.body.clone())),
+            WXBodyType::Tsx => Ok(WXRTValue::String(body.body.clone())),
         }
     }
 
@@ -439,7 +439,7 @@ impl WXRouteMap {
     }
 
     /// Create a new route map from a list of modules.
-    fn from_modules(modules: &Vec<WXModule>) -> Result<Self, WXRuntimeError> {
+    fn from_modules(modules: &[WXModule]) -> Result<Self, WXRuntimeError> {
         let routes = verify_model_routes(modules);
         if let Err((message, code)) = routes {
             return Err(WXRuntimeError { code, message });

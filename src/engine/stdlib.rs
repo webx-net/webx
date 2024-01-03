@@ -30,7 +30,7 @@ fn webx_static(
 
 pub fn try_call(
     name: &str,
-    args: &Vec<WXRTValue>,
+    args: &[WXRTValue],
     info: &WXRuntimeInfo,
 ) -> Option<Result<WXRTValue, WXRuntimeError>> {
     let assert_args = |n: usize| {

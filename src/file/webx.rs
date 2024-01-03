@@ -191,16 +191,16 @@ pub struct WXHandler {
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub enum WXBodyType {
-    TS,
-    TSX,
+    Ts,
+    Tsx,
     // TODO: JSON and TEXT
 }
 
 impl ToString for WXBodyType {
     fn to_string(&self) -> String {
         match self {
-            WXBodyType::TS => "ts".to_string(),
-            WXBodyType::TSX => "tsx".to_string(),
+            WXBodyType::Ts => "ts".to_string(),
+            WXBodyType::Tsx => "tsx".to_string(),
         }
     }
 }

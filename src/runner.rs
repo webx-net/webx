@@ -252,10 +252,10 @@ struct FSWEvent {
 }
 
 impl FSWEvent {
-    fn new(kind: notify::EventKind, path: &PathBuf) -> Self {
+    fn new(kind: notify::EventKind, path: &Path) -> Self {
         Self {
             kind,
-            path: WXModulePath::new(path.clone()),
+            path: WXModulePath::new(path.to_path_buf()),
             timestamp: Instant::now(),
             is_empty_state: false,
         }
@@ -282,7 +282,7 @@ impl FSWEvent {
 }
 
 /// Registers the file watcher thread
-fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
+fn run_filewatcher(mode: WXMode, source_root: &Path, rt_tx: Sender<WXRuntimeMessage>) {
     let mut last_event: FSWEvent = FSWEvent::empty();
     let mut watcher = notify::recommended_watcher(move |res: Result<Event, Error>| {
         match res {
