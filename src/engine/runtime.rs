@@ -21,7 +21,10 @@ use crate::{
 };
 
 use super::{
-    http::responses::{self, ok_html},
+    http::{
+        requests,
+        responses::{self, ok_html},
+    },
     stdlib,
 };
 
@@ -753,10 +756,7 @@ impl WXRuntime {
     /// until the program is terminated.
     pub async fn run(&mut self) {
         self.recompile(); // Ensure that we have a valid route map.
-        if self.mode.is_dev() {
-            info(self.mode, "Dev mode enabled.");
-        }
-        // Multi-threading pool via asynchronous tokio.
+                          // TODO: Multi-threading pool via asynchronous tokio.
         let listener = tokio::net::TcpListener::bind(&self.addrs()[..])
             .await
             .unwrap();
