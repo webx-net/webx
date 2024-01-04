@@ -1,4 +1,4 @@
-use std::{future::Future, net::SocketAddr, pin::Pin};
+use std::{future::Future, net::SocketAddr, pin::Pin, sync::mpsc::Sender};
 
 use http_body_util::Full;
 use hyper::{
@@ -11,13 +11,15 @@ use hyper_util::rt::TokioIo;
 
 use crate::{reporting::debug::info, runner::WXMode};
 
+use super::runtime::WXRuntimeMessage;
+
 /// The WebX web server.
 pub struct WXServer {
     mode: WXMode,
 }
 
 impl WXServer {
-    pub fn new(mode: WXMode) -> Self {
+    pub fn new(mode: WXMode, rt_tx: Sender<WXRuntimeMessage>) -> Self {
         WXServer { mode }
     }
 
