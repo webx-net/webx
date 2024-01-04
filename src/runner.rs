@@ -8,6 +8,7 @@ use std::time::Instant;
 use crate::analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes};
 use crate::engine::filewatcher::WXFileWatcher;
 use crate::engine::runtime::{WXRuntime, WXRuntimeInfo};
+use crate::engine::server::{self, WXServer};
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
 use crate::file::webx::WXModule;
 use crate::reporting::error::{exit_error_hint, ERROR_PROJECT};
@@ -222,20 +223,45 @@ pub fn run(root: &Path, mode: WXMode) {
                 .enable_all()
                 .build()
                 .unwrap()
-                .block_on(runtime.run());
+                .block_on(runtime.run())
+                .unwrap();
         });
+        let server_hnd = std::thread::spawn(move || {
+            // let server = WXServer::new(mode, config, rt_tx);
+            // server.run();
+            let mut server = WXServer::new(mode);
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(server.run())
+                .unwrap();
+        });
+        // TODO: If any of these fail we should stop the others
+        server_hnd.join().unwrap();
         runtime_hnd.join().unwrap();
         fw_hnd.join().unwrap();
     } else {
-        // If we are in production mode, run in main thread.
+        // If we are in production mode, run the `server` in main thread.
         let info = WXRuntimeInfo::new(root);
-        let mut runtime = WXRuntime::new(rt_rx, mode, info);
-        runtime.load_modules(webx_modules);
+        let runtime_hnd = std::thread::spawn(move || {
+            let mut runtime = WXRuntime::new(rt_rx, mode, info);
+            runtime.load_modules(webx_modules);
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(runtime.run())
+                .unwrap();
+        });
+        let mut server = WXServer::new(mode);
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
-            .block_on(runtime.run());
+            .block_on(server.run())
+            .unwrap();
+        runtime_hnd.join().unwrap();
     }
     // Check ps info: `ps | ? ProcessName -eq "webx"`
     // On interrupt, all threads are also terminated

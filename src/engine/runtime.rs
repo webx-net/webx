@@ -607,41 +607,6 @@ impl WXRuntime {
         self.source_modules.retain(|m| m.path != *module_path);
     }
 
-    /// Tries to recompile all loaded modules at once and replace the runtime route map.
-    ///
-    /// ## Note
-    /// This way we can get cross-module route analysis, which is required for detecting
-    /// duplicate routes and other global errors.
-    ///
-    /// ## Error
-    /// This function will **throw and error** if the route map cannot be compiled
-    /// from the current source modules, and will **not** replace the current route map.
-    /// However, the program will **continue to run with the old route map**.
-    fn recompile(&mut self) {
-        match WXRouteMap::from_modules(&self.source_modules) {
-            Ok(routes) => self.routes = routes,
-            Err(err) => error_code(err.message, err.code),
-        }
-        if self.mode.is_dev() && self.mode.debug_level().is_high() {
-            // Print the route map in dev mode.
-            info(self.mode, "Route map:");
-            let routes: Vec<(&hyper::Method, &WXUrlPath)> = self
-                .routes
-                .0
-                .iter()
-                .flat_map(|(method, method_map)| {
-                    method_map
-                        .iter()
-                        .map(|(path, _)| (method, path))
-                        .collect::<Vec<_>>()
-                })
-                .collect();
-            for (method, path) in routes {
-                println!(" - {} {}", method, path);
-            }
-        }
-    }
-
     /// Execute the global scope in the runtime for a specific module
     fn initialize_module_runtime(&mut self, module: &WXModule) {
         if let Some(rt) = self.runtimes.get_mut(&module.path) {
@@ -679,163 +644,87 @@ impl WXRuntime {
         }
     }
 
-    fn ports(&self) -> Vec<u16> {
-        if self.mode.is_dev() {
-            vec![8080]
-        } else {
-            vec![80, 443]
-        }
-    }
-
-    fn addrs(&self) -> Vec<std::net::SocketAddr> {
-        self.ports()
-            .iter()
-            .map(|port| SocketAddr::from(([127, 0, 0, 1], *port)))
-            .collect::<Vec<_>>()
-    }
-
-    fn log_startup(&mut self) {
-        info(
-            self.mode,
-            &format!(
-                "WebX server is listening on: {}",
-                self.ports()
-                    .iter()
-                    .map(|p| format!("http://localhost:{}", p))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-        );
-    }
-
-    /// ~~Runtime dev mode features for hotswapping modules.
-    /// This function will run forever in a dedicated thread
-    /// and will handle updates and incoming messages from the channel.
-    /// In dev mode, we don't want the TCP listener to be blocked by
-    /// hotswapping modules, recompiling the route map, or other dev mode features.~~
+    /// Tries to recompile all loaded modules at once and replace the runtime route map.
     ///
     /// ## Note
-    /// 1. ~~This function will only run in dev mode, and **not** in production mode.~~
-    /// 2. ~~This thread will **not** block the main runtime thread.~~
-    pub async fn dev_run(&mut self) {
-        if !self.mode.is_dev() {
-            return;
+    /// This way we can get cross-module route analysis, which is required for detecting
+    /// duplicate routes and other global errors.
+    ///
+    /// ## Error
+    /// This function will **throw and error** if the route map cannot be compiled
+    /// from the current source modules, and will **not** replace the current route map.
+    /// However, the program will **continue to run with the old route map**.
+    fn recompile(&mut self) {
+        match WXRouteMap::from_modules(&self.source_modules) {
+            Ok(routes) => self.routes = routes,
+            Err(err) => error_code(err.message, err.code),
         }
-        // loop { // Don't loop, just run once.
-        // Look for module updates from the given channel.
-        // This function is **non-blocking**.
-        // All queued updates are applied immediately.
-        while let Ok(msg) = self.messages.try_recv() {
-            match msg {
-                WXRuntimeMessage::New(module) => {
-                    info(
-                        self.mode,
-                        &format!("New module: {}", module.path.module_name()),
-                    );
-                    self.load_module(module);
-                    self.recompile();
-                }
-                WXRuntimeMessage::Swap(path, module) => {
-                    info(
-                        self.mode,
-                        &format!("Reloaded module: {}", module.path.module_name()),
-                    );
-                    // Module JS runtime is persistent between hotswaps.
-                    self.remove_module(&path);
-                    self.source_modules.push(module);
-                    self.recompile();
-                }
-                WXRuntimeMessage::Remove(path) => {
-                    info(
-                        self.mode,
-                        &format!("Removed module: {}", path.module_name()),
-                    );
-                    self.remove_module(&path);
-                    self.recompile();
-                }
+        if self.mode.is_dev() && self.mode.debug_level().is_high() {
+            // Print the route map in dev mode.
+            info(self.mode, "Route map:");
+            let routes: Vec<(&hyper::Method, &WXUrlPath)> = self
+                .routes
+                .0
+                .iter()
+                .flat_map(|(method, method_map)| {
+                    method_map
+                        .iter()
+                        .map(|(path, _)| (method, path))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            for (method, path) in routes {
+                println!(" - {} {}", method, path);
             }
         }
-        //     std::thread::sleep(std::time::Duration::from_millis(50));
-        // }
     }
 
     /// Main runtime loop.
     /// This function will run forever in a dedicated thread
-    /// and will handle all incoming requests and responses
+    /// and will handle all incoming messages from the channel
     /// until the program is terminated.
-    pub async fn run(&mut self) {
-        self.recompile(); // Ensure that we have a valid route map.
-                          // TODO: Multi-threading pool via asynchronous tokio.
-        let listener = tokio::net::TcpListener::bind(&self.addrs()[..])
-            .await
-            .unwrap();
-        self.log_startup();
-        // let self_clone = Arc::new(Mutex::new(self.clone()));
+    ///
+    /// ## Example messages:
+    /// - Execute a route within the runtime and return the result.
+    ///     - TODO: Such tasks will be executed in a new separate tokio task/thread.
+    /// - Hotswapp module in dev mode.
+    ///
+    /// ## Note
+    /// This is **required** as `deno_core::JsRuntime` is **not** thread-safe
+    /// and cannot be shared between threads.
+    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.recompile();
         loop {
-            let (stream, addr) = listener.accept().await.unwrap();
-            let io = hyper_util::rt::TokioIo::new(stream);
-            // tokio::task::spawn(async {
-            if let Err(e) = hyper::server::conn::http1::Builder::new()
-                .serve_connection(
-                    io,
-                    service_fn(|req| WXRuntime::request_service(self.clone(), req, addr)),
-                )
-                .await
-            {
-                eprintln!("failed to serve connection: {}", e);
-            }
-            // self.handle_request(io, addr).await;
-            // });
-            self.dev_run().await;
-        }
-    }
-
-    async fn request_service(
-        rt: WXRuntime,
-        req: hyper::Request<hyper::body::Incoming>,
-        addr: SocketAddr,
-    ) -> Result<hyper::Response<String>, hyper::Error> {
-        // let rt = rt.lock().unwrap();
-        if rt.mode.debug_level().is_max() {
-            info(
-                rt.mode,
-                &format!("Request from: {}\n{}", addr, requests::serialize(&req)),
-            );
-        } else if rt.mode.debug_level().is_high() {
-            info(rt.mode, &format!("Request from: {}", addr));
-        }
-        if let Some((_path, mut ctx, route)) = rt.routes.resolve(req.method(), req.uri()) {
-            let mut runtimes = rt.runtimes;
-            let module_runtime = runtimes.get_mut(&route.module_path).unwrap();
-            let route_result = {
-                let mut module_runtime = module_runtime.lock().unwrap();
-                route.execute(&mut ctx, &mut module_runtime, &rt.info)
-            };
-            let response = match route_result {
-                Ok(response) => response,
-                Err(err) => {
-                    error_code(err.message.to_string(), err.code);
-                    responses::internal_server_error_default_webx(rt.mode, err.message)
+            if let Ok(msg) = self.messages.recv() {
+                match msg {
+                    WXRuntimeMessage::New(module) => {
+                        info(
+                            self.mode,
+                            &format!("New module: {}", module.path.module_name()),
+                        );
+                        self.load_module(module);
+                        self.recompile();
+                    }
+                    WXRuntimeMessage::Swap(path, module) => {
+                        info(
+                            self.mode,
+                            &format!("Reloaded module: {}", module.path.module_name()),
+                        );
+                        // Module JS runtime is persistent between hotswaps.
+                        self.remove_module(&path);
+                        self.source_modules.push(module);
+                        self.recompile();
+                    }
+                    WXRuntimeMessage::Remove(path) => {
+                        info(
+                            self.mode,
+                            &format!("Removed module: {}", path.module_name()),
+                        );
+                        self.remove_module(&path);
+                        self.recompile();
+                    }
                 }
-            };
-            if rt.mode.debug_level().is_max() {
-                info(
-                    rt.mode,
-                    &format!("Response to: {}\n{}", addr, responses::serialize(&response)),
-                );
-            } else if rt.mode.debug_level().is_high() {
-                info(rt.mode, &format!("Response to: {}", addr));
             }
-
-            Ok(response)
-        } else {
-            warning(rt.mode, format!("No route match: {}", req.uri().path()));
-            let response = responses::not_found_default_webx(rt.mode);
-            info(
-                rt.mode,
-                &format!("{} response to: {}", response.status(), addr),
-            );
-            Ok(response)
         }
     }
 }
