@@ -1,4 +1,9 @@
-use std::{future::Future, net::SocketAddr, pin::Pin, sync::mpsc::Sender};
+use std::{
+    future::Future,
+    net::SocketAddr,
+    pin::Pin,
+    sync::{mpsc::Sender, Arc},
+};
 
 use http_body_util::Full;
 use hyper::{
@@ -17,7 +22,7 @@ use super::runtime::WXRuntimeMessage;
 pub struct WXServer {
     mode: WXMode,
     config: ProjectConfig,
-    runtime_tx: Sender<WXRuntimeMessage>,
+    runtime_tx: Arc<Sender<WXRuntimeMessage>>,
 }
 
 impl WXServer {
@@ -25,7 +30,7 @@ impl WXServer {
         WXServer {
             mode,
             config,
-            runtime_tx: rt_tx,
+            runtime_tx: Arc::new(rt_tx),
         }
     }
 
@@ -61,13 +66,13 @@ impl WXServer {
     /// Starts the WebX web server and listens for incoming requests in its own thread.
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let listener = tokio::net::TcpListener::bind(&self.addrs()[..]).await?;
-        let svc = WXSvc::new();
+        let svc = WXSvc::new(self.runtime_tx.clone());
         self.log_startup();
         loop {
-            let (stream, _) = listener.accept().await?;
+            let (stream, addr) = listener.accept().await?;
             let io = TokioIo::new(stream);
             // TODO: Multi-threading pool via asynchronous workers and tokio.
-            tokio::task::spawn(Self::serve(io, svc.clone()));
+            tokio::task::spawn(Self::serve(io, svc.clone_with_address(addr)));
         }
     }
 
@@ -87,11 +92,23 @@ impl WXServer {
 ///
 /// Reference implementation: https://github.com/hyperium/hyper/blob/master/examples/service_struct_impl.rs
 #[derive(Clone, Debug)]
-struct WXSvc {}
+struct WXSvc {
+    address: Option<SocketAddr>,
+    runtime_tx: Arc<Sender<WXRuntimeMessage>>,
+}
 
 impl WXSvc {
-    pub fn new() -> Self {
-        WXSvc {}
+    pub fn new(rt_tx: Arc<Sender<WXRuntimeMessage>>) -> Self {
+        WXSvc {
+            address: None, // Get the address from the request.
+            runtime_tx: rt_tx,
+        }
+    }
+
+    fn clone_with_address(&self, addr: SocketAddr) -> Self {
+        let mut new = self.clone();
+        new.address = Some(addr);
+        new
     }
 
     fn ok(&self, text: String) -> Result<Response<Full<Bytes>>, hyper::Error> {
@@ -117,6 +134,7 @@ impl Service<Request<Incoming>> for WXSvc {
     ///
     /// But most importantly, it will communicate with the WebX engine and runtimes.
     fn call(&self, _req: Request<Incoming>) -> Self::Future {
+        // TODO: self.runtime_tx.send(WXRuntimeMessage::ExecuteRoute());
         let res = self.ok("Hello world from hyper service!".to_string());
         Box::pin(async move { res })
     }
