@@ -9,18 +9,24 @@ use hyper::{
 };
 use hyper_util::rt::TokioIo;
 
-use crate::{reporting::debug::info, runner::WXMode};
+use crate::{file::project::ProjectConfig, reporting::debug::info, runner::WXMode};
 
 use super::runtime::WXRuntimeMessage;
 
 /// The WebX web server.
 pub struct WXServer {
     mode: WXMode,
+    config: ProjectConfig,
+    runtime_tx: Sender<WXRuntimeMessage>,
 }
 
 impl WXServer {
-    pub fn new(mode: WXMode, rt_tx: Sender<WXRuntimeMessage>) -> Self {
-        WXServer { mode }
+    pub fn new(mode: WXMode, config: ProjectConfig, rt_tx: Sender<WXRuntimeMessage>) -> Self {
+        WXServer {
+            mode,
+            config,
+            runtime_tx: rt_tx,
+        }
     }
 
     fn ports(&self) -> Vec<u16> {

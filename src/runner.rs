@@ -211,6 +211,8 @@ pub fn run(root: &Path, mode: WXMode) {
     analyse_module_deps(&webx_modules);
     analyse_module_routes(&webx_modules);
     print_start_info(&webx_modules, mode, &config, time_start.elapsed());
+
+    // Setup and start all threads
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     if mode.is_dev() {
         let fw_rt_tx = rt_tx.clone();
@@ -228,9 +230,7 @@ pub fn run(root: &Path, mode: WXMode) {
         });
         let sv_rt_tx = rt_tx.clone();
         let server_hnd = std::thread::spawn(move || {
-            // let server = WXServer::new(mode, config, rt_tx);
-            // server.run();
-            let mut server = WXServer::new(mode, sv_rt_tx);
+            let mut server = WXServer::new(mode, config, sv_rt_tx);
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()
@@ -256,7 +256,7 @@ pub fn run(root: &Path, mode: WXMode) {
                 .unwrap();
         });
         let sv_rt_tx = rt_tx.clone();
-        let mut server = WXServer::new(mode, sv_rt_tx);
+        let mut server = WXServer::new(mode, config, sv_rt_tx);
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
