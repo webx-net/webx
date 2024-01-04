@@ -216,8 +216,7 @@ pub fn run(root: &Path, mode: WXMode) {
     print_start_info(&webx_modules, mode, &config, time_start.elapsed());
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     if mode.is_dev() {
-        let fw_rt_tx = rt_tx.clone();
-        let fw_hnd = std::thread::spawn(move || run_filewatcher(mode, &source_root, fw_rt_tx));
+        let fw_hnd = std::thread::spawn(move || run_filewatcher(mode, &source_root, rt_tx.clone()));
         let info = WXRuntimeInfo::new(root);
         let runtime_hnd = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rt_rx, mode, info);
