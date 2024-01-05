@@ -8,7 +8,7 @@ use std::time::Instant;
 use crate::analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes};
 use crate::engine::filewatcher::WXFileWatcher;
 use crate::engine::runtime::{WXRuntime, WXRuntimeInfo};
-use crate::engine::server::{self, WXServer};
+use crate::engine::server::WXServer;
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
 use crate::file::webx::WXModule;
 use crate::reporting::error::{exit_error_hint, ERROR_PROJECT};

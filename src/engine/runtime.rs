@@ -1,19 +1,13 @@
 use std::{
-    borrow::Borrow,
-    cell::RefCell,
-    collections::HashMap,
-    net::SocketAddr,
-    path::Path,
-    rc::Rc,
-    sync::{mpsc::Receiver, Arc, Mutex},
+    borrow::Borrow, collections::HashMap, fmt::Display, net::SocketAddr, path::Path,
+    sync::mpsc::Receiver,
 };
 
 use deno_core::{
     v8::{self, GetPropertyNamesArgs},
     JsRuntime,
 };
-
-use hyper::service::service_fn;
+use hyper::body::Bytes;
 
 use crate::{
     analysis::routes::verify_model_routes,
@@ -26,18 +20,27 @@ use crate::{
 };
 
 use super::{
-    http::{
-        requests,
-        responses::{self, ok_html},
-    },
+    http::responses::{self, ok_html},
     stdlib,
 };
 
 /// A runtime error.
+#[derive(Debug, PartialEq, Clone)]
 pub struct WXRuntimeError {
     pub code: i32,
     pub message: String,
 }
+
+impl Display for WXRuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for WXRuntimeError {}
+
+trait AssertSendSync: Send + Sync + 'static {}
+impl AssertSendSync for WXRuntimeError {}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct WXRTContext {
@@ -518,11 +521,17 @@ impl WXRouteMap {
 }
 
 /// Channel message for the runtime.
-#[derive(Clone)]
 pub enum WXRuntimeMessage {
     New(WXModule),
     Swap(WXModulePath, WXModule),
     Remove(WXModulePath),
+    ExecuteRoute {
+        request: hyper::Request<hyper::body::Incoming>,
+        addr: SocketAddr,
+        respond_to: tokio::sync::oneshot::Sender<
+            Result<hyper::Response<http_body_util::Full<hyper::body::Bytes>>, WXRuntimeError>,
+        >,
+    },
 }
 #[derive(Clone)]
 pub struct WXRuntimeInfo {
@@ -537,13 +546,12 @@ impl WXRuntimeInfo {
     }
 }
 
-#[derive(Clone)]
 /// The WebX runtime.
 pub struct WXRuntime {
     mode: WXMode,
     info: WXRuntimeInfo,
     source_modules: Vec<WXModule>,
-    messages: Arc<Receiver<WXRuntimeMessage>>,
+    messages: Receiver<WXRuntimeMessage>,
     routes: WXRouteMap,
     /// All WebX TypeScript runtimes.
     ///
@@ -557,7 +565,7 @@ pub struct WXRuntime {
     /// which means that it keeps track of its own persistent state, variables,
     /// functions, and other constructs will persist between script executions
     /// as long as they are run in the same runtime instance.
-    runtimes: HashMap<WXModulePath, Arc<Mutex<deno_core::JsRuntime>>>,
+    runtimes: HashMap<WXModulePath, deno_core::JsRuntime>,
 }
 
 impl WXRuntime {
@@ -565,7 +573,7 @@ impl WXRuntime {
         WXRuntime {
             source_modules: Vec::new(),
             routes: WXRouteMap::new(),
-            messages: Arc::new(rx),
+            messages: rx,
             mode,
             info,
             runtimes: HashMap::new(),
@@ -594,10 +602,8 @@ impl WXRuntime {
     /// Only call this function once per module.
     /// This should **NOT** be called when hotswapping modules.
     pub fn load_module(&mut self, module: WXModule) {
-        self.runtimes.insert(
-            module.path.clone(),
-            Arc::new(Mutex::new(JsRuntime::new(Default::default()))),
-        );
+        self.runtimes
+            .insert(module.path.clone(), JsRuntime::new(Default::default()));
         self.initialize_module_runtime(&module);
         self.source_modules.push(module);
     }
@@ -611,10 +617,7 @@ impl WXRuntime {
     fn initialize_module_runtime(&mut self, module: &WXModule) {
         if let Some(rt) = self.runtimes.get_mut(&module.path) {
             let ts = module.scope.global_ts.clone();
-            let result = {
-                let mut rt = rt.lock().unwrap();
-                rt.execute_script("[webx global scope]", ts.into())
-            };
+            let result = rt.execute_script("[webx global scope]", ts.into());
             if let Err(e) = result {
                 error_code(
                     format!(
@@ -723,8 +726,52 @@ impl WXRuntime {
                         self.remove_module(&path);
                         self.recompile();
                     }
+                    WXRuntimeMessage::ExecuteRoute {
+                        request,
+                        addr,
+                        respond_to,
+                    } => {
+                        let response = self.execute_route(request, addr);
+                        respond_to.send(response).unwrap();
+                    }
                 }
             }
+        }
+    }
+
+    fn execute_route(
+        &mut self,
+        req: hyper::Request<hyper::body::Incoming>,
+        addr: SocketAddr,
+    ) -> Result<hyper::Response<http_body_util::Full<Bytes>>, WXRuntimeError> {
+        if let Some((_path, mut ctx, route)) = self.routes.resolve(req.method(), req.uri()) {
+            let module_runtime = self.runtimes.get_mut(&route.module_path).unwrap();
+            let route_result = route.execute(&mut ctx, module_runtime, &self.info);
+            let response = match route_result {
+                Ok(response) => response,
+                Err(err) => {
+                    error_code(err.message.to_string(), err.code);
+                    responses::internal_server_error_default_webx(self.mode, err.message)
+                }
+            };
+            if self.mode.debug_level().is_max() {
+                info(
+                    self.mode,
+                    &format!("Response to: {}\n{}", addr, responses::serialize(&response)),
+                );
+            } else if self.mode.debug_level().is_high() {
+                info(self.mode, &format!("Response to: {}", addr));
+            }
+
+            Ok(response.map(http_body_util::Full::from))
+        } else {
+            warning(self.mode, format!("No route match: {}", req.uri().path()));
+            let response = responses::not_found_default_webx(self.mode);
+            info(
+                self.mode,
+                &format!("{} response to: {}", response.status(), addr),
+            );
+            Ok(response.map(http_body_util::Full::from))
         }
     }
 }
