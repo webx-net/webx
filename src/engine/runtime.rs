@@ -695,7 +695,7 @@ impl WXRuntime {
     /// ## Note
     /// This is **required** as `deno_core::JsRuntime` is **not** thread-safe
     /// and cannot be shared between threads.
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub fn run(&mut self) {
         self.recompile();
         loop {
             if let Ok(msg) = self.messages.recv() {

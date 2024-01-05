@@ -226,12 +226,7 @@ pub fn run(root: &Path, mode: WXMode) {
         let runtime_hnd = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rt_rx, mode, info);
             runtime.load_modules(webx_modules);
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(runtime.run())
-                .unwrap();
+            runtime.run()
         });
         let sv_rt_tx = rt_tx.clone();
         let server_hnd = std::thread::spawn(move || {
@@ -248,12 +243,7 @@ pub fn run(root: &Path, mode: WXMode) {
         let runtime_hnd = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rt_rx, mode, info);
             runtime.load_modules(webx_modules);
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(runtime.run())
-                .unwrap();
+            runtime.run()
         });
         let sv_rt_tx = rt_tx.clone();
         let mut server = WXServer::new(mode, config, sv_rt_tx);
