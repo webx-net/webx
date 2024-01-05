@@ -62,7 +62,7 @@ pub mod responses {
         <h1>404 Not Found</h1>
         <p>The requested URL was not found on this server.</p>
         <hr>
-        <address>webx/0.1.0 (Unix) (webx/{})</address>
+        <address>webx/{} development mode</address>
     </body>
 </html>"#,
                 env!("CARGO_PKG_VERSION")
@@ -76,7 +76,7 @@ pub mod responses {
         <h1>404 Not Found</h1>
         <p>The requested URL was not found on this server.</p>
         <hr>
-        <address>webx/0.1.0 (Unix)</address>
+        <address>webx</address>
     </body>
 </html>"#
                 .to_string()
@@ -135,7 +135,7 @@ pub mod responses {
             Either the server is overloaded or there is an error in the application.
         </p>
         <hr>
-        <address>webx prouction mode</address>
+        <address>webx</address>
     </body>
 </html>"#
                 .to_string()
