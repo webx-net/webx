@@ -97,7 +97,7 @@ pub const WXROOT_PATH: WXUrlPath = WXUrlPath(vec![]);
 
 /// # WebX module
 /// A file data structure for WebX files.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WXModule {
     /// The path to the file.
     pub path: WXModulePath,
@@ -191,16 +191,16 @@ pub struct WXHandler {
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub enum WXBodyType {
-    TS,
-    TSX,
+    Ts,
+    Tsx,
     // TODO: JSON and TEXT
 }
 
 impl ToString for WXBodyType {
     fn to_string(&self) -> String {
         match self {
-            WXBodyType::TS => "ts".to_string(),
-            WXBodyType::TSX => "tsx".to_string(),
+            WXBodyType::Ts => "ts".to_string(),
+            WXBodyType::Tsx => "tsx".to_string(),
         }
     }
 }
@@ -320,7 +320,7 @@ impl fmt::Debug for WXRouteHandler {
 pub struct WXRoute {
     pub info: WXInfoField,
     /// HTTP method of the route.
-    pub method: http::Method,
+    pub method: hyper::Method,
     /// The path of the route.
     pub path: WXUrlPath,
     /// Request body format.

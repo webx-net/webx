@@ -1,9 +1,5 @@
 use std::{
-    borrow::Borrow,
-    collections::HashMap,
-    io::Write,
-    net::{SocketAddr, TcpListener, TcpStream},
-    path::Path,
+    borrow::Borrow, collections::HashMap, fmt::Display, net::SocketAddr, path::Path,
     sync::mpsc::Receiver,
 };
 
@@ -11,7 +7,7 @@ use deno_core::{
     v8::{self, GetPropertyNamesArgs},
     JsRuntime,
 };
-use http::{Method, Response, Uri};
+use hyper::body::Bytes;
 
 use crate::{
     analysis::routes::verify_model_routes,
@@ -24,19 +20,27 @@ use crate::{
 };
 
 use super::{
-    http::{
-        parse_request_from_string, read_all_from_stream,
-        responses::{self, ok_html},
-        serialize_response,
-    },
+    http::responses::{self, ok_html},
     stdlib,
 };
 
 /// A runtime error.
+#[derive(Debug, PartialEq, Clone)]
 pub struct WXRuntimeError {
     pub code: i32,
     pub message: String,
 }
+
+impl Display for WXRuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for WXRuntimeError {}
+
+trait AssertSendSync: Send + Sync + 'static {}
+impl AssertSendSync for WXRuntimeError {}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct WXRTContext {
@@ -279,7 +283,7 @@ pub enum WXPathResolution {
 }
 
 impl WXUrlPath {
-    fn get_url_segments(url: &Uri) -> Vec<&str> {
+    fn get_url_segments(url: &hyper::Uri) -> Vec<&str> {
         url.path()
             .split('/')
             .skip(1)
@@ -287,7 +291,7 @@ impl WXUrlPath {
             .collect::<Vec<_>>()
     }
 
-    pub fn matches(&self, url: &Uri) -> WXPathResolution {
+    pub fn matches(&self, url: &hyper::Uri) -> WXPathResolution {
         let url = WXUrlPath::get_url_segments(url);
         let url_count = url.len();
         // dbg!(url.clone().collect::<Vec<_>>(), url_count, self.segments());
@@ -332,7 +336,7 @@ impl WXUrlPath {
     }
 }
 /// A runtime flat-route.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WXRTRoute {
     // TODO: Add support for:
     // TODO: - handler functions
@@ -349,9 +353,9 @@ impl WXRTRoute {
         assert!(self.body.is_some());
         let body = self.body.as_ref().unwrap();
         match body.body_type {
-            WXBodyType::TS => todo!("TS body type is not supported yet"),
+            WXBodyType::Ts => todo!("TS body type is not supported yet"),
             // TODO: Resolve bindings, render and execute JSX (dynamic)
-            WXBodyType::TSX => Ok(WXRTValue::String(body.body.clone())),
+            WXBodyType::Tsx => Ok(WXRTValue::String(body.body.clone())),
         }
     }
 
@@ -365,7 +369,7 @@ impl WXRTRoute {
         ctx: &mut WXRTContext,
         rt: &mut JsRuntime,
         info: &WXRuntimeInfo,
-    ) -> Result<Response<String>, WXRuntimeError> {
+    ) -> Result<hyper::Response<String>, WXRuntimeError> {
         // TODO: Refactor this function to combine all logic into a better structure.
         if self.pre_handlers.is_empty() && self.body.is_none() && self.post_handlers.is_empty() {
             // No handlers or body are present, return an empty response.
@@ -428,13 +432,13 @@ impl WXRTRoute {
 }
 
 type WXMethodMapInner = HashMap<WXUrlPath, WXRTRoute>;
-type WXRouteMapInner = HashMap<Method, WXMethodMapInner>;
+type WXRouteMapInner = HashMap<hyper::Method, WXMethodMapInner>;
 
 /// This is a map of all routes in the project.
 /// The key is the route path, and the value is the route.
 /// This map requires that **all routes are unique**.
 /// This is enforced by the `analyse_module_routes` function.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WXRouteMap(WXRouteMapInner);
 
 impl WXRouteMap {
@@ -443,7 +447,7 @@ impl WXRouteMap {
     }
 
     /// Create a new route map from a list of modules.
-    fn from_modules(modules: &Vec<WXModule>) -> Result<Self, WXRuntimeError> {
+    fn from_modules(modules: &[WXModule]) -> Result<Self, WXRuntimeError> {
         let routes = verify_model_routes(modules);
         if let Err((message, code)) = routes {
             return Err(WXRuntimeError { code, message });
@@ -490,8 +494,8 @@ impl WXRouteMap {
     /// This is done in the `analyse_module_routes` function.
     fn resolve(
         &self,
-        method: &Method,
-        path: &Uri,
+        method: &hyper::Method,
+        path: &hyper::Uri,
     ) -> Option<(&WXUrlPath, WXRTContext, &WXRTRoute)> {
         let routes = self.0.get(method)?;
         // Sort all routes by path length in descending order.
@@ -521,8 +525,15 @@ pub enum WXRuntimeMessage {
     New(WXModule),
     Swap(WXModulePath, WXModule),
     Remove(WXModulePath),
+    ExecuteRoute {
+        request: hyper::Request<hyper::body::Incoming>,
+        addr: SocketAddr,
+        respond_to: tokio::sync::oneshot::Sender<
+            Result<hyper::Response<http_body_util::Full<hyper::body::Bytes>>, WXRuntimeError>,
+        >,
+    },
 }
-
+#[derive(Clone)]
 pub struct WXRuntimeInfo {
     pub project_root: Box<Path>,
 }
@@ -554,7 +565,7 @@ pub struct WXRuntime {
     /// which means that it keeps track of its own persistent state, variables,
     /// functions, and other constructs will persist between script executions
     /// as long as they are run in the same runtime instance.
-    runtimes: HashMap<WXModulePath, JsRuntime>,
+    runtimes: HashMap<WXModulePath, deno_core::JsRuntime>,
 }
 
 impl WXRuntime {
@@ -602,41 +613,6 @@ impl WXRuntime {
         self.source_modules.retain(|m| m.path != *module_path);
     }
 
-    /// Tries to recompile all loaded modules at once and replace the runtime route map.
-    ///
-    /// ## Note
-    /// This way we can get cross-module route analysis, which is required for detecting
-    /// duplicate routes and other global errors.
-    ///
-    /// ## Error
-    /// This function will **throw and error** if the route map cannot be compiled
-    /// from the current source modules, and will **not** replace the current route map.
-    /// However, the program will **continue to run with the old route map**.
-    fn recompile(&mut self) {
-        match WXRouteMap::from_modules(&self.source_modules) {
-            Ok(routes) => self.routes = routes,
-            Err(err) => error_code(err.message, err.code),
-        }
-        if self.mode.is_dev() && self.mode.debug_level().is_high() {
-            // Print the route map in dev mode.
-            info(self.mode, "Route map:");
-            let routes: Vec<(&Method, &WXUrlPath)> = self
-                .routes
-                .0
-                .iter()
-                .flat_map(|(method, method_map)| {
-                    method_map
-                        .iter()
-                        .map(|(path, _)| (method, path))
-                        .collect::<Vec<_>>()
-                })
-                .collect();
-            for (method, path) in routes {
-                println!(" - {} {}", method, path);
-            }
-        }
-    }
-
     /// Execute the global scope in the runtime for a specific module
     fn initialize_module_runtime(&mut self, module: &WXModule) {
         if let Some(rt) = self.runtimes.get_mut(&module.path) {
@@ -671,154 +647,131 @@ impl WXRuntime {
         }
     }
 
+    /// Tries to recompile all loaded modules at once and replace the runtime route map.
+    ///
+    /// ## Note
+    /// This way we can get cross-module route analysis, which is required for detecting
+    /// duplicate routes and other global errors.
+    ///
+    /// ## Error
+    /// This function will **throw and error** if the route map cannot be compiled
+    /// from the current source modules, and will **not** replace the current route map.
+    /// However, the program will **continue to run with the old route map**.
+    fn recompile(&mut self) {
+        match WXRouteMap::from_modules(&self.source_modules) {
+            Ok(routes) => self.routes = routes,
+            Err(err) => error_code(err.message, err.code),
+        }
+        if self.mode.is_dev() && self.mode.debug_level().is_high() {
+            // Print the route map in dev mode.
+            info(self.mode, "Route map:");
+            let routes: Vec<(&hyper::Method, &WXUrlPath)> = self
+                .routes
+                .0
+                .iter()
+                .flat_map(|(method, method_map)| {
+                    method_map
+                        .iter()
+                        .map(|(path, _)| (method, path))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            for (method, path) in routes {
+                println!(" - {} {}", method, path);
+            }
+        }
+    }
+
     /// Main runtime loop.
     /// This function will run forever in a dedicated thread
-    /// and will handle all incoming requests and responses
+    /// and will handle all incoming messages from the channel
     /// until the program is terminated.
-    pub fn run(&mut self) {
-        self.recompile(); // Ensure that we have a valid route map.
-        let ports = if self.mode.is_dev() {
-            vec![8080]
-        } else {
-            vec![80, 443]
-        };
-        let addrs = ports
-            .iter()
-            .map(|port| SocketAddr::from(([127, 0, 0, 1], *port)))
-            .collect::<Vec<_>>();
-        info(self.mode, &format!("WebX server is listening on: {}", ports.iter().map(|p| format!("http://localhost:{}", p)).collect::<Vec<_>>().join(", ")));
-        let listener = TcpListener::bind(&addrs[..]).unwrap();
-        // Don't block if in dev mode, wait and read hotswap messages.
-        listener.set_nonblocking(self.mode.is_dev()).unwrap();
-        loop {
-            self.listen_for_requests(&listener);
-            // In dev mode, we don't want the TCP listener to block the thread.
-            // Instead, we want to shortly sleep, then check for new messages
-            // from the channel to enable module hotswapping.
-            if self.mode.is_dev() {
-                self.sync_channel_messages();
-                std::thread::sleep(std::time::Duration::from_millis(50));
-            }
-        }
-    }
-
-    /// Look for module updates from the given channel.
-    /// This function is **non-blocking**.
-    /// All queued updates are applied immediately.
-    fn sync_channel_messages(&mut self) {
-        while let Ok(msg) = self.messages.try_recv() {
-            match msg {
-                WXRuntimeMessage::New(module) => {
-                    info(
-                        self.mode,
-                        &format!("New module: {}", module.path.module_name()),
-                    );
-                    self.load_module(module);
-                    self.recompile();
-                }
-                WXRuntimeMessage::Swap(path, module) => {
-                    info(
-                        self.mode,
-                        &format!("Reloaded module: {}", module.path.module_name()),
-                    );
-                    // Module JS runtime is persistent between hotswaps.
-                    self.source_modules.retain(|m| m.path != path);
-                    self.source_modules.push(module);
-                    self.recompile();
-                }
-                WXRuntimeMessage::Remove(path) => {
-                    info(
-                        self.mode,
-                        &format!("Removed module: {}", path.module_name()),
-                    );
-                    self.remove_module(&path);
-                    self.recompile();
-                }
-            }
-        }
-    }
-
-    /// Listen for incoming requests.
     ///
-    /// ## Blocking
-    /// This function is **non-blocking** and will return immediately depending on the
-    /// value of `listener.set_nonblocking` in the `run` function.
-    fn listen_for_requests(&mut self, listener: &TcpListener) {
-        let Ok((stream, addr)) = listener.accept() else {
-            return;
-        };
-        self.handle_request(stream, addr);
-        // TODO: Add multi-threading pool
+    /// ## Example messages:
+    /// - Execute a route within the runtime and return the result.
+    ///     - TODO: Such tasks will be executed in a new separate tokio task/thread.
+    /// - Hotswapp module in dev mode.
+    ///
+    /// ## Note
+    /// This is **required** as `deno_core::JsRuntime` is **not** thread-safe
+    /// and cannot be shared between threads.
+    pub fn run(&mut self) {
+        self.recompile();
+        loop {
+            if let Ok(msg) = self.messages.recv() {
+                match msg {
+                    WXRuntimeMessage::New(module) => {
+                        info(
+                            self.mode,
+                            &format!("New module: {}", module.path.module_name()),
+                        );
+                        self.load_module(module);
+                        self.recompile();
+                    }
+                    WXRuntimeMessage::Swap(path, module) => {
+                        info(
+                            self.mode,
+                            &format!("Reloaded module: {}", module.path.module_name()),
+                        );
+                        // Module JS runtime is persistent between hotswaps.
+                        self.remove_module(&path);
+                        self.source_modules.push(module);
+                        self.recompile();
+                    }
+                    WXRuntimeMessage::Remove(path) => {
+                        info(
+                            self.mode,
+                            &format!("Removed module: {}", path.module_name()),
+                        );
+                        self.remove_module(&path);
+                        self.recompile();
+                    }
+                    WXRuntimeMessage::ExecuteRoute {
+                        request,
+                        addr,
+                        respond_to,
+                    } => {
+                        let response = self.execute_route(request, addr);
+                        respond_to.send(response).unwrap();
+                    }
+                }
+            }
+        }
     }
 
-    /// Handle an incoming request.
-    fn handle_request(&mut self, mut stream: TcpStream, addr: SocketAddr) {
-        let raw_request = read_all_from_stream(&stream);
-        if let Some(request) = parse_request_from_string::<()>(&raw_request) {
+    fn execute_route(
+        &mut self,
+        req: hyper::Request<hyper::body::Incoming>,
+        addr: SocketAddr,
+    ) -> Result<hyper::Response<http_body_util::Full<Bytes>>, WXRuntimeError> {
+        if let Some((_path, mut ctx, route)) = self.routes.resolve(req.method(), req.uri()) {
+            let module_runtime = self.runtimes.get_mut(&route.module_path).unwrap();
+            let route_result = route.execute(&mut ctx, module_runtime, &self.info);
+            let response = match route_result {
+                Ok(response) => response,
+                Err(err) => {
+                    error_code(err.message.to_string(), err.code);
+                    responses::internal_server_error_default_webx(self.mode, err.message)
+                }
+            };
             if self.mode.debug_level().is_max() {
                 info(
                     self.mode,
-                    &format!(
-                        "Request ({} bytes) from: {}\n{}",
-                        raw_request.len(),
-                        addr,
-                        raw_request
-                    ),
+                    &format!("Response to: {}\n{}", addr, responses::serialize(&response)),
                 );
             } else if self.mode.debug_level().is_high() {
-                info(self.mode, &format!("Request from: {}", addr));
+                info(self.mode, &format!("Response to: {}", addr));
             }
-            // Match the request to a route.
-            if let Some((_path, mut ctx, route)) =
-                self.routes.resolve(request.method(), request.uri())
-            {
-                let module_runtime = self.runtimes.get_mut(&route.module_path).unwrap();
-                let response = match route.execute(&mut ctx, module_runtime, &self.info) {
-                    Ok(response) => response,
-                    Err(err) => {
-                        error_code(err.message.to_string(), err.code);
-                        responses::internal_server_error_default_webx(self.mode, err.message)
-                    }
-                };
-                let http_response = serialize_response(&response);
-                if let Ok(sent) = stream.write(http_response.as_bytes()) {
-                    if self.mode.debug_level().is_max() {
-                        info(
-                            self.mode,
-                            &format!("Response ({} bytes) to: {}\n{}", sent, addr, http_response),
-                        );
-                    } else if self.mode.debug_level().is_high() {
-                        info(self.mode, &format!("Response to: {}", addr));
-                    }
-                } else {
-                    warning(self.mode, format!("Failed to send response to: {}", addr));
-                }
-            } else {
-                warning(
-                    self.mode,
-                    format!("No route match: {}", request.uri().path()),
-                );
-                let response = responses::not_found_default_webx(self.mode);
-                let sent = stream.write(serialize_response(&response).as_bytes());
-                if let Ok(n) = sent {
-                    info(
-                        self.mode,
-                        &format!("{} response ({} bytes) to: {}", response.status(), n, addr),
-                    );
-                } else {
-                    warning(
-                        self.mode,
-                        format!(
-                            "Failed to send response to: {}\n{}",
-                            addr,
-                            sent.unwrap_err()
-                        ),
-                    );
-                }
-            }
-            stream.flush().unwrap();
+
+            Ok(response.map(http_body_util::Full::from))
         } else {
-            warning(self.mode, format!("Invalid request: {}", addr));
+            warning(self.mode, format!("No route match: {}", req.uri().path()));
+            let response = responses::not_found_default_webx(self.mode);
+            info(
+                self.mode,
+                &format!("{} response to: {}", response.status(), addr),
+            );
+            Ok(response.map(http_body_util::Full::from))
         }
     }
 }

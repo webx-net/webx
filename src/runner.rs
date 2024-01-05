@@ -2,19 +2,16 @@ use chrono::offset::Local;
 use chrono::DateTime;
 use chrono::{self};
 use colored::Colorize;
-use notify::{self, Error, Event, Watcher};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::Sender;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes};
-use crate::engine::runtime::{WXRuntime, WXRuntimeInfo, WXRuntimeMessage};
-use crate::file::parser::parse_webx_file;
+use crate::engine::filewatcher::WXFileWatcher;
+use crate::engine::runtime::{WXRuntime, WXRuntimeInfo};
+use crate::engine::server::WXServer;
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
-use crate::file::webx::{WXModule, WXModulePath};
-use crate::reporting::debug::info;
+use crate::file::webx::WXModule;
 use crate::reporting::error::{exit_error_hint, ERROR_PROJECT};
-use crate::reporting::warning::warning;
 
 pub fn get_project_config_file_path(root: &Path) -> PathBuf {
     root.join("webx.config.json")
@@ -45,24 +42,15 @@ impl DebugLevel {
     }
 
     pub fn is_medium(&self) -> bool {
-        match self {
-            Self::Medium | Self::High | Self::Max => true,
-            _ => false,
-        }
+        matches!(self, Self::Medium | Self::High | Self::Max)
     }
 
     pub fn is_high(&self) -> bool {
-        match self {
-            Self::High | Self::Max => true,
-            _ => false,
-        }
+        matches!(self, Self::High | Self::Max)
     }
 
     pub fn is_max(&self) -> bool {
-        match self {
-            Self::Max => true,
-            _ => false,
-        }
+        matches!(self, Self::Max)
     }
 
     pub fn name(&self) -> &str {
@@ -111,7 +99,7 @@ impl PartialEq<WXMode> for WXMode {
 }
 
 fn print_start_info(
-    modules: &Vec<WXModule>,
+    modules: &[WXModule],
     mode: WXMode,
     config: &ProjectConfig,
     start_duration: std::time::Duration,
@@ -223,115 +211,45 @@ pub fn run(root: &Path, mode: WXMode) {
     analyse_module_deps(&webx_modules);
     analyse_module_routes(&webx_modules);
     print_start_info(&webx_modules, mode, &config, time_start.elapsed());
+
+    // Setup and start all threads
+    let server_rt = tokio::runtime::Builder::new_multi_thread()
+        .thread_name("webx-server")
+        .enable_all()
+        .build()
+        .unwrap();
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     if mode.is_dev() {
         let fw_rt_tx = rt_tx.clone();
-        let fw_hnd = std::thread::spawn(move || run_filewatcher(mode, &source_root, fw_rt_tx));
+        let fw_hnd = std::thread::spawn(move || WXFileWatcher::run(mode, source_root, fw_rt_tx));
         let info = WXRuntimeInfo::new(root);
         let runtime_hnd = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rt_rx, mode, info);
             runtime.load_modules(webx_modules);
-            runtime.run();
+            runtime.run()
         });
+        let sv_rt_tx = rt_tx.clone();
+        let server_hnd = std::thread::spawn(move || {
+            let mut server = WXServer::new(mode, config, sv_rt_tx);
+            server_rt.block_on(server.run()).unwrap();
+        });
+        // TODO: If any of these fail we should stop the others
+        server_hnd.join().unwrap();
         runtime_hnd.join().unwrap();
         fw_hnd.join().unwrap();
     } else {
-        // If we are in production mode, run in main thread.
-        let mut runtime = WXRuntime::new(rt_rx, mode, WXRuntimeInfo::new(root));
-        runtime.load_modules(webx_modules);
-        runtime.run();
+        // If we are in production mode, run the `server` in main thread.
+        let info = WXRuntimeInfo::new(root);
+        let runtime_hnd = std::thread::spawn(move || {
+            let mut runtime = WXRuntime::new(rt_rx, mode, info);
+            runtime.load_modules(webx_modules);
+            runtime.run()
+        });
+        let sv_rt_tx = rt_tx.clone();
+        let mut server = WXServer::new(mode, config, sv_rt_tx);
+        server_rt.block_on(server.run()).unwrap();
+        runtime_hnd.join().unwrap();
     }
     // Check ps info: `ps | ? ProcessName -eq "webx"`
     // On interrupt, all threads are also terminated
-}
-
-struct FSWEvent {
-    pub kind: notify::EventKind,
-    pub path: WXModulePath,
-    pub timestamp: Instant,
-    is_empty_state: bool,
-}
-
-impl FSWEvent {
-    fn new(kind: notify::EventKind, path: &PathBuf) -> Self {
-        Self {
-            kind,
-            path: WXModulePath::new(path.clone()),
-            timestamp: Instant::now(),
-            is_empty_state: false,
-        }
-    }
-
-    fn empty() -> Self {
-        Self {
-            kind: notify::EventKind::default(),
-            path: WXModulePath::new(PathBuf::default()),
-            timestamp: Instant::now(),
-            is_empty_state: true,
-        }
-    }
-
-    fn is_duplicate(&self, earlier: &Self) -> bool {
-        if self.is_empty_state || earlier.is_empty_state {
-            return false;
-        }
-        const EPSILON: u128 = 100; // ms
-        self.kind == earlier.kind
-            && self.path == earlier.path
-            && self.timestamp.duration_since(earlier.timestamp).as_millis() < EPSILON
-    }
-}
-
-/// Registers the file watcher thread
-fn run_filewatcher(mode: WXMode, source_root: &PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
-    let mut last_event: FSWEvent = FSWEvent::empty();
-    let mut watcher = notify::recommended_watcher(move |res: Result<Event, Error>| {
-        match res {
-            Ok(event) => {
-                match event.kind {
-                    notify::EventKind::Create(_) => {
-                        let event = FSWEvent::new(event.kind, &event.paths[0]);
-                        if !event.is_duplicate(&last_event) {
-                            match parse_webx_file(&event.path.inner) {
-                                Ok(module) => rt_tx.send(WXRuntimeMessage::New(module)).unwrap(),
-                                Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e)),
-                            }
-                        }
-                        last_event = event; // Update last event
-                    }
-                    notify::EventKind::Modify(_) => {
-                        let event = FSWEvent::new(event.kind, &event.paths[0]);
-                        if !event.is_duplicate(&last_event) {
-                            match parse_webx_file(&event.path.inner) {
-                                Ok(module) => rt_tx
-                                    .send(WXRuntimeMessage::Swap(event.path.clone(), module))
-                                    .unwrap(),
-                                Err(e) => warning(mode, format!("(FileWatcher) Error: {:?}", e)),
-                            }
-                        }
-                        last_event = event; // Update last event
-                    }
-                    notify::EventKind::Remove(_) => {
-                        let event = FSWEvent::new(event.kind, &event.paths[0]);
-                        if !event.is_duplicate(&last_event) {
-                            rt_tx
-                                .send(WXRuntimeMessage::Remove(event.path.clone()))
-                                .unwrap();
-                        }
-                        last_event = event; // Update last event
-                    }
-                    _ => (),
-                }
-            }
-            Err(e) => warning(mode, format!("watch error: {:?}", e)),
-        }
-    })
-    .unwrap();
-    watcher
-        .watch(source_root, notify::RecursiveMode::Recursive)
-        .unwrap();
-    info(mode, "Hot reloading is enabled.");
-    loop {
-        std::thread::sleep(Duration::from_millis(1000));
-    }
 }

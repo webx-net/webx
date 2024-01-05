@@ -20,7 +20,11 @@ post list/all/(data : Int)/data json(a: T, b : U) -> renderAllTodos(todos, test)
 // This is an example WebX todo app project.
 global {
     // Global in-memory database of todos for this example.
-    const todos = [7, 3, 10];
+    const todos = [
+        { title: "Example Item", completed: true, createdAt: new Date().setMinutes(new Date().getMinutes() - 1) },
+        { title: "Example Item", completed: false, createdAt: new Date().setMinutes(new Date().getMinutes() - 3) },
+        { title: "Example Item", completed: false, createdAt: new Date().setMinutes(new Date().getMinutes() - 10) },
+    ];
     function test() { return todos[2]; }
     let a = test();
     console.log(a);

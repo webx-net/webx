@@ -1,81 +1,48 @@
-use std::{
-    io::{BufRead, BufReader, Read},
-    net::TcpStream,
-};
+pub mod requests {
 
-use http::{request::Builder, Request, Response, Version};
+    use hyper::body::Incoming;
 
-pub fn read_all_from_stream(stream: &TcpStream) -> String {
-    let mut reader = BufReader::new(stream);
-    let mut result = String::new();
-    reader.read_to_string(&mut result).unwrap_or(0);
-    result
-}
-
-pub fn parse_request_from_string<D: Default>(request: &str) -> Option<Request<D>> {
-    parse_request(BufReader::new(request.as_bytes()))
-}
-
-pub fn parse_request<D: Default, T: Read>(reader: BufReader<T>) -> Option<Request<D>> {
-    let mut lines = reader
-        .lines()
-        .map(|l| l.unwrap_or("".into()))
-        .take_while(|l| !l.is_empty());
-    let r = Request::builder();
-    let r = parse_request_line(lines.next()?, r)?;
-    let r = parse_request_headers(lines, r)?;
-    // let request = parse_http_request_body(reader)?;
-    let r = r.body(D::default()).unwrap();
-    Some(r)
-}
-
-fn parse_request_line(line: String, request: Builder) -> Option<Builder> {
-    let mut reqline = line.split_whitespace();
-    let method = reqline.next()?;
-    let path = reqline.next()?;
-    // Refrence:
-    // - https://developer.mozilla.org/en-US/docs/Web/HTTP/Messages
-    // - https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Evolution_of_HTTP
-    let version = match reqline.next()? {
-        "HTTP/1.0" => Version::HTTP_10,
-        "HTTP/1.1" => Version::HTTP_11,
-        "HTTP/2.0" => Version::HTTP_2,
-        "HTTP/3.0" => Version::HTTP_3,
-        _ => Version::HTTP_09, // No version
-    };
-    Some(request.method(method).uri(path).version(version))
-}
-
-fn parse_request_headers(lines: impl Iterator<Item = String>, request: Builder) -> Option<Builder> {
-    let mut request = request;
-    for line in lines {
-        let mut header = line.splitn(2, ':');
-        request = request.header(header.next()?.trim(), header.next()?.trim());
+    pub fn serialize(request: &hyper::Request<Incoming>) -> String {
+        let mut result = format!(
+            "{} {} {:?}\r\n",
+            request.method(),
+            request.uri(),
+            request.version()
+        );
+        for (header, value) in request.headers() {
+            result.push_str(&format!("{}: {}\r\n", header, value.to_str().unwrap_or("")));
+        }
+        if matches!(*request.method(), hyper::Method::POST | hyper::Method::PUT) {
+            result.push_str("\r\n");
+            result.push_str(&format!("{:?}", request.body()));
+        }
+        result
     }
-    Some(request)
-}
-
-pub fn serialize_response<D: Default + ToString>(response: &Response<D>) -> String {
-    let mut result = format!("HTTP/1.1 {}\r\n", response.status());
-    for (header, value) in response.headers() {
-        result.push_str(&format!("{}: {}\r\n", header, value.to_str().unwrap_or("")));
-    }
-    result.push_str("\r\n");
-    result.push_str(&response.body().to_string());
-    result
 }
 
 pub mod responses {
+    use hyper::Response;
+
     use crate::runner::WXMode;
 
-    pub fn ok_html(body: String) -> http::Response<String> {
-        http::Response::builder()
-            .status(http::StatusCode::OK)
+    pub fn serialize<D: Default + ToString>(response: &Response<D>) -> String {
+        let mut result = format!("HTTP/1.1 {}\r\n", response.status());
+        for (header, value) in response.headers() {
+            result.push_str(&format!("{}: {}\r\n", header, value.to_str().unwrap_or("")));
+        }
+        result.push_str("\r\n");
+        result.push_str(&response.body().to_string());
+        result
+    }
+
+    pub fn ok_html(body: String) -> Response<String> {
+        Response::builder()
+            .status(hyper::StatusCode::OK)
             .header("Access-Control-Allow-Origin", "*")
             .header("Content-Type", "text/html; charset=utf-8")
             .header("Content-Length", body.len().to_string())
             .header("Connection", "close")
-            .header("Server", "webx")
+            .header("Server", &format!("webx/{}", env!("CARGO_PKG_VERSION")))
             .header("Date", chrono::Utc::now().to_rfc2822())
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
@@ -84,7 +51,7 @@ pub mod responses {
             .unwrap()
     }
 
-    pub fn not_found_default_webx(mode: WXMode) -> http::Response<String> {
+    pub fn not_found_default_webx(mode: WXMode) -> Response<String> {
         let body = if mode.is_dev() {
             format!(
                 r#"<html>
@@ -95,7 +62,7 @@ pub mod responses {
         <h1>404 Not Found</h1>
         <p>The requested URL was not found on this server.</p>
         <hr>
-        <address>webx/0.1.0 (Unix) (webx/{})</address>
+        <address>webx/{} development mode</address>
     </body>
 </html>"#,
                 env!("CARGO_PKG_VERSION")
@@ -109,13 +76,13 @@ pub mod responses {
         <h1>404 Not Found</h1>
         <p>The requested URL was not found on this server.</p>
         <hr>
-        <address>webx/0.1.0 (Unix)</address>
+        <address>webx</address>
     </body>
 </html>"#
                 .to_string()
         };
-        http::Response::builder()
-            .status(http::StatusCode::NOT_FOUND)
+        Response::builder()
+            .status(hyper::StatusCode::NOT_FOUND)
             .header("Access-Control-Allow-Origin", "*")
             .header("Content-Type", "text/html; charset=utf-8")
             .header("Content-Length", body.len().to_string())
@@ -129,10 +96,7 @@ pub mod responses {
             .unwrap()
     }
 
-    pub fn internal_server_error_default_webx(
-        mode: WXMode,
-        message: String,
-    ) -> http::Response<String> {
+    pub fn internal_server_error_default_webx(mode: WXMode, message: String) -> Response<String> {
         let body = if mode.is_dev() {
             format!(
                 r#"<html>
@@ -171,13 +135,13 @@ pub mod responses {
             Either the server is overloaded or there is an error in the application.
         </p>
         <hr>
-        <address>webx prouction mode</address>
+        <address>webx</address>
     </body>
 </html>"#
                 .to_string()
         };
-        http::Response::builder()
-            .status(http::StatusCode::INTERNAL_SERVER_ERROR)
+        Response::builder()
+            .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
             .header("Access-Control-Allow-Origin", "*")
             .header("Content-Type", "text/html; charset=utf-8")
             .header("Content-Length", body.len().to_string())

@@ -30,23 +30,23 @@ fn webx_static(
 
 pub fn try_call(
     name: &str,
-    args: &Vec<WXRTValue>,
+    args: &[WXRTValue],
     info: &WXRuntimeInfo,
 ) -> Option<Result<WXRTValue, WXRuntimeError>> {
     let assert_args = |n: usize| {
         if args.len() != n {
-            return Some(Err::<WXRTValue, WXRuntimeError>(WXRuntimeError {
+            return Some(WXRuntimeError {
                 message: format!("{}: expected {} arguments, got {}", name, n, args.len()),
                 code: ERROR_HANDLER_CALL,
-            }));
+            });
         }
         None
     };
 
     match name {
         "static" => Some(match assert_args(1) {
-            Some(err) => err,
             None => webx_static(&args[0], info),
+            Some(err) => Err(err),
         }),
         _ => None,
     }
