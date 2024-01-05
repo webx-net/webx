@@ -31,22 +31,14 @@ mod tests {
             std::thread::spawn(move || {
                 let mut runtime = WXRuntime::new(dummy_rx, mode, WXRuntimeInfo::new(root));
                 runtime.load_modules(webx_modules);
-                tokio::runtime::Builder::new_multi_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap()
-                    .block_on(runtime.run());
+                runtime.run()
             });
             std::thread::sleep(std::time::Duration::from_secs(TIMEOUT));
             std::process::exit(0);
         } else {
             let mut runtime = WXRuntime::new(dummy_rx, mode, WXRuntimeInfo::new(root));
             runtime.load_modules(webx_modules);
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(runtime.run());
+            runtime.run()
         }
     }
 }
