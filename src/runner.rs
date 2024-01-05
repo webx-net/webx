@@ -213,6 +213,11 @@ pub fn run(root: &Path, mode: WXMode) {
     print_start_info(&webx_modules, mode, &config, time_start.elapsed());
 
     // Setup and start all threads
+    let server_rt = tokio::runtime::Builder::new_multi_thread()
+        .thread_name("webx-server")
+        .enable_all()
+        .build()
+        .unwrap();
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     if mode.is_dev() {
         let fw_rt_tx = rt_tx.clone();
@@ -231,12 +236,7 @@ pub fn run(root: &Path, mode: WXMode) {
         let sv_rt_tx = rt_tx.clone();
         let server_hnd = std::thread::spawn(move || {
             let mut server = WXServer::new(mode, config, sv_rt_tx);
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(server.run())
-                .unwrap();
+            server_rt.block_on(server.run()).unwrap();
         });
         // TODO: If any of these fail we should stop the others
         server_hnd.join().unwrap();
@@ -257,12 +257,7 @@ pub fn run(root: &Path, mode: WXMode) {
         });
         let sv_rt_tx = rt_tx.clone();
         let mut server = WXServer::new(mode, config, sv_rt_tx);
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(server.run())
-            .unwrap();
+        server_rt.block_on(server.run()).unwrap();
         runtime_hnd.join().unwrap();
     }
     // Check ps info: `ps | ? ProcessName -eq "webx"`
