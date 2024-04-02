@@ -68,11 +68,15 @@ impl WXServer {
         let listener = tokio::net::TcpListener::bind(&self.addrs()[..]).await?;
         let svc = WXSvc::new(self.mode, self.runtime_tx.clone());
         self.log_startup();
+        // Multi-threading pool via asynchronous tokio worker threads.
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(4)
+            .enable_all()
+            .build()?;
         loop {
             let (stream, addr) = listener.accept().await?;
             let io = TokioIo::new(stream);
-            // TODO: Multi-threading pool via asynchronous workers and tokio.
-            tokio::task::spawn(Self::serve(io, svc.clone_with_address(addr)));
+            runtime.spawn(Self::serve(io, svc.clone_with_address(addr)));
         }
     }
 
