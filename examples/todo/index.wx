@@ -64,7 +64,7 @@ get /about (<div>
 location todos {
     // The main todo app page.
     get / -> static("index.html")
-    
+
     get /list (<ul id="todo-list">
         <li>
             <h4>
