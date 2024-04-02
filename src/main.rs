@@ -28,13 +28,15 @@ fn cli() -> Command {
                         .short('p')
                         .long("prod")
                         .action(ArgAction::SetTrue)
-                        .help("Run in production mode"))
+                        .help("Run in production mode"),
+                )
                 .arg(
                     Arg::new("level")
                         .short('l')
                         .long("level")
                         .required(false)
-                        .help("Set the debug verbosity level [1-4], default: 2")),
+                        .help("Set the debug verbosity level [1-4], default: 2"),
+                ),
         )
         .subcommand(
             Command::new("new")
@@ -44,11 +46,13 @@ fn cli() -> Command {
                         .help("The name of the project")
                         .required(true),
                 )
-                .arg(Arg::new("override")
-                    .short('o')
-                    .long("override")
-                    .action(ArgAction::SetTrue)
-                    .help("Override existing files")),
+                .arg(
+                    Arg::new("override")
+                        .short('o')
+                        .long("override")
+                        .action(ArgAction::SetTrue)
+                        .help("Override existing files"),
+                ),
         )
         .subcommand(
             Command::new("test")
@@ -62,13 +66,21 @@ fn cli() -> Command {
                 ),
         )
         .color(clap::ColorChoice::Auto)
-        .override_usage(format!("{name} [command] (options)", name = NAME.bright_white()))
-        .help_template(format!(
-            "{info} - {{about}}\n{author} \n\n{{usage-heading}} {{usage}} \n\n{{all-args}} {{after-help}}",
-            info = "{name} {version}".bright_white(),
-            author = "Created by {author}".italic().bright_black()
+        .override_usage(format!(
+            "{name} [command] (options)",
+            name = NAME.bright_white()
         ))
-        .after_help(format!("{}{}", "More information on ".bright_black(), env!("CARGO_PKG_HOMEPAGE").bright_black()))
+        .help_template(format!(
+            "{info} - {{about}}\n\n{{usage-heading}} {{usage}} \n\n{{all-args}} {{after-help}}",
+            info = "WebX".bright_white(),
+        ))
+        .after_help(format!(
+            "{}{}\n{}{}",
+            "Version: ".bright_black(),
+            VERSION.bright_black(),
+            "More information on ".bright_black(),
+            env!("CARGO_PKG_HOMEPAGE").bright_black()
+        ))
 }
 
 fn parse_debug_level(matches: &clap::ArgMatches) -> DebugLevel {
