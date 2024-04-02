@@ -4,6 +4,8 @@ mod file;
 mod reporting;
 mod runner;
 
+use std::path::PathBuf;
+
 use clap::{Arg, ArgAction, Command};
 use colored::*;
 use reporting::error::error;
@@ -23,6 +25,11 @@ fn cli() -> Command {
         .subcommand(
             Command::new("run")
                 .about("Run the project web server")
+                .arg(
+                    Arg::new("project")
+                        .help("The project directory, default: current directory")
+                        .required(false),
+                )
                 .arg(
                     Arg::new("production")
                         .short('p')
@@ -117,8 +124,12 @@ fn main() {
         } else {
             WXMode::Dev(parse_debug_level(matches))
         };
-        let dir = std::env::current_dir().unwrap();
-        runner::run(&dir, mode);
+        let project = if let Some(project) = matches.get_one::<String>("project") {
+            PathBuf::from(project)
+        } else {
+            std::env::current_dir().unwrap()
+        };
+        runner::run(&project, mode);
     } else if let Some(_matches) = matches.subcommand_matches("test") {
         todo!("Test command not implemented.");
     } else {
