@@ -84,8 +84,9 @@ impl WXServer {
     /// This is the main entry point for each connection to the server
     /// and simply passes the connection to the request handler `WXSvc` service.
     async fn serve(io: TokioIo<tokio::net::TcpStream>, svc: WXSvc) {
+        let addr = svc.address.unwrap();
         if let Err(err) = http1::Builder::new().serve_connection(io, svc).await {
-            eprintln!("failed to serve connection: {:?}", err);
+            eprintln!("failed to serve connection {}: {:?}", addr, err);
         }
     }
 }
