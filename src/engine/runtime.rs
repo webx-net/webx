@@ -730,10 +730,7 @@ impl WXRuntime {
                         request,
                         addr,
                         respond_to,
-                    } => {
-                        let response = self.execute_route(request, addr);
-                        respond_to.send(response).unwrap();
-                    }
+                    } => respond_to.send(self.execute_route(request, addr)).unwrap(),
                 }
             }
         }

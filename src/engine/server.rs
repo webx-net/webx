@@ -75,8 +75,10 @@ impl WXServer {
             .build()?;
         loop {
             let (stream, addr) = listener.accept().await?;
-            let io = TokioIo::new(stream);
-            runtime.spawn(Self::serve(io, svc.clone_with_address(addr)));
+            runtime.spawn(Self::serve(
+                TokioIo::new(stream),
+                svc.clone_with_address(addr),
+            ));
         }
     }
 
