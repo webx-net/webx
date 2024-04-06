@@ -18,6 +18,18 @@ use crate::{file::project::ProjectConfig, reporting::debug::info, runner::WXMode
 
 use super::runtime::{WXRuntimeError, WXRuntimeMessage};
 
+/// A failable type.
+pub type WXFailable<T> = Result<T, WXRuntimeError>;
+
+impl From<std::io::Error> for WXRuntimeError {
+    fn from(err: std::io::Error) -> Self {
+        WXRuntimeError {
+            code: 500,
+            message: format!("IO error: {}", err),
+        }
+    }
+}
+
 /// The WebX web server.
 pub struct WXServer {
     mode: WXMode,
@@ -64,7 +76,7 @@ impl WXServer {
     }
 
     /// Starts the WebX web server and listens for incoming requests in its own thread.
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn run(&mut self) -> WXFailable<()> {
         let listener = tokio::net::TcpListener::bind(&self.addrs()[..]).await?;
         let svc = WXSvc::new(self.mode, self.runtime_tx.clone());
         self.log_startup();
@@ -85,13 +97,17 @@ impl WXServer {
     /// Serves a single connection.
     /// This is the main entry point for each connection to the server
     /// and simply passes the connection to the request handler `WXSvc` service.
-    async fn serve(io: TokioIo<tokio::net::TcpStream>, svc: WXSvc) {
+    async fn serve(io: TokioIo<tokio::net::TcpStream>, svc: WXSvc) -> WXFailable<()> {
         let addr = svc
             .address
             .expect("No address found while serving connection.");
         if let Err(err) = http1::Builder::new().serve_connection(io, svc).await {
-            eprintln!("failed to serve connection {}: {:?}", addr, err);
+            return Err(WXRuntimeError {
+                code: 500,
+                message: format!("failed to serve connection {}: {:?}", addr, err),
+            });
         }
+        Ok(())
     }
 }
 
