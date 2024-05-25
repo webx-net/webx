@@ -1,6 +1,8 @@
 <br>
 <div align="center">
-  <img src="assets/logo_grad.png" width="200px">
+<br>
+  <img src="assets/webx.svg" height="90px">
+<br><br>
 
 ![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/webx-net/webx/rust.yml)
 ![GitHub all releases](https://img.shields.io/github/downloads/webx-net/webx/total)
@@ -31,7 +33,7 @@ Below is a high-level overview of the existing (implemented) and planned feature
 [^1]: https://www.youtube.com/watch?v=1M9hPXg-bFM
 
 <details><summary>Batteries included 🔋</summary>
-  
+
 - [X] Hot reloading 🔥
 - [ ] Protected and secure by default 🔒
   - [ ] DDOS 🛡️
@@ -170,7 +172,7 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
 
 </details>
 <details><summary>WebX CLI tool</summary>
-  
+
   - [ ] Project
     - [X] Scaffolding *(init new project)*
     - [ ] Configuration
