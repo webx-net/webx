@@ -1,6 +1,5 @@
 <br>
 <div align="center">
-<br>
   <img src="assets/webx.svg" height="90px">
 <br><br>
 
