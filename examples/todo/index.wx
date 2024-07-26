@@ -1,3 +1,4 @@
+import { Todo, renderAllTodos, renderTodo } from "./todos";
 
 get / (<html>
     <body>
