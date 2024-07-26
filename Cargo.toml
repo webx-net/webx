@@ -2,7 +2,7 @@
 name = "webx"
 version = "1.0.0"
 edition = "2021"
-description = "A language and framework for building backends."
+description = "A language and framework for building web application endpoints."
 authors = ["William Rågstad"]
 homepage = "https://webx.sh"
 documentation = "https://webx.sh/docs"
