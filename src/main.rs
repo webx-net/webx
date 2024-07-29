@@ -106,7 +106,7 @@ fn main() {
         let name = match matches.get_one::<String>("name") {
             Some(name) => name.to_owned(),
             None => {
-                error("No project name was provided.".to_string());
+                error("No project name was provided.".to_string(), false);
                 cli().print_help().unwrap();
                 std::process::exit(1);
             }

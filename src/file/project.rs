@@ -14,6 +14,8 @@ use crate::{
     runner::WXMode,
 };
 
+use super::parser::WebXParserError;
+
 /// The configuration for a WebX project.
 ///
 /// ## Example
@@ -136,6 +138,7 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
                 src.display()
             ),
             ERROR_READ_WEBX_FILES,
+            false,
         );
     }
 
@@ -171,9 +174,21 @@ pub fn load_modules(src: &Path) -> Vec<WXModule> {
         .map(|m| m.as_ref().unwrap_err())
         .collect::<Vec<_>>();
     if !errors.is_empty() {
+        let mut messages: String = "".into();
+        for err in errors {
+            match err {
+                WebXParserError::SyntaxError(message) => {
+                    messages.push_str(&format!("syntax error:\n{}", message));
+                }
+                WebXParserError::IoError(err) => {
+                    messages.push_str(&format!("IO error:\n{:?}", err));
+                }
+            }
+        }
         exit_error(
-            format!("Failed to parse webx files:\n{:?}", errors),
+            format!("Failed to parse webx files due to a {}", messages),
             ERROR_READ_WEBX_FILES,
+            false,
         );
     }
     webx_modules

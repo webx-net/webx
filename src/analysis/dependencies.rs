@@ -53,6 +53,7 @@ fn analyse_circle_dependencies(modules: &[WXModule]) {
                 circular_dependencies
             ),
             ERROR_CIRCULAR_DEPENDENCY,
+            false,
         );
     }
 }

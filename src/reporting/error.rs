@@ -31,92 +31,40 @@ fn error_generic(message: String, error_name: &str) {
     eprintln!("{}: {}", error_name.red(), message);
 }
 
-fn error_generic_code(message: String, code: i32, error_name: &str) {
+fn error_generic_code(message: String, code: i32, error_name: &str, verbose_date: bool) {
     let now = Local::now();
-    let time = now.format("%d/%m %H:%M:%S");
+    let time = if verbose_date {
+        now.format("%d/%m %H:%M:%S")
+    } else {
+        now.format("%H:%M")
+    };
     error_generic(
         message,
         format!("[{} {} ({})]", error_name, time, code_to_name(code)).as_str(),
     );
 }
 
-fn exit_error_generic_code(message: String, code: i32, error_name: &str) -> ! {
-    error_generic_code(message, code, error_name);
+fn exit_error_generic_code(message: String, code: i32, error_name: &str, verbose_date: bool) -> ! {
+    error_generic_code(message, code, error_name, verbose_date);
     std::process::exit(code);
 }
 
-pub fn error(message: String) {
+pub fn error(message: String, verbose_date: bool) {
     let now = Local::now();
-    let time = now.format("%d/%m %H:%M:%S");
+    let time = if verbose_date {
+        now.format("%d/%m %H:%M:%S")
+    } else {
+        now.format("%H:%M")
+    };
     error_generic(message, format!("[Error {}]", time).as_str());
 }
 
-pub fn error_code(message: String, code: i32) {
-    error_generic_code(message, code, "Error");
+pub fn error_code(message: String, code: i32, verbose_date: bool) {
+    error_generic_code(message, code, "Error", verbose_date);
 }
 
-pub fn exit_error(message: String, code: i32) -> ! {
-    exit_error_generic_code(message, code, "Error");
-}
-
-pub fn exit_error_unexpected(
-    what: String,
-    context: &str,
-    line: usize,
-    column: usize,
-    code: i32,
-) -> ! {
-    exit_error(
-        format!(
-            "Unexpected {} while {} at line {}, column {}",
-            what, context, line, column
-        ),
-        code,
-    );
-}
-
-pub fn exit_error_expected_but_found(
-    expected: String,
-    found: String,
-    context: &str,
-    line: usize,
-    column: usize,
-    code: i32,
-) -> ! {
-    exit_error(
-        format!(
-            "Expected {} but found '{}' while {} at line {}, column {}",
-            expected, found, context, line, column
-        ),
-        code,
-    );
-}
-
-pub fn exit_error_expected_any_of_but_found(
-    expected: String,
-    found: char,
-    context: &str,
-    line: usize,
-    column: usize,
-    code: i32,
-) -> ! {
-    exit_error(
-        format!(
-            "Expected any of {} but found '{}' while {} at line {}, column {}",
-            expected, found, context, line, column
-        ),
-        code,
-    );
-}
-
-pub fn exit_error_unexpected_char(
-    what: char,
-    context: &str,
-    line: usize,
-    column: usize,
-    code: i32,
-) -> ! {
-    exit_error_unexpected(format!("character '{}'", what), context, line, column, code);
+pub fn exit_error(message: String, code: i32, verbose_date: bool) -> ! {
+    exit_error_generic_code(message, code, "Error", verbose_date);
 }
 
 pub fn format_info_field(info: &WXInfoField) -> String {
@@ -125,9 +73,9 @@ pub fn format_info_field(info: &WXInfoField) -> String {
         .to_string()
 }
 
-pub fn exit_error_hint(message: &str, hints: &[&str], code: i32) -> ! {
+pub fn exit_error_hint(message: &str, hints: &[&str], code: i32, verbose_date: bool) -> ! {
     if hints.is_empty() {
-        exit_error(message.into(), code);
+        exit_error(message.into(), code, verbose_date);
     }
     let hints = if hints.len() > 1 {
         const HINT_SEP: &str = "\n - ";
@@ -140,5 +88,5 @@ pub fn exit_error_hint(message: &str, hints: &[&str], code: i32) -> ! {
     } else {
         format!("{}: {}", "Hint".bright_yellow(), hints[0])
     };
-    exit_error(format!("{}\n{}", message, hints), code)
+    exit_error(format!("{}\n{}", message, hints), code, verbose_date)
 }

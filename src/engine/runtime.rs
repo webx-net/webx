@@ -626,6 +626,7 @@ impl WXRuntime {
                         e
                     ),
                     500,
+                    self.mode.debug_level().is_max(),
                 );
             }
             info(
@@ -643,6 +644,7 @@ impl WXRuntime {
                     module.path.module_name()
                 ),
                 500,
+                self.mode.debug_level().is_max(),
             );
         }
     }
@@ -660,7 +662,7 @@ impl WXRuntime {
     fn recompile(&mut self) {
         match WXRouteMap::from_modules(&self.source_modules) {
             Ok(routes) => self.routes = routes,
-            Err(err) => error_code(err.message, err.code),
+            Err(err) => error_code(err.message, err.code, self.mode.debug_level().is_max()),
         }
         if self.mode.is_dev() && self.mode.debug_level().is_high() {
             // Print the route map in dev mode.
@@ -747,7 +749,7 @@ impl WXRuntime {
             let response = match route_result {
                 Ok(response) => response,
                 Err(err) => {
-                    error_code(err.message.to_string(), err.code);
+                    error_code(err.message.to_string(), err.code, self.mode.debug_level().is_max());
                     responses::internal_server_error_default_webx(self.mode, err.message)
                 }
             };

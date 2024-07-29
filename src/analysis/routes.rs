@@ -115,7 +115,7 @@ pub fn analyse_invalid_routes(modules: &[WXModule]) -> Result<(), (String, i32)>
 
 fn exit_on_err<T>(result: Result<T, (String, i32)>) {
     if let Err((message, code)) = result {
-        exit_error(message, code);
+        exit_error(message, code, false);
     }
 }
 

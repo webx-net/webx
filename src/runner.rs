@@ -204,6 +204,7 @@ pub fn run(root: &Path, mode: WXMode) {
                 "Are you in the project root directory?",
             ],
             ERROR_PROJECT,
+            false
         );
     };
     let source_root = root.join(&config.src);
