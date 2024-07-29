@@ -14,6 +14,7 @@ repository = "https://github.com/webx-net/webx"
 chrono = "0.4.31"
 clap = { version = "4.3.21", features = ["color"] }
 colored = "2.0.4"
+ctrlc = "3.4.4"
 deno_core = "0.242.0"
 http = "0.2.9"
 http-body-util = "0.1.0"

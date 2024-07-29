@@ -2,7 +2,11 @@ use std::{
     future::Future,
     net::SocketAddr,
     pin::Pin,
-    sync::{mpsc::Sender, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::Sender,
+        Arc,
+    },
 };
 
 use http_body_util::Full;
@@ -13,8 +17,11 @@ use hyper::{
     Request, Response,
 };
 use hyper_util::rt::TokioIo;
+use tokio::time::timeout;
 
-use crate::{file::project::ProjectConfig, reporting::debug::info, runner::WXMode};
+use crate::{
+    file::project::ProjectConfig, reporting::debug::info, runner::WXMode, timeout_duration,
+};
 
 use super::runtime::{WXRuntimeError, WXRuntimeMessage};
 
@@ -76,18 +83,38 @@ impl WXServer {
     }
 
     /// Starts the WebX web server and listens for incoming requests in its own thread.
-    pub async fn run(&mut self) -> WXFailable<()> {
+    pub fn run(&mut self, running: Arc<AtomicBool>) -> WXFailable<()> {
+        // Multi-threading pool via asynchronous tokio worker threads.
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .thread_name("webx-server")
+            .enable_all()
+            .build()
+            // .worker_threads(4)
+            .unwrap();
+        runtime.block_on(self.run_async(running))?;
+        runtime.shutdown_background(); // Shutdown the runtime.
+        Ok(())
+    }
+
+    async fn run_async(&mut self, running: Arc<AtomicBool>) -> WXFailable<()> {
         let listener = tokio::net::TcpListener::bind(&self.addrs()[..]).await?;
         let svc = WXSvc::new(self.mode, self.runtime_tx.clone());
         self.log_startup();
-        // Multi-threading pool via asynchronous tokio worker threads.
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .build()?;
         loop {
-            let (stream, addr) = listener.accept().await?;
-            runtime.spawn(Self::serve(
+            if !running.load(Ordering::SeqCst) {
+                // println!("Shutting down web server...");
+                return Ok(()); // Shutdown the server.
+            }
+            let (stream, addr) = match timeout(timeout_duration(self.mode), listener.accept()).await
+            {
+                Ok(Ok((stream, addr))) => (stream, addr),
+                Ok(Err(err)) => {
+                    eprintln!("Failed to accept connection: {}", err);
+                    continue;
+                }
+                Err(_) => continue,
+            };
+            tokio::spawn(Self::serve(
                 TokioIo::new(stream),
                 svc.clone_with_address(addr),
             ));

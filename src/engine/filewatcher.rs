@@ -1,7 +1,9 @@
 use notify::{self, Error, Event, Watcher};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::time::Instant;
 
 use crate::engine::runtime::WXRuntimeMessage;
 use crate::file::parser::parse_webx_file;
@@ -9,6 +11,7 @@ use crate::file::webx::WXModulePath;
 use crate::reporting::debug::info;
 use crate::reporting::warning::warning;
 use crate::runner::WXMode;
+use crate::timeout_duration;
 
 struct FSWEvent {
     pub kind: notify::EventKind,
@@ -51,7 +54,12 @@ pub struct WXFileWatcher {}
 
 impl WXFileWatcher {
     /// Registers the file watcher thread
-    pub fn run(mode: WXMode, source_root: PathBuf, rt_tx: Sender<WXRuntimeMessage>) {
+    pub fn run(
+        mode: WXMode,
+        source_root: PathBuf,
+        rt_tx: Sender<WXRuntimeMessage>,
+        running: Arc<AtomicBool>,
+    ) {
         let mut last_event: FSWEvent = FSWEvent::empty();
         let mut watcher = notify::recommended_watcher(move |res: Result<Event, Error>| {
             match res {
@@ -106,7 +114,11 @@ impl WXFileWatcher {
             .unwrap();
         info(mode, "Hot reloading is enabled.");
         loop {
-            std::thread::sleep(Duration::from_millis(1000));
+            if !running.load(Ordering::SeqCst) {
+                // println!("Shutting down file watcher...");
+                break;
+            }
+            std::thread::sleep(timeout_duration(mode));
         }
     }
 }

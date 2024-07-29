@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{path::Path, sync::Arc};
 
     use crate::{
         analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes},
@@ -28,17 +28,20 @@ mod tests {
         analyse_module_routes(&webx_modules);
         let (_, dummy_rx) = std::sync::mpsc::channel();
         if KILL_AFTER_TIMEOUT {
+            let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+            let runtime_running = running.clone();
             std::thread::spawn(move || {
                 let mut runtime = WXRuntime::new(dummy_rx, mode, WXRuntimeInfo::new(root));
                 runtime.load_modules(webx_modules);
-                runtime.run()
+                runtime.run(runtime_running);
             });
             std::thread::sleep(std::time::Duration::from_secs(TIMEOUT));
+            running.store(false, std::sync::atomic::Ordering::Relaxed);
             std::process::exit(0);
         } else {
             let mut runtime = WXRuntime::new(dummy_rx, mode, WXRuntimeInfo::new(root));
             runtime.load_modules(webx_modules);
-            runtime.run()
+            runtime.run(Arc::new(std::sync::atomic::AtomicBool::new(true)));
         }
     }
 }

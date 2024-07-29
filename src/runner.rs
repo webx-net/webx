@@ -3,6 +3,8 @@ use chrono::DateTime;
 use chrono::{self};
 use colored::Colorize;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes};
@@ -191,7 +193,7 @@ fn print_start_info(
 /// ## Arguments
 /// - `root` - The root path of the project.
 /// - `mode` - The mode to run in.
-pub fn run(root: &Path, mode: WXMode) {
+pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
     let time_start = Instant::now();
     let config_file = get_project_config_file_path(root);
     let config = if let Some(config) = load_project_config(&config_file) {
@@ -204,7 +206,7 @@ pub fn run(root: &Path, mode: WXMode) {
                 "Are you in the project root directory?",
             ],
             ERROR_PROJECT,
-            false
+            false,
         );
     };
     let source_root = root.join(&config.src);
@@ -213,42 +215,36 @@ pub fn run(root: &Path, mode: WXMode) {
     analyse_module_routes(&webx_modules);
     print_start_info(&webx_modules, mode, &config, time_start.elapsed());
 
-    // Setup and start all threads
-    let server_rt = tokio::runtime::Builder::new_multi_thread()
-        .thread_name("webx-server")
-        .enable_all()
-        .build()
-        .unwrap();
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     if mode.is_dev() {
         let fw_rt_tx = rt_tx.clone();
-        let fw_hnd = std::thread::spawn(move || WXFileWatcher::run(mode, source_root, fw_rt_tx));
+        let fw_running = running.clone();
+        let fw_hnd =
+            std::thread::spawn(move || WXFileWatcher::run(mode, source_root, fw_rt_tx, fw_running));
         let info = WXRuntimeInfo::new(root);
+        let runtime_running = running.clone();
         let runtime_hnd = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rt_rx, mode, info);
             runtime.load_modules(webx_modules);
-            runtime.run()
+            runtime.run(runtime_running)
         });
         let sv_rt_tx = rt_tx.clone();
-        let server_hnd = std::thread::spawn(move || {
-            let mut server = WXServer::new(mode, config, sv_rt_tx);
-            server_rt.block_on(server.run()).unwrap();
-        });
-        // TODO: If any of these fail we should stop the others
-        server_hnd.join().unwrap();
+        let mut server = WXServer::new(mode, config, sv_rt_tx);
+        server.run(running).expect("Failed to run server");
         runtime_hnd.join().unwrap();
         fw_hnd.join().unwrap();
     } else {
         // If we are in production mode, run the `server` in main thread.
         let info = WXRuntimeInfo::new(root);
+        let runtime_running = running.clone();
         let runtime_hnd = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rt_rx, mode, info);
             runtime.load_modules(webx_modules);
-            runtime.run()
+            runtime.run(runtime_running);
         });
         let sv_rt_tx = rt_tx.clone();
         let mut server = WXServer::new(mode, config, sv_rt_tx);
-        server_rt.block_on(server.run()).unwrap();
+        server.run(running).expect("Failed to run server");
         runtime_hnd.join().unwrap();
     }
     // Check ps info: `ps | ? ProcessName -eq "webx"`

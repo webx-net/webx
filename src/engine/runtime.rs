@@ -1,6 +1,14 @@
 use std::{
-    borrow::Borrow, collections::HashMap, fmt::Display, net::SocketAddr, path::Path,
-    sync::mpsc::Receiver,
+    borrow::Borrow,
+    collections::HashMap,
+    fmt::Display,
+    net::SocketAddr,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::Receiver,
+        Arc,
+    },
 };
 
 use deno_core::{
@@ -17,6 +25,7 @@ use crate::{
     },
     reporting::{debug::info, error::error_code, warning::warning},
     runner::WXMode,
+    timeout_duration,
 };
 
 use super::{
@@ -697,10 +706,14 @@ impl WXRuntime {
     /// ## Note
     /// This is **required** as `deno_core::JsRuntime` is **not** thread-safe
     /// and cannot be shared between threads.
-    pub fn run(&mut self) {
+    pub fn run(&mut self, running: Arc<AtomicBool>) {
         self.recompile();
         loop {
-            if let Ok(msg) = self.messages.recv() {
+            if !running.load(Ordering::SeqCst) {
+                // println!("Shutting down runtime...");
+                break; // Exit the loop and stop the runtime.
+            }
+            if let Ok(msg) = self.messages.recv_timeout(timeout_duration(self.mode)) {
                 match msg {
                     WXRuntimeMessage::New(module) => {
                         info(
@@ -749,7 +762,11 @@ impl WXRuntime {
             let response = match route_result {
                 Ok(response) => response,
                 Err(err) => {
-                    error_code(err.message.to_string(), err.code, self.mode.debug_level().is_max());
+                    error_code(
+                        err.message.to_string(),
+                        err.code,
+                        self.mode.debug_level().is_max(),
+                    );
                     responses::internal_server_error_default_webx(self.mode, err.message)
                 }
             };
