@@ -1,5 +1,7 @@
 /* import { Todo, renderAllTodos, renderTodo } from "./todos"; */
 
+get /(asset: String) -> wx.static("assets/" + asset)
+
 get / (<html>
     <body>
         <h1>Hello from WebX!</h1>
