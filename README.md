@@ -1,6 +1,6 @@
 <br>
 <div align="center">
-  <img src="assets/webx.svg" alt="Web X" height="90px">
+  <img src="assets/webx.png" alt="Web X" height="90px">
 <br><br>
 
 ![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/webx-net/webx/rust.yml)
