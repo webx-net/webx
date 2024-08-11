@@ -1,6 +1,6 @@
 /* import { Todo, renderAllTodos, renderTodo } from "./todos"; */
 
-get /(asset: String) -> wx.static("assets/" + asset)
+get /(asset: String) -> static("assets/" + asset)
 
 get / (<html>
     <body>
