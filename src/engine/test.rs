@@ -3,7 +3,7 @@ mod tests {
     use std::{path::Path, sync::Arc};
 
     use crate::{
-        analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes},
+        analysis::{dependencies::analyze_module_deps, routes::analyze_module_routes},
         engine::runtime::{WXRuntime, WXRuntimeInfo},
         file::project::{load_modules, load_project_config},
         runner::{get_project_config_file_path, DebugLevel, WXMode},
@@ -24,8 +24,8 @@ mod tests {
         let config = load_project_config(&get_project_config_file_path(root)).unwrap();
         let source_root = root.join(config.src);
         let webx_modules = load_modules(&source_root);
-        analyse_module_deps(&webx_modules);
-        analyse_module_routes(&webx_modules);
+        analyze_module_deps(&webx_modules);
+        analyze_module_routes(&webx_modules);
         let (_, dummy_rx) = std::sync::mpsc::channel();
         if KILL_AFTER_TIMEOUT {
             let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));

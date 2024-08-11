@@ -43,7 +43,7 @@ fn detect_circular_dependencies(tree: &DependencyTree) -> Vec<PathBuf> {
     circular_dependencies
 }
 
-fn analyse_circle_dependencies(modules: &[WXModule]) {
+fn analyze_circle_dependencies(modules: &[WXModule]) {
     let dependency_tree = construct_dependency_tree(modules);
     let circular_dependencies = detect_circular_dependencies(&dependency_tree);
     if !circular_dependencies.is_empty() {
@@ -58,8 +58,8 @@ fn analyse_circle_dependencies(modules: &[WXModule]) {
     }
 }
 
-/// Analyse the dependencies of a list of WebX modules.
+/// Analyze the dependencies of a list of WebX modules.
 /// If a circular dependency is detected, an error is reported and the program exits.
-pub fn analyse_module_deps(modules: &[WXModule]) {
-    analyse_circle_dependencies(modules);
+pub fn analyze_module_deps(modules: &[WXModule]) {
+    analyze_circle_dependencies(modules);
 }

@@ -62,7 +62,7 @@ pub fn extract_duplicate_routes(routes: &FlatRoutes) -> Vec<String> {
         .collect()
 }
 
-pub fn analyse_duplicate_routes(modules: &[WXModule]) -> Result<FlatRoutes, (String, i32)> {
+pub fn analyze_duplicate_routes(modules: &[WXModule]) -> Result<FlatRoutes, (String, i32)> {
     let routes = extract_flat_routes(modules);
     let duplicate_routes = extract_duplicate_routes(&routes);
     if !duplicate_routes.is_empty() {
@@ -97,11 +97,11 @@ fn extract_invalid_routes(routes: &FlatRoutes) -> Vec<String> {
         .collect()
 }
 
-/// Analyse the implementation of routes in a list of WebX modules.
+/// Analyze the implementation of routes in a list of WebX modules.
 /// If an invalid route is detected, an error is reported and the program exits.
 /// Invalid routes include:
 /// - bad combinations of route methods and request body format types (e.g. GET + body)
-pub fn analyse_invalid_routes(modules: &[WXModule]) -> Result<(), (String, i32)> {
+pub fn analyze_invalid_routes(modules: &[WXModule]) -> Result<(), (String, i32)> {
     let routes = extract_flat_routes(modules);
     let invalid_routes = extract_invalid_routes(&routes);
     if !invalid_routes.is_empty() {
@@ -122,13 +122,13 @@ fn exit_on_err<T>(result: Result<T, (String, i32)>) {
     }
 }
 
-pub fn analyse_module_routes(modules: &[WXModule]) {
-    exit_on_err(analyse_duplicate_routes(modules));
-    exit_on_err(analyse_invalid_routes(modules));
+pub fn analyze_module_routes(modules: &[WXModule]) {
+    exit_on_err(analyze_duplicate_routes(modules));
+    exit_on_err(analyze_invalid_routes(modules));
 }
 
 pub fn verify_model_routes(modules: &[WXModule]) -> Result<FlatRoutes, (String, i32)> {
-    let routes = analyse_duplicate_routes(modules)?;
-    analyse_invalid_routes(modules)?;
+    let routes = analyze_duplicate_routes(modules)?;
+    analyze_invalid_routes(modules)?;
     Ok(routes)
 }

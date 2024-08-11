@@ -7,7 +7,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::analysis::{dependencies::analyse_module_deps, routes::analyse_module_routes};
+use crate::analysis::{dependencies::analyze_module_deps, routes::analyze_module_routes};
 use crate::engine::filewatcher::WXFileWatcher;
 use crate::engine::runtime::{WXRuntime, WXRuntimeInfo};
 use crate::engine::server::WXServer;
@@ -211,8 +211,8 @@ pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
     };
     let source_root = root.join(&config.src);
     let webx_modules = load_modules(&source_root);
-    analyse_module_deps(&webx_modules);
-    analyse_module_routes(&webx_modules);
+    analyze_module_deps(&webx_modules);
+    analyze_module_routes(&webx_modules);
     print_start_info(&webx_modules, mode, &config, time_start.elapsed());
 
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
