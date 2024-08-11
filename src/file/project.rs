@@ -8,7 +8,10 @@ use std::{
 use crate::{
     file::{parser::parse_webx_file, webx::WXModule},
     reporting::{
-        error::{exit_error, ERROR_READ_WEBX_FILES},
+        error::{
+            error_code, exit_error, DateTimeSpecifier, ERROR_PARSE_IO, ERROR_READ_WEBX_FILES,
+            ERROR_SYNTAX,
+        },
         warning::warning,
     },
     runner::WXMode,
@@ -138,7 +141,7 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
                 src.display()
             ),
             ERROR_READ_WEBX_FILES,
-            false,
+            DateTimeSpecifier::None,
         );
     }
 
@@ -170,26 +173,30 @@ pub fn load_modules(src: &Path) -> Vec<WXModule> {
     let webx_modules = files.iter().map(parse_webx_file).collect::<Vec<_>>();
     let errors = webx_modules
         .iter()
-        .filter(|m| m.is_err())
-        .map(|m| m.as_ref().unwrap_err())
+        .filter_map(|m| if let Err(e) = m { Some(e) } else { None })
         .collect::<Vec<_>>();
     if !errors.is_empty() {
-        let mut messages: String = "".into();
         for err in errors {
             match err {
-                WebXParserError::SyntaxError(message) => {
-                    messages.push_str(&format!("syntax error:\n{}", message));
+                WebXParserError::SyntaxError(message, file) => {
+                    let file = into_relative_string(file);
+                    error_code(
+                        format!("{}, in file '{}'", message, file),
+                        ERROR_SYNTAX,
+                        DateTimeSpecifier::None,
+                    );
                 }
-                WebXParserError::IoError(err) => {
-                    messages.push_str(&format!("IO error:\n{:?}", err));
+                WebXParserError::IoError(err, file) => {
+                    let file = into_relative_string(file);
+                    error_code(
+                        format!("{}, in file '{}'", err, file),
+                        ERROR_PARSE_IO,
+                        DateTimeSpecifier::None,
+                    );
                 }
             }
         }
-        exit_error(
-            format!("Failed to parse webx files due to a {}", messages),
-            ERROR_READ_WEBX_FILES,
-            false,
-        );
+        std::process::exit(ERROR_READ_WEBX_FILES);
     }
     webx_modules
         .into_iter()
@@ -312,4 +319,46 @@ location /todo {
         serde_json::to_string_pretty(&default_config).unwrap(),
     )
     .expect("Failed to create config file.");
+}
+
+/// A safe implementation that tries to strip the prefix of a path.
+/// If all attempts fail, the function returns the original path.
+fn into_relative_string(path: &Path) -> String {
+    let path = path.display().to_string();
+    // Remove '\\?\' prefix on Windows.
+    let path = if cfg!(windows) {
+        if let Some(stripped) = path.strip_prefix(r"\\?\") {
+            stripped.to_string()
+        } else {
+            path
+        }
+    } else {
+        path
+    };
+    let Ok(mut current_dir) = std::env::current_dir() else {
+        return path;
+    };
+    let mut levels_up = 0;
+    loop {
+        let current_dir_str = if cfg!(windows) {
+            format!("{}\\", current_dir.display())
+        } else {
+            format!("{}/", current_dir.display())
+        };
+        if let Some(stripped) = path.strip_prefix(&current_dir_str) {
+            // Append the levels as `../` to the path.
+            let mut path = String::new();
+            for _ in 0..levels_up {
+                path.push_str("..");
+            }
+            path.push_str(stripped);
+            return path;
+        }
+        match current_dir.parent() {
+            Some(parent) => current_dir = parent.to_path_buf(),
+            None => break,
+        }
+        levels_up += 1;
+    }
+    path
 }

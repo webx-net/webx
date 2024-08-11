@@ -15,56 +15,57 @@ pub const ERROR_HANDLER_CALL: i32 = 8;
 
 pub fn code_to_name(code: i32) -> String {
     match code {
-        ERROR_READ_WEBX_FILES => "READ_WEBX_FILES".to_owned(),
-        ERROR_PROJECT => "PROJECT".to_owned(),
-        ERROR_CIRCULAR_DEPENDENCY => "CIRCULAR_DEPENDENCY".to_owned(),
-        ERROR_DUPLICATE_ROUTE => "DUPLICATE_ROUTE".to_owned(),
-        ERROR_INVALID_ROUTE => "INVALID_ROUTE".to_owned(),
-        ERROR_HANDLER_CALL => "HANDLER_CALL".to_owned(),
-        ERROR_PARSE_IO => "PARSE_IO".to_owned(),
-        ERROR_SYNTAX => "SYNTAX".to_owned(),
-        _ => format!("UNKNOWN {}", code),
+        ERROR_READ_WEBX_FILES => "Read".to_owned(),
+        ERROR_PROJECT => "Project".to_owned(),
+        ERROR_CIRCULAR_DEPENDENCY => "Circular Dependency".to_owned(),
+        ERROR_DUPLICATE_ROUTE => "Duplicate Route".to_owned(),
+        ERROR_INVALID_ROUTE => "Invalid Route".to_owned(),
+        ERROR_HANDLER_CALL => "Handler Call".to_owned(),
+        ERROR_PARSE_IO => "Parse IO".to_owned(),
+        ERROR_SYNTAX => "Syntax".to_owned(),
+        _ => format!("#{}", code),
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DateTimeSpecifier {
+    Verbose,
+    Short,
+    None,
 }
 
 fn error_generic(message: String, error_name: &str) {
     eprintln!("{}: {}", error_name.red(), message);
 }
 
-fn error_generic_code(message: String, code: i32, error_name: &str, verbose_date: bool) {
+fn error_generic_code(message: String, code: i32, date: DateTimeSpecifier) {
     let now = Local::now();
-    let time = if verbose_date {
-        now.format("%d/%m %H:%M:%S")
+    if date == DateTimeSpecifier::None {
+        error_generic(message, format!("{} Error", code_to_name(code)).as_str());
     } else {
-        now.format("%H:%M")
-    };
-    error_generic(
-        message,
-        format!("[{} {} ({})]", error_name, time, code_to_name(code)).as_str(),
-    );
+        let time = match date {
+            DateTimeSpecifier::Verbose => now.format("%d/%m %H:%M:%S"),
+            DateTimeSpecifier::Short => now.format("%H:%M"),
+            DateTimeSpecifier::None => unreachable!(),
+        };
+        error_generic(
+            message,
+            format!("{} Error (T{})", code_to_name(code), time).as_str(),
+        );
+    }
 }
 
-fn exit_error_generic_code(message: String, code: i32, error_name: &str, verbose_date: bool) -> ! {
-    error_generic_code(message, code, error_name, verbose_date);
+fn exit_error_generic_code(message: String, code: i32, date: DateTimeSpecifier) -> ! {
+    error_generic_code(message, code, date);
     std::process::exit(code);
 }
 
-pub fn error(message: String, verbose_date: bool) {
-    let now = Local::now();
-    let time = if verbose_date {
-        now.format("%d/%m %H:%M:%S")
-    } else {
-        now.format("%H:%M")
-    };
-    error_generic(message, format!("[Error {}]", time).as_str());
+pub fn error_code(message: String, code: i32, date: DateTimeSpecifier) {
+    error_generic_code(message, code, date);
 }
 
-pub fn error_code(message: String, code: i32, verbose_date: bool) {
-    error_generic_code(message, code, "Error", verbose_date);
-}
-
-pub fn exit_error(message: String, code: i32, verbose_date: bool) -> ! {
-    exit_error_generic_code(message, code, "Error", verbose_date);
+pub fn exit_error(message: String, code: i32, date: DateTimeSpecifier) -> ! {
+    exit_error_generic_code(message, code, date);
 }
 
 pub fn format_info_field(info: &WXInfoField) -> String {
@@ -73,9 +74,9 @@ pub fn format_info_field(info: &WXInfoField) -> String {
         .to_string()
 }
 
-pub fn exit_error_hint(message: &str, hints: &[&str], code: i32, verbose_date: bool) -> ! {
+pub fn exit_error_hint(message: &str, hints: &[&str], code: i32, date: DateTimeSpecifier) -> ! {
     if hints.is_empty() {
-        exit_error(message.into(), code, verbose_date);
+        exit_error(message.into(), code, date);
     }
     let hints = if hints.len() > 1 {
         const HINT_SEP: &str = "\n - ";
@@ -88,5 +89,5 @@ pub fn exit_error_hint(message: &str, hints: &[&str], code: i32, verbose_date: b
     } else {
         format!("{}: {}", "Hint".bright_yellow(), hints[0])
     };
-    exit_error(format!("{}\n{}", message, hints), code, verbose_date)
+    exit_error(format!("{}\n{}", message, hints), code, date)
 }

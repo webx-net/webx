@@ -4,7 +4,10 @@ use std::collections::HashMap;
 
 use crate::{
     file::webx::{WXInfoField, WXModule, WXRoute, WXScope, WXUrlPath, WXROOT_PATH},
-    reporting::error::{exit_error, format_info_field, ERROR_DUPLICATE_ROUTE, ERROR_INVALID_ROUTE},
+    reporting::error::{
+        exit_error, format_info_field, DateTimeSpecifier, ERROR_DUPLICATE_ROUTE,
+        ERROR_INVALID_ROUTE,
+    },
 };
 
 type FlatRoutes = HashMap<(WXRoute, WXUrlPath), Vec<WXInfoField>>;
@@ -115,7 +118,7 @@ pub fn analyse_invalid_routes(modules: &[WXModule]) -> Result<(), (String, i32)>
 
 fn exit_on_err<T>(result: Result<T, (String, i32)>) {
     if let Err((message, code)) = result {
-        exit_error(message, code, false);
+        exit_error(message, code, DateTimeSpecifier::None);
     }
 }
 

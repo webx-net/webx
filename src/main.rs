@@ -16,7 +16,7 @@ use std::{
 
 use clap::{Arg, ArgAction, Command};
 use colored::*;
-use reporting::error::error;
+use reporting::error::{error_code, DateTimeSpecifier, ERROR_PROJECT};
 use runner::{DebugLevel, WXMode};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -137,7 +137,11 @@ fn main() {
         let name = match matches.get_one::<String>("name") {
             Some(name) => name.to_owned(),
             None => {
-                error("No project name was provided.".to_string(), false);
+                error_code(
+                    "No project name was provided.".to_string(),
+                    ERROR_PROJECT,
+                    DateTimeSpecifier::None,
+                );
                 cli().print_help().unwrap();
                 std::process::exit(1);
             }
@@ -163,11 +167,10 @@ fn main() {
         let running = Arc::new(AtomicBool::new(true));
         register_ctrlc(mode, running.clone());
         runner::run(&project, mode, running);
+        println!("Goodbye!");
     } else if let Some(_matches) = matches.subcommand_matches("test") {
         todo!("Test command not implemented.");
     } else {
         cli().print_help().unwrap();
     }
-
-    println!("Goodbye!");
 }

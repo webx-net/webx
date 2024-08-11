@@ -23,7 +23,11 @@ use crate::{
         WXBody, WXBodyType, WXLiteralValue, WXModule, WXModulePath, WXRoute, WXRouteHandler,
         WXTypedIdentifier, WXUrlPath, WXUrlPathSegment,
     },
-    reporting::{debug::info, error::error_code, warning::warning},
+    reporting::{
+        debug::info,
+        error::{error_code, exit_error, DateTimeSpecifier},
+        warning::warning,
+    },
     runner::WXMode,
     timeout_duration,
 };
@@ -586,6 +590,12 @@ impl WXRuntime {
             mode,
             info,
             runtimes: HashMap::new(),
+
+    pub fn error_date_specifier(&self) -> DateTimeSpecifier {
+        if self.mode.debug_level().is_high() {
+            DateTimeSpecifier::Verbose
+        } else {
+            DateTimeSpecifier::Short
         }
     }
 
@@ -671,7 +681,7 @@ impl WXRuntime {
     fn recompile(&mut self) {
         match WXRouteMap::from_modules(&self.source_modules) {
             Ok(routes) => self.routes = routes,
-            Err(err) => error_code(err.message, err.code, self.mode.debug_level().is_max()),
+            Err(err) => error_code(err.message, err.code, self.error_date_specifier()),
         }
         if self.mode.is_dev() && self.mode.debug_level().is_high() {
             // Print the route map in dev mode.
@@ -765,7 +775,7 @@ impl WXRuntime {
                     error_code(
                         err.message.to_string(),
                         err.code,
-                        self.mode.debug_level().is_max(),
+                        self.error_date_specifier(),
                     );
                     responses::internal_server_error_default_webx(self.mode, err.message)
                 }

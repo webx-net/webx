@@ -13,7 +13,7 @@ use crate::engine::runtime::{WXRuntime, WXRuntimeInfo};
 use crate::engine::server::WXServer;
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
 use crate::file::webx::WXModule;
-use crate::reporting::error::{exit_error_hint, ERROR_PROJECT};
+use crate::reporting::error::{exit_error_hint, DateTimeSpecifier, ERROR_PROJECT};
 
 pub fn get_project_config_file_path(root: &Path) -> PathBuf {
     root.join("webx.config.json")
@@ -206,7 +206,7 @@ pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
                 "Are you in the project root directory?",
             ],
             ERROR_PROJECT,
-            false,
+            DateTimeSpecifier::None,
         );
     };
     let source_root = root.join(&config.src);

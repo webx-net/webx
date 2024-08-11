@@ -15,8 +15,8 @@ use super::webx::{
 
 #[derive(Debug)]
 pub enum WebXParserError {
-    IoError(std::io::Error),
-    SyntaxError(String),
+    IoError(std::io::Error, PathBuf),
+    SyntaxError(String, PathBuf),
 }
 
 impl WebXParserError {
@@ -30,15 +30,19 @@ impl WebXParserError {
         context: T3,
         line: usize,
         column: usize,
+        file: PathBuf,
     ) -> Self {
-        WebXParserError::SyntaxError(Self::at_lc(
-            format!(
-                "Expected {} but found '{}' while {}",
-                expected, found, context
+        WebXParserError::SyntaxError(
+            Self::at_lc(
+                format!(
+                    "Expected {} but found '{}' while {}",
+                    expected, found, context
+                ),
+                line,
+                column,
             ),
-            line,
-            column,
-        ))
+            file,
+        )
     }
 
     pub fn expected_any_of_but_found<T1: Display, T2: Display, T3: Display>(
@@ -47,6 +51,7 @@ impl WebXParserError {
         context: T3,
         line: usize,
         column: usize,
+        file: PathBuf,
     ) -> Self {
         let listing = expected
             .iter()
@@ -59,14 +64,17 @@ impl WebXParserError {
         } else {
             expected.first().unwrap().to_string()
         };
-        WebXParserError::SyntaxError(Self::at_lc(
-            format!(
-                "Expected any of {} but found '{}' while {}",
-                expected, found, context,
+        WebXParserError::SyntaxError(
+            Self::at_lc(
+                format!(
+                    "Expected any of {} but found '{}' while {}",
+                    expected, found, context,
+                ),
+                line,
+                column,
             ),
-            line,
-            column,
-        ))
+            file,
+        )
     }
 
     pub fn unexpected<T1: Display, T2: Display>(
@@ -74,20 +82,35 @@ impl WebXParserError {
         context: T2,
         line: usize,
         column: usize,
+        file: PathBuf,
     ) -> Self {
-        WebXParserError::SyntaxError(Self::at_lc(
-            format!("Unexpected {} while {}", what, context),
-            line,
-            column,
-        ))
+        WebXParserError::SyntaxError(
+            Self::at_lc(
+                format!("Unexpected {} while {}", what, context),
+                line,
+                column,
+            ),
+            file,
+        )
     }
 
-    pub fn unexpected_char<T: Display>(what: char, context: T, line: usize, column: usize) -> Self {
-        Self::unexpected(format!("character '{}'", what), context, line, column)
+    pub fn unexpected_char<T: Display>(
+        what: char,
+        context: T,
+        line: usize,
+        column: usize,
+        file: PathBuf,
+    ) -> Self {
+        Self::unexpected(format!("character '{}'", what), context, line, column, file)
     }
 
-    pub fn unexpected_eof<T: Display>(context: T, line: usize, column: usize) -> Self {
-        Self::unexpected("EOF", context, line, column)
+    pub fn unexpected_eof<T: Display>(
+        context: T,
+        line: usize,
+        column: usize,
+        file: PathBuf,
+    ) -> Self {
+        Self::unexpected("EOF", context, line, column, file)
     }
 }
 
@@ -139,7 +162,7 @@ impl<'a> WebXFileParser<'a> {
         let bytes_read = self
             .reader
             .read(&mut buf)
-            .map_err(WebXParserError::IoError)?;
+            .map_err(|err| WebXParserError::IoError(err, self.file.clone()))?;
         if bytes_read == 0 {
             return Ok(None);
         }
@@ -173,6 +196,7 @@ impl<'a> WebXFileParser<'a> {
                 context,
                 self.line,
                 self.column,
+                self.file.clone(),
             )),
         }
     }
@@ -196,6 +220,7 @@ impl<'a> WebXFileParser<'a> {
                 context,
                 self.line,
                 self.column,
+                self.file.clone(),
             ))
         } else {
             Ok(nc)
@@ -225,6 +250,7 @@ impl<'a> WebXFileParser<'a> {
                     context,
                     self.line,
                     self.column,
+                    self.file.clone(),
                 ));
             }
         }
@@ -250,6 +276,7 @@ impl<'a> WebXFileParser<'a> {
                 context,
                 self.line,
                 self.column,
+                self.file.clone(),
             ));
         }
         Ok(nc)
@@ -488,6 +515,7 @@ impl<'a> WebXFileParser<'a> {
                 context,
                 self.line,
                 self.column,
+                self.file.clone(),
             ));
         }
         let nc = nc.unwrap();
@@ -555,12 +583,13 @@ impl<'a> WebXFileParser<'a> {
                     context,
                     self.line,
                     self.column,
+                    self.file.clone(),
                 ))
             }
         })
     }
 
-    fn parse_arguments(&mut self, end: char) -> Result<Vec<WXLiteralValue>, WebXParserError> {
+    fn parse_arguments(&mut self, end: char) -> Result<Vec<String>, WebXParserError> {
         let mut args = vec![];
         if let Some(nc) = self.peek() {
             if nc == end {
@@ -568,21 +597,32 @@ impl<'a> WebXFileParser<'a> {
             } // Empty arguments.
         }
         loop {
-            args.push(self.parse_literal()?);
+            match self.parse_literal()? {
+                WXLiteralValue::Identifier(name) => args.push(name),
+                other => {
+                    return Err(WebXParserError::expected_but_found(
+                        "identifier",
+                        other.to_string(),
+                        "parsing arguments",
+                        self.line,
+                        self.column,
+                        self.file.clone(),
+                    ))
+                }
+            }
             if let Some(nc) = self.peek() {
                 if nc == end {
-                    break;
+                    break; // End of arguments.
                 } else if nc == ',' {
-                    self.next()?;
-                }
-                // Consume the comma.
-                else {
+                    self.next()?; // Consume the comma.
+                } else {
                     return Err(WebXParserError::expected_any_of_but_found(
                         &[',', end],
                         nc,
                         "parsing arguments",
                         self.line,
                         self.column,
+                        self.file.clone(),
                     ));
                 }
             } else {
@@ -590,6 +630,7 @@ impl<'a> WebXFileParser<'a> {
                     "parsing arguments",
                     self.line,
                     self.column,
+                    self.file.clone(),
                 ));
             }
         }
@@ -676,6 +717,7 @@ impl<'a> WebXFileParser<'a> {
                 context,
                 self.line,
                 self.column,
+                self.file.clone(),
             ));
         }
         let body = body.unwrap();
@@ -887,6 +929,7 @@ impl<'a> WebXFileParser<'a> {
                         context,
                         self.line,
                         self.column,
+                        self.file.clone(),
                     ));
                 }
             }
@@ -902,6 +945,7 @@ impl<'a> WebXFileParser<'a> {
                             context,
                             self.line,
                             self.column,
+                            self.file.clone(),
                         ));
                     } else {
                         break;
@@ -927,6 +971,7 @@ impl<'a> WebXFileParser<'a> {
                             context,
                             self.line,
                             self.column,
+                            self.file.clone(),
                         ))
                     }
                 },
@@ -948,6 +993,7 @@ impl<'a> WebXFileParser<'a> {
                             context,
                             self.line,
                             self.column,
+                            self.file.clone(),
                         ))
                     }
                 },
@@ -971,6 +1017,7 @@ impl<'a> WebXFileParser<'a> {
                             context,
                             self.line,
                             self.column,
+                            self.file.clone(),
                         ))
                     }
                 },
@@ -996,6 +1043,7 @@ impl<'a> WebXFileParser<'a> {
                         context,
                         self.line,
                         self.column,
+                        self.file.clone(),
                     ))
                 }
             }
@@ -1012,7 +1060,8 @@ impl<'a> WebXFileParser<'a> {
 }
 
 pub fn parse_webx_file(file: &PathBuf) -> Result<WXModule, WebXParserError> {
-    let file_contents = std::fs::read_to_string(file).map_err(WebXParserError::IoError)?;
+    let file_contents =
+        std::fs::read_to_string(file).map_err(|err| WebXParserError::IoError(err, file.clone()))?;
     let mut parser = WebXFileParser::new(file, &file_contents);
     parser.parse_module()
 }

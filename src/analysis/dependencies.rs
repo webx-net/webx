@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
     file::webx::WXModule,
-    reporting::error::{exit_error, ERROR_CIRCULAR_DEPENDENCY},
+    reporting::error::{exit_error, DateTimeSpecifier, ERROR_CIRCULAR_DEPENDENCY},
 };
 
 type DependencyTree = HashMap<PathBuf, Vec<PathBuf>>;
@@ -53,7 +53,7 @@ fn analyse_circle_dependencies(modules: &[WXModule]) {
                 circular_dependencies
             ),
             ERROR_CIRCULAR_DEPENDENCY,
-            false,
+            DateTimeSpecifier::None,
         );
     }
 }
