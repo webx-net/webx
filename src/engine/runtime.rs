@@ -4,6 +4,7 @@ use std::{
     fmt::Display,
     net::SocketAddr,
     path::Path,
+    rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::Receiver,
@@ -12,8 +13,8 @@ use std::{
 };
 
 use deno_core::{
-    v8::{self, GetPropertyNamesArgs},
-    JsRuntime,
+    v8::{self, GetPropertyNamesArgs, Local, Value},
+    JsRuntime, RuntimeOptions,
 };
 use hyper::body::Bytes;
 
@@ -89,7 +90,7 @@ pub enum WXRTValue {
 
 impl WXRTValue {
     /// Convert the runtime value into a string representing a JavaScript value.
-    pub fn to_js(&self) -> String {
+    pub fn to_js_string(&self) -> String {
         match self {
             WXRTValue::String(s) => format!("\"{}\"", s),
             WXRTValue::Number(f) => f.to_string(),
@@ -98,16 +99,45 @@ impl WXRTValue {
             WXRTValue::Array(arr) => {
                 let mut values = Vec::new();
                 for value in arr.iter() {
-                    values.push(value.to_js());
+                    values.push(value.to_js_string());
                 }
                 format!("[{}]", values.join(", "))
             }
             WXRTValue::Object(obj) => {
                 let mut values = Vec::new();
                 for (key, value) in obj.iter() {
-                    values.push(format!("{}: {}", key, value.to_js()));
+                    values.push(format!("{}: {}", key, value.to_js_string()));
                 }
                 format!("{{{}}}", values.join(", "))
+            }
+        }
+    }
+
+    pub fn to_js_value<'a>(&self, scope: &mut v8::HandleScope<'a>) -> Local<'a, Value> {
+        match self {
+            WXRTValue::String(s) => v8::String::new(scope, s).unwrap().into(),
+            WXRTValue::Number(f) => v8::Number::new(scope, *f).into(),
+            WXRTValue::Boolean(b) => v8::Boolean::new(scope, *b).into(),
+            WXRTValue::Null => v8::null(scope).into(),
+            WXRTValue::Array(arr) => {
+                let mut values = Vec::new();
+                for value in arr.iter() {
+                    values.push(value.to_js_value(scope));
+                }
+                let arr = v8::Array::new(scope, values.len() as i32);
+                for (i, value) in values.into_iter().enumerate() {
+                    arr.set_index(scope, i as u32, value);
+                }
+                arr.into()
+            }
+            WXRTValue::Object(obj) => {
+                let js_obj = v8::Object::new(scope);
+                for (key, value) in obj.iter() {
+                    let key = v8::String::new(scope, key).unwrap();
+                    let value = value.to_js_value(scope);
+                    js_obj.set(scope, key.into(), value);
+                }
+                js_obj.into()
             }
         }
     }
@@ -267,7 +297,7 @@ impl WXRTHandlerCall {
             return native_res;
         }
         // User-defined handler
-        let js_args = args.iter().map(WXRTValue::to_js).collect::<Vec<_>>();
+        let js_args = args.iter().map(WXRTValue::to_js_string).collect::<Vec<_>>();
         let js_call = format!("{}({})", self.name, js_args.join(", "));
         match rt.execute_script("[webx handler code]", js_call.into()) {
             Ok(val) => {
