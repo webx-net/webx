@@ -295,18 +295,13 @@ impl Display for WXLiteralValue {
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub struct WXRouteHandler {
     pub name: String,
-    pub args: Vec<WXLiteralValue>,
+    pub args: Vec<String>,
     pub output: Option<String>,
 }
 
 impl fmt::Debug for WXRouteHandler {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let vals = self
-            .args
-            .iter()
-            .map(WXLiteralValue::to_string)
-            .collect::<Vec<String>>();
-        write!(f, "{}({})", self.name, vals.join(", "))?;
+        write!(f, "{}({})", self.name, self.args.join(", "))?;
         if let Some(output) = &self.output {
             write!(f, ": {}", output)?;
         }
