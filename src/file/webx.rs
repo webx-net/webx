@@ -196,11 +196,11 @@ pub enum WXBodyType {
     // TODO: JSON and TEXT
 }
 
-impl ToString for WXBodyType {
-    fn to_string(&self) -> String {
+impl Display for WXBodyType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            WXBodyType::Ts => "ts".to_string(),
-            WXBodyType::Tsx => "tsx".to_string(),
+            WXBodyType::Ts => write!(f, "ts"),
+            WXBodyType::Tsx => write!(f, "tsx"),
         }
     }
 }
@@ -213,7 +213,7 @@ pub struct WXBody {
 
 impl fmt::Debug for WXBody {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "```{}\n{}\n```", self.body_type.to_string(), self.body)
+        write!(f, "```{}\n{}\n```", self.body_type, self.body)
     }
 }
 
