@@ -1,3 +1,5 @@
+use deno_core::{error::AnyError, extension, include_js_files, op2, Extension};
+
 use crate::reporting::error::ERROR_HANDLER_CALL;
 
 use super::runtime::{WXRTValue, WXRuntimeError, WXRuntimeInfo};
@@ -23,11 +25,13 @@ fn webx_static(
         }
     }
     Err(WXRuntimeError {
-        message: format!("static: failed to read file '{}'", relative_path.to_js()),
+        message: format!("static: failed to read file '{}'", relative_path.to_raw()),
         code: ERROR_HANDLER_CALL,
     })
 }
 
+/// Try to call a native function by name. \
+/// TODO: Figure out if this should be replaced with a JS extension.
 pub fn try_call(
     name: &str,
     args: &[WXRTValue],
@@ -51,3 +55,22 @@ pub fn try_call(
         _ => None,
     }
 }
+
+// #[op]
+// async fn op_webx_static(relative_path: String) -> Result<String, AnyError> {
+//     let file = std::fs::read_to_string(relative_path).await?;
+//     Ok(file)
+// }
+
+pub fn init() -> Extension {
+    Extension {
+        name: "webx stdlib",
+        ops: vec![].into(), //  vec![op_webx_static::decl()],
+        esm_files: include_js_files!(stdlib "src/engine/stdlib.js",)
+            .to_vec()
+            .into(),
+        ..Default::default()
+    }
+}
+
+pub const JAVASCRIPT: &str = include_str!("./stdlib.js");
