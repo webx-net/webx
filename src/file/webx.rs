@@ -260,35 +260,33 @@ pub enum WXLiteralValue {
     Object(Vec<(String, WXLiteralValue)>),
 }
 
-impl ToString for WXLiteralValue {
-    fn to_string(&self) -> String {
+impl Display for WXLiteralValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            WXLiteralValue::Identifier(name) => name.clone(),
-            WXLiteralValue::String(string) => format!("\"{}\"", string),
-            WXLiteralValue::Number(integer, decimal) => format!("{}.{}", integer, decimal),
-            WXLiteralValue::Boolean(boolean) => boolean.to_string(),
-            WXLiteralValue::Null => "null".to_string(),
+            WXLiteralValue::Identifier(name) => write!(f, "{}", name),
+            WXLiteralValue::String(string) => write!(f, "\"{}\"", string),
+            WXLiteralValue::Number(integer, decimal) => write!(f, "{}.{}", integer, decimal),
+            WXLiteralValue::Boolean(boolean) => write!(f, "{}", boolean),
+            WXLiteralValue::Null => write!(f, "null"),
             WXLiteralValue::Array(array) => {
-                let mut s = "[".to_string();
+                write!(f, "[")?;
                 for (i, value) in array.iter().enumerate() {
                     if i > 0 {
-                        s.push_str(", ");
+                        write!(f, ", ")?;
                     }
-                    s.push_str(&value.to_string());
+                    write!(f, "{}", value)?;
                 }
-                s.push(']');
-                s
+                write!(f, "]")
             }
             WXLiteralValue::Object(object) => {
-                let mut s = "{".to_string();
+                write!(f, "{{")?;
                 for (i, (key, value)) in object.iter().enumerate() {
                     if i > 0 {
-                        s.push_str(", ");
+                        write!(f, ", ")?;
                     }
-                    s.push_str(&format!("{}: {}", key, value.to_string()));
+                    write!(f, "{}: {}", key, value)?;
                 }
-                s.push('}');
-                s
+                write!(f, "}}")
             }
         }
     }
