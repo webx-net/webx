@@ -260,13 +260,56 @@ fn eval_literal(literal: &WXLiteralValue, ctx: &WXRTContext) -> Result<WXRTValue
     }
 }
 
+fn init_context<'a>(
+    scope: &'a mut v8::HandleScope,
+    ctx: &WXRTContext,
+) -> v8::Local<'a, v8::Context> {
+    let js_ctx = v8::Context::new(scope);
+    let global = js_ctx.global(scope);
+    for (key, value) in ctx.values.iter() {
+        // Maybe replace key with Symbol instead?
+        let key = v8::String::new(scope, key).unwrap();
+        let value = value.to_js_value(scope);
+        global.set(scope, key.into(), value);
+    }
+    js_ctx
+}
+
+fn eval_js_expression(
+    expr: String,
+    rt: &mut JsRuntime,
+    ctx: &WXRTContext,
+) -> Result<WXRTValue, WXRuntimeError> {
+    {
+        let mut scope = rt.handle_scope();
+        init_context(&mut scope, ctx);
+    }
+    // unsafe {
+    //     scope.enter();
+    // }
+    let val = rt.execute_script("[webx expression]", expr.into());
+    // unsafe {
+    //     scope.exit();
+    // }
+    match val {
+        Ok(val) => WXRTValue::from_js_value(val.borrow()).map_err(|e| WXRuntimeError {
+            code: 500,
+            message: format!("Invalid value returned from expression:\n{}", e),
+        }),
+        Err(e) => Err(WXRuntimeError {
+            code: 500,
+            message: format!("Expression threw an error:\n{}", e),
+        }),
+    }
+}
+
 /// A runtime handler call.
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct WXRTHandlerCall {
     /// The handler name.
     pub name: String,
     /// The handler arguments.
-    pub args: Vec<WXLiteralValue>,
+    pub args: Vec<String>,
     /// The output variable name.
     pub output: Option<String>,
 }
@@ -290,7 +333,7 @@ impl WXRTHandlerCall {
         let args = self
             .args
             .iter()
-            .map(|arg| eval_literal(arg, ctx))
+            .map(|arg| eval_js_expression(arg.to_owned(), rt, ctx))
             .collect::<Result<Vec<_>, _>>()?;
         // Try to call a native handler.
         if let Some(native_res) = stdlib::try_call(&self.name, &args, info) {
@@ -299,17 +342,11 @@ impl WXRTHandlerCall {
         // User-defined handler
         let js_args = args.iter().map(WXRTValue::to_js_string).collect::<Vec<_>>();
         let js_call = format!("{}({})", self.name, js_args.join(", "));
-        match rt.execute_script("[webx handler code]", js_call.into()) {
-            Ok(val) => {
-                let val: &v8::Value = val.borrow();
-                if val.is_null_or_undefined() {
-                    return Ok(WXRTValue::Null);
-                }
-                WXRTValue::from_js_value(val).map_err(|e| WXRuntimeError {
-                    code: 500,
-                    message: format!("Handler '{}' returned an invalid value:\n{}", self.name, e),
-                })
-            }
+        match rt.execute_script("[webx handler call]", js_call.into()) {
+            Ok(val) => WXRTValue::from_js_value(val.borrow()).map_err(|e| WXRuntimeError {
+                code: 500,
+                message: format!("Handler '{}' returned an invalid value:\n{}", self.name, e),
+            }),
             Err(e) => Err(WXRuntimeError {
                 code: 500,
                 message: format!("Handler '{}' threw an error:\n{}", self.name, e),
@@ -480,7 +517,7 @@ type WXRouteMapInner = HashMap<hyper::Method, WXMethodMapInner>;
 /// This is a map of all routes in the project.
 /// The key is the route path, and the value is the route.
 /// This map requires that **all routes are unique**.
-/// This is enforced by the `analyse_module_routes` function.
+/// This is enforced by the `analyze_module_routes` function.
 #[derive(Debug, Clone)]
 pub struct WXRouteMap(WXRouteMapInner);
 
@@ -534,7 +571,7 @@ impl WXRouteMap {
     ///
     /// ## Note
     /// This function will **not** check for duplicate routes.
-    /// This is done in the `analyse_module_routes` function.
+    /// This is done in the `analyze_module_routes` function.
     fn resolve(
         &self,
         method: &hyper::Method,
@@ -596,19 +633,19 @@ pub struct WXRuntime {
     source_modules: Vec<WXModule>,
     messages: Receiver<WXRuntimeMessage>,
     routes: WXRouteMap,
-    /// All WebX TypeScript runtimes.
+    /// A WebX TypeScript runtime.
     ///
-    /// ## Hotswapping
-    /// These are persistent between hotswapping modules in dev mode.
+    /// ## Hot-swapping
+    /// These are persistent between hot-swapping modules in dev mode.
     /// They are only created or destroyed when modules are added or removed.
-    /// This allows us to keep the state of the application between hotswaps.
+    /// This allows us to keep the state of the application between hot-swaps.
     ///
     /// ## Persistent state
     /// Each JS runtime maintains a JavaScript execution context,
     /// which means that it keeps track of its own persistent state, variables,
     /// functions, and other constructs will persist between script executions
     /// as long as they are run in the same runtime instance.
-    runtimes: HashMap<WXModulePath, deno_core::JsRuntime>,
+    modules: HashMap<WXModulePath, deno_core::JsRuntime>,
 }
 
 impl WXRuntime {
@@ -619,7 +656,9 @@ impl WXRuntime {
             messages: rx,
             mode,
             info,
-            runtimes: HashMap::new(),
+            modules: HashMap::new(),
+        }
+    }
 
     pub fn error_date_specifier(&self) -> DateTimeSpecifier {
         if self.mode.debug_level().is_high() {
@@ -635,7 +674,7 @@ impl WXRuntime {
     /// This function will **not** recompile the route map.
     /// To recompile the route map, either:
     /// - start the runtime with the `run` function.
-    /// - trigger a module hotswap in `dev` mode.
+    /// - trigger a module hot-swap in `dev` mode.
     pub fn load_modules(&mut self, modules: Vec<WXModule>) {
         modules.into_iter().for_each(|m| self.load_module(m));
     }
@@ -644,58 +683,66 @@ impl WXRuntime {
     /// This function will **NOT** recompile the route map.
     /// To recompile the route map, either:
     /// - start the runtime with the `run` function.
-    /// - trigger a module hotswap in `dev` mode.
+    /// - trigger a module hot-swap in `dev` mode.
     /// - call the `recompile` function.
     ///
     /// ## Note
     /// Only call this function once per module.
-    /// This should **NOT** be called when hotswapping modules.
+    /// This should **NOT** be called when hot-swapping modules.
     pub fn load_module(&mut self, module: WXModule) {
-        self.runtimes
-            .insert(module.path.clone(), JsRuntime::new(Default::default()));
-        self.initialize_module_runtime(&module);
+        let rt = self.new_module_js_runtime(&module);
+        self.modules.insert(module.path.clone(), rt);
         self.source_modules.push(module);
     }
 
     fn remove_module(&mut self, module_path: &WXModulePath) {
-        self.runtimes.remove(module_path);
+        self.modules.remove(module_path);
         self.source_modules.retain(|m| m.path != *module_path);
     }
 
-    /// Execute the global scope in the runtime for a specific module
-    fn initialize_module_runtime(&mut self, module: &WXModule) {
-        if let Some(rt) = self.runtimes.get_mut(&module.path) {
-            let ts = module.scope.global_ts.clone();
-            let result = rt.execute_script("[webx global scope]", ts.into());
-            if let Err(e) = result {
-                error_code(
-                    format!(
-                        "Failed to execute global scope for module '{}':\n{}",
-                        module.path.module_name(),
-                        e
-                    ),
-                    500,
-                    self.mode.debug_level().is_max(),
-                );
-            }
-            info(
-                self.mode,
-                &format!(
-                    "Initialized runtime for module '{}'",
-                    module.path.module_name()
-                ),
-            );
-        } else {
-            dbg!(&self.runtimes.keys());
-            error_code(
-                format!(
-                    "Module runtime not found for module '{}'",
-                    module.path.module_name()
-                ),
+    /// Initialize the JavaScript runtime with the stdlib.
+    fn new_js_runtime(&mut self) -> JsRuntime {
+        let mut rt = JsRuntime::new(RuntimeOptions {
+            module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
+            extensions: vec![stdlib::init()],
+            ..Default::default()
+        });
+        // Load WebX Standard Library
+        if let Err(e) = rt.execute_script(
+            "[webx stdlib]",
+            deno_core::FastString::Static(stdlib::JAVASCRIPT),
+        ) {
+            exit_error(
+                format!("Failed to execute stdlib:\n{}", e),
                 500,
-                self.mode.debug_level().is_max(),
+                self.error_date_specifier(),
             );
         }
+        info(self.mode, "Initialized stdlib");
+        rt
+    }
+
+    /// Initialize the module and execute the global scope
+    fn new_module_js_runtime(&mut self, module: &WXModule) -> JsRuntime {
+        let mut rt = self.new_js_runtime();
+        if let Err(e) =
+            rt.execute_script("[global scope]", module.scope.global_ts.to_owned().into())
+        {
+            error_code(
+                format!(
+                    "Failed to execute global scope for module '{}':\n{}",
+                    module.path.module_name(),
+                    e
+                ),
+                500,
+                self.error_date_specifier(),
+            );
+        }
+        info(
+            self.mode,
+            &format!("Initialized module '{}'", module.path.module_name()),
+        );
+        rt
     }
 
     /// Tries to recompile all loaded modules at once and replace the runtime route map.
@@ -741,7 +788,7 @@ impl WXRuntime {
     /// ## Example messages:
     /// - Execute a route within the runtime and return the result.
     ///     - TODO: Such tasks will be executed in a new separate tokio task/thread.
-    /// - Hotswapp module in dev mode.
+    /// - Hot-swap module in dev mode.
     ///
     /// ## Note
     /// This is **required** as `deno_core::JsRuntime` is **not** thread-safe
@@ -768,7 +815,7 @@ impl WXRuntime {
                             self.mode,
                             &format!("Reloaded module: {}", module.path.module_name()),
                         );
-                        // Module JS runtime is persistent between hotswaps.
+                        // Module JS runtime is persistent between hot-swaps.
                         self.remove_module(&path);
                         self.source_modules.push(module);
                         self.recompile();
@@ -797,7 +844,7 @@ impl WXRuntime {
         addr: SocketAddr,
     ) -> Result<hyper::Response<http_body_util::Full<Bytes>>, WXRuntimeError> {
         if let Some((_path, mut ctx, route)) = self.routes.resolve(req.method(), req.uri()) {
-            let module_runtime = self.runtimes.get_mut(&route.module_path).unwrap();
+            let module_runtime = self.modules.get_mut(&route.module_path).unwrap();
             let route_result = route.execute(&mut ctx, module_runtime, &self.info);
             let response = match route_result {
                 Ok(response) => response,
