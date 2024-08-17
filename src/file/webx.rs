@@ -247,61 +247,17 @@ impl Debug for WXRouteReqBody {
     }
 }
 
-/// Literal values in WebX.
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub enum WXLiteralValue {
-    Identifier(String),
-    String(String),
-    /// Number(integer, decimal)
-    Number(u32, u32),
-    Boolean(bool),
-    Null,
-    Array(Vec<WXLiteralValue>),
-    Object(Vec<(String, WXLiteralValue)>),
-}
-
-impl Display for WXLiteralValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            WXLiteralValue::Identifier(name) => write!(f, "{}", name),
-            WXLiteralValue::String(string) => write!(f, "\"{}\"", string),
-            WXLiteralValue::Number(integer, decimal) => write!(f, "{}.{}", integer, decimal),
-            WXLiteralValue::Boolean(boolean) => write!(f, "{}", boolean),
-            WXLiteralValue::Null => write!(f, "null"),
-            WXLiteralValue::Array(array) => {
-                write!(f, "[")?;
-                for (i, value) in array.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", value)?;
-                }
-                write!(f, "]")
-            }
-            WXLiteralValue::Object(object) => {
-                write!(f, "{{")?;
-                for (i, (key, value)) in object.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}: {}", key, value)?;
-                }
-                write!(f, "}}")
-            }
-        }
-    }
-}
-
 #[derive(Hash, PartialEq, Eq, Clone)]
-pub struct WXRouteHandler {
+pub struct WXRouteHandlerCall {
     pub name: String,
-    pub args: Vec<String>,
+    /// Evaluate wrapped in [] to allow for empty arguments.
+    pub args: String,
     pub output: Option<String>,
 }
 
-impl fmt::Debug for WXRouteHandler {
+impl fmt::Debug for WXRouteHandlerCall {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}({})", self.name, self.args.join(", "))?;
+        write!(f, "{}({})", self.name, self.args)?;
         if let Some(output) = &self.output {
             write!(f, ": {}", output)?;
         }
@@ -319,11 +275,11 @@ pub struct WXRoute {
     /// Request body format.
     pub body_format: Option<WXRouteReqBody>,
     /// The pre-handler functions of the route.
-    pub pre_handlers: Vec<WXRouteHandler>,
+    pub pre_handlers: Vec<WXRouteHandlerCall>,
     /// The code block of the route.
     pub body: Option<WXBody>,
     /// The post-handler functions of the route.
-    pub post_handlers: Vec<WXRouteHandler>,
+    pub post_handlers: Vec<WXRouteHandlerCall>,
 }
 
 impl Hash for WXRoute {
