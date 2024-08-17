@@ -25,6 +25,27 @@ pub mod responses {
 
     use crate::runner::WXMode;
 
+    pub const HEADER_SERVER: String = format!("webx/{}", env!("CARGO_PKG_VERSION"));
+    pub const HEADER_SERVER_RELEASE: &str = "webx";
+    pub const SERVER_BANNER: String = format!("{} development mode", HEADER_SERVER);
+    pub const SERVER_BANNER_RELEASE: &str = HEADER_SERVER_RELEASE;
+
+    pub fn server_header(mode: WXMode) -> String {
+        if mode.is_dev() {
+            HEADER_SERVER.clone()
+        } else {
+            HEADER_SERVER_RELEASE.to_string()
+        }
+    }
+
+    pub fn server_banner(mode: WXMode) -> String {
+        if mode.is_dev() {
+            SERVER_BANNER.clone()
+        } else {
+            SERVER_BANNER_RELEASE.to_string()
+        }
+    }
+
     pub fn serialize<D: Default + ToString>(response: &Response<D>) -> String {
         let mut result = format!("HTTP/1.1 {}\r\n", response.status());
         for (header, value) in response.headers() {
@@ -35,14 +56,14 @@ pub mod responses {
         result
     }
 
-    pub fn ok_html<T>(body: T, len: usize) -> Response<T> {
+    pub fn ok_html<T>(body: T, len: usize, mode: WXMode) -> Response<T> {
         Response::builder()
             .status(hyper::StatusCode::OK)
             .header("Access-Control-Allow-Origin", "*")
             .header("Content-Type", "text/html; charset=utf-8")
             .header("Content-Length", len.to_string())
             .header("Connection", "close")
-            .header("Server", &format!("webx/{}", env!("CARGO_PKG_VERSION")))
+            .header("Server", server_header(mode))
             .header("Date", chrono::Utc::now().to_rfc2822())
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
@@ -52,22 +73,7 @@ pub mod responses {
     }
 
     pub fn not_found_default_webx(mode: WXMode) -> Response<String> {
-        let body = if mode.is_dev() {
-            format!(
-                r#"<html>
-    <head>
-        <title>404 Not Found</title>
-    </head>
-    <body>
-        <h1>404 Not Found</h1>
-        <p>The requested URL was not found on this server.</p>
-        <hr>
-        <address>webx/{} development mode</address>
-    </body>
-</html>"#,
-                env!("CARGO_PKG_VERSION")
-            )
-        } else {
+        let body = format!(
             r#"<html>
     <head>
         <title>404 Not Found</title>
@@ -76,18 +82,18 @@ pub mod responses {
         <h1>404 Not Found</h1>
         <p>The requested URL was not found on this server.</p>
         <hr>
-        <address>webx</address>
+        <address>{}</address>
     </body>
-</html>"#
-                .to_string()
-        };
+</html>"#,
+            server_banner(mode)
+        );
         Response::builder()
             .status(hyper::StatusCode::NOT_FOUND)
             .header("Access-Control-Allow-Origin", "*")
             .header("Content-Type", "text/html; charset=utf-8")
             .header("Content-Length", body.len().to_string())
             .header("Connection", "close")
-            .header("Server", "webx")
+            .header("Server", server_header(mode))
             .header("Date", chrono::Utc::now().to_rfc2822())
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
@@ -97,33 +103,7 @@ pub mod responses {
     }
 
     pub fn internal_server_error_default_webx(mode: WXMode, message: String) -> Response<String> {
-        let body = if mode.is_dev() {
-            format!(
-                r#"<html>
-    <head>
-        <title>500 Internal Server Error</title>
-    </head>
-    <body>
-        <h1>500 Internal Server Error</h1>
-        <p>
-            The server encountered an internal error and was unable to complete your request. <br>
-            Either the server is overloaded or there is an error in the application.
-        </p>
-        <h2>Debugging Information</h2>
-        <p>
-            <strong>Message:</strong>
-            <pre>
-{}
-            </pre>
-        </p>
-        <hr>
-        <address>webx/{} development mode</address>
-    </body>
-</html>"#,
-                message,
-                env!("CARGO_PKG_VERSION")
-            )
-        } else {
+        let body = format!(
             r#"<html>
     <head>
         <title>500 Internal Server Error</title>
@@ -133,20 +113,35 @@ pub mod responses {
         <p>
             The server encountered an internal error and was unable to complete your request. <br>
             Either the server is overloaded or there is an error in the application.
-        </p>
+        </p>{}
         <hr>
-        <address>webx</address>
+        <address>{}</address>
     </body>
-</html>"#
-                .to_string()
-        };
+</html>"#,
+            if message.is_empty() {
+                ""
+            } else {
+                &format!(
+                    r#"
+        <h2>Debugging Information</h2>
+        <p>
+            <strong>Message:</strong>
+            <pre>
+{}
+            </pre>
+        </p>"#,
+                    message
+                )
+            },
+            server_banner(mode)
+        );
         Response::builder()
             .status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
             .header("Access-Control-Allow-Origin", "*")
             .header("Content-Type", "text/html; charset=utf-8")
             .header("Content-Length", body.len().to_string())
             .header("Connection", "close")
-            .header("Server", "webx")
+            .header("Server", server_header(mode))
             .header("Date", chrono::Utc::now().to_rfc2822())
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
