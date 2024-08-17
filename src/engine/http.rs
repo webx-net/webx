@@ -35,12 +35,12 @@ pub mod responses {
         result
     }
 
-    pub fn ok_html(body: String) -> Response<String> {
+    pub fn ok_html<T>(body: T, len: usize) -> Response<T> {
         Response::builder()
             .status(hyper::StatusCode::OK)
             .header("Access-Control-Allow-Origin", "*")
             .header("Content-Type", "text/html; charset=utf-8")
-            .header("Content-Length", body.len().to_string())
+            .header("Content-Length", len.to_string())
             .header("Connection", "close")
             .header("Server", &format!("webx/{}", env!("CARGO_PKG_VERSION")))
             .header("Date", chrono::Utc::now().to_rfc2822())
