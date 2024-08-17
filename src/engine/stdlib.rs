@@ -1,17 +1,21 @@
-use deno_core::{error::AnyError, extension, include_js_files, op2, Extension};
+use deno_core::{
+    include_js_files,
+    v8::{Global, Local, Value},
+    Extension,
+};
 
 use crate::reporting::error::ERROR_HANDLER_CALL;
 
-use super::runtime::{WXRTValue, WXRuntimeError, WXRuntimeInfo};
+use super::runtime::{WXRuntimeError, WXRuntimeInfo};
 
 /// Serve static content from the filesystem.
 ///
 /// # Arguments
 /// - `path`: The path to the file to serve relative to the project root.
-fn webx_static(
-    relative_path: &WXRTValue,
+fn webx_static<'a>(
+    relative_path: &Local<'a, Value>,
     info: &WXRuntimeInfo,
-) -> Result<WXRTValue, WXRuntimeError> {
+) -> Result<Global<Value>, WXRuntimeError> {
     // Read the file from the filesystem.
     if let WXRTValue::String(path) = relative_path {
         let file = std::fs::read(info.project_root.join(path));
@@ -32,28 +36,25 @@ fn webx_static(
 
 /// Try to call a native function by name. \
 /// TODO: Figure out if this should be replaced with a JS extension.
-pub fn try_call(
+pub fn try_call<'a>(
     name: &str,
-    args: &[WXRTValue],
+    args: &[Local<'a, Value>],
     info: &WXRuntimeInfo,
-) -> Option<Result<WXRTValue, WXRuntimeError>> {
+) -> Option<Result<Global<Value>, WXRuntimeError>> {
     let assert_args = |n: usize| {
         if args.len() != n {
-            return Some(WXRuntimeError {
+            return Err(WXRuntimeError {
                 message: format!("{}: expected {} arguments, got {}", name, n, args.len()),
                 code: ERROR_HANDLER_CALL,
             });
         }
-        None
+        Ok(())
     };
 
-    match name {
-        "static" => Some(match assert_args(1) {
-            None => webx_static(&args[0], info),
-            Some(err) => Err(err),
-        }),
-        _ => None,
-    }
+    Some(match name {
+        "static" => assert_args(1).and_then(|_| webx_static(&args[0], info)),
+        _ => return None,
+    })
 }
 
 // #[op]
