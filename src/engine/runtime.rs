@@ -390,7 +390,10 @@ impl WXRTRoute {
                 &mut rt.handle_scope(),
                 mode,
             )),
-            (_, _, _) => todo!("Route execution not implemented"),
+            (_, _, _) => Err(WXRuntimeError {
+                code: 500,
+                message: format!("Route execution not implemented for: pre_handlers={}, body={}, post_handlers={}", has_pre_handlers, has_body, has_post_handlers),
+            }),
         };
         // if !has_pre_handlers && !has_body && !has_post_handlers {
         //     // No handlers or body are present, return an empty response.
