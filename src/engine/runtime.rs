@@ -1,9 +1,7 @@
 use std::{
-    borrow::Borrow,
     collections::HashMap,
     fmt::Display,
     net::SocketAddr,
-    ops::Deref,
     path::Path,
     rc::Rc,
     sync::{
@@ -14,7 +12,7 @@ use std::{
 };
 
 use deno_core::{
-    v8::{self, Array, GetPropertyNamesArgs, Global, Handle, HandleScope, Local, Value},
+    v8::{self, Global, Local, Value},
     JsRuntime, RuntimeOptions,
 };
 use hyper::body::Bytes;
@@ -27,7 +25,7 @@ use crate::{
     },
     reporting::{
         debug::info,
-        error::{error_code, exit_error, DateTimeSpecifier},
+        error::{error_code, exit_error},
         warning::warning,
     },
     runner::WXMode,
@@ -109,10 +107,10 @@ fn eval_js_expression(
 }
 impl WXRouteHandlerCall {
     /// Execute the handler in the given context and return the result.
-    fn execute<'a>(
+    fn execute(
         &self,
         ctx: &WXRTContext,
-        rt: &'a mut JsRuntime,
+        rt: &mut JsRuntime,
         info: &WXRuntimeInfo,
     ) -> Result<Global<Value>, WXRuntimeError> {
         match self.try_execute_native_script(rt, ctx, info) {
@@ -179,10 +177,7 @@ impl WXRouteHandlerCall {
         stdlib::try_call(&self.name, &js_args, info)
     }
 
-    fn execute_user_script<'a>(
-        &self,
-        rt: &'a mut JsRuntime,
-    ) -> Result<Global<Value>, WXRuntimeError> {
+    fn execute_user_script(&self, rt: &mut JsRuntime) -> Result<Global<Value>, WXRuntimeError> {
         let js_call = format!("{}({})", self.name, self.args);
         let call_res = rt.execute_script("[webx handler call]", js_call.into());
         call_res.map_err(|e| WXRuntimeError {
@@ -314,11 +309,9 @@ impl WXRTRoute {
                 ctx.bind(output, result);
             }
         }
-        if let Some(last) = handlers.last() {
-            Some(last.execute(ctx, rt, info).map(WXRouteResult::Js))
-        } else {
-            None
-        }
+        handlers
+            .last()
+            .map(|last| last.execute(ctx, rt, info).map(WXRouteResult::Js))
     }
 
     fn bind_out(ctx: &mut WXRTContext, value: WXRouteResult, scope: &mut v8::HandleScope) {
@@ -349,7 +342,7 @@ impl WXRTRoute {
                 {
                     let str = hyper::body::Bytes::from(str_val.to_rust_string_lossy(scope));
                     let len = str.len();
-                    ok_html(str.into(), len, mode)
+                    ok_html(str, len, mode)
                 } else {
                     ok_json(&value, scope, mode)
                 }
@@ -595,14 +588,6 @@ impl WXRuntime {
         }
     }
 
-    pub fn error_date_specifier(&self) -> DateTimeSpecifier {
-        if self.mode.debug_level().is_high() {
-            DateTimeSpecifier::Verbose
-        } else {
-            DateTimeSpecifier::Short
-        }
-    }
-
     /// Load a list of modules into the runtime.
     ///
     /// ## Note
@@ -639,7 +624,7 @@ impl WXRuntime {
     fn new_js_runtime(&mut self) -> JsRuntime {
         let mut rt = JsRuntime::new(RuntimeOptions {
             module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
-            extensions: vec![stdlib::init()],
+            // extensions: vec![stdlib::init()],
             ..Default::default()
         });
         // Load WebX Standard Library
@@ -650,7 +635,7 @@ impl WXRuntime {
             exit_error(
                 format!("Failed to execute stdlib:\n{}", e),
                 500,
-                self.error_date_specifier(),
+                self.mode.date_specifier(),
             );
         }
         info(self.mode, "Initialized stdlib");
@@ -670,7 +655,7 @@ impl WXRuntime {
                     e
                 ),
                 500,
-                self.error_date_specifier(),
+                self.mode.date_specifier(),
             );
         }
         info(
@@ -693,7 +678,7 @@ impl WXRuntime {
     fn recompile(&mut self) {
         match WXRouteMap::from_modules(&self.source_modules) {
             Ok(routes) => self.routes = routes,
-            Err(err) => error_code(err.message, err.code, self.error_date_specifier()),
+            Err(err) => error_code(err.message, err.code, self.mode.date_specifier()),
         }
         if self.mode.is_dev() && self.mode.debug_level().is_high() {
             // Print the route map in dev mode.
@@ -787,7 +772,7 @@ impl WXRuntime {
                     error_code(
                         err.message.to_string(),
                         err.code,
-                        self.error_date_specifier(),
+                        self.mode.date_specifier(),
                     );
                     responses::internal_server_error_default_webx(self.mode, err.message)
                 }

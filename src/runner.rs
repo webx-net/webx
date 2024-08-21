@@ -88,6 +88,14 @@ impl WXMode {
             _ => DebugLevel::Low,
         }
     }
+
+    pub fn date_specifier(&self) -> DateTimeSpecifier {
+        if self.debug_level().is_high() {
+            DateTimeSpecifier::Verbose
+        } else {
+            DateTimeSpecifier::Short
+        }
+    }
 }
 
 //* Implement PartialEq for WXMode without taking DebugLevel into account
