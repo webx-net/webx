@@ -1,6 +1,6 @@
 use deno_core::{
     include_js_files,
-    v8::{Global, Local, Value},
+    v8::{self, Global, Local, Value},
     Extension,
 };
 
@@ -12,15 +12,20 @@ use super::runtime::{WXRuntimeError, WXRuntimeInfo};
 ///
 /// # Arguments
 /// - `path`: The path to the file to serve relative to the project root.
-fn webx_static<'a>(
-    relative_path: &Local<'a, Value>,
+fn webx_static(
+    relative_path: &Local<'_, Value>,
     info: &WXRuntimeInfo,
 ) -> Result<Global<Value>, WXRuntimeError> {
+    let mut isolate = v8::Isolate::new(Default::default());
+    let mut scope = v8::HandleScope::new(&mut isolate);
     // Read the file from the filesystem.
-    if let WXRTValue::String(path) = relative_path {
-        let file = std::fs::read(info.project_root.join(path));
+    if let Ok(path) = Local::<'_, v8::String>::try_from(*relative_path) {
+        let path = path.to_rust_string_lossy(&mut scope);
+        let file = std::fs::read(info.project_root.join(path.clone()));
         if let Ok(file) = file {
-            return Ok(WXRTValue::String(String::from_utf8(file).unwrap()));
+            let content = String::from_utf8(file).unwrap();
+            let local: Local<'_, v8::Value> = v8::String::new(&mut scope, &content).unwrap().into();
+            return Ok(Global::new(&mut scope, local));
         } else {
             return Err(WXRuntimeError {
                 message: format!("static: failed to read file '{}'", path),
@@ -29,16 +34,16 @@ fn webx_static<'a>(
         }
     }
     Err(WXRuntimeError {
-        message: format!("static: failed to read file '{}'", relative_path.to_raw()),
+        message: format!("static: failed to read file '{:?}'", relative_path),
         code: ERROR_HANDLER_CALL,
     })
 }
 
 /// Try to call a native function by name. \
 /// TODO: Figure out if this should be replaced with a JS extension.
-pub fn try_call<'a>(
+pub fn try_call(
     name: &str,
-    args: &[Local<'a, Value>],
+    args: &[Local<'_, Value>],
     info: &WXRuntimeInfo,
 ) -> Option<Result<Global<Value>, WXRuntimeError>> {
     let assert_args = |n: usize| {
