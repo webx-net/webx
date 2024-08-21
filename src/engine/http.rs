@@ -25,24 +25,19 @@ pub mod responses {
 
     use crate::runner::WXMode;
 
-    pub const HEADER_SERVER: String = format!("webx/{}", env!("CARGO_PKG_VERSION"));
-    pub const HEADER_SERVER_RELEASE: &str = "webx";
-    pub const SERVER_BANNER: String = format!("{} development mode", HEADER_SERVER);
-    pub const SERVER_BANNER_RELEASE: &str = HEADER_SERVER_RELEASE;
-
     pub fn server_header(mode: WXMode) -> String {
         if mode.is_dev() {
-            HEADER_SERVER.clone()
+            format!("webx/{}", env!("CARGO_PKG_VERSION"))
         } else {
-            HEADER_SERVER_RELEASE.to_string()
+            "webx".to_string()
         }
     }
 
     pub fn server_banner(mode: WXMode) -> String {
         if mode.is_dev() {
-            SERVER_BANNER.clone()
+            format!("{} development mode", server_header(mode))
         } else {
-            SERVER_BANNER_RELEASE.to_string()
+            "webx".to_string()
         }
     }
 
