@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     future::Future,
     net::SocketAddr,
     pin::Pin,
@@ -20,7 +21,13 @@ use hyper_util::rt::TokioIo;
 use tokio::time::timeout;
 
 use crate::{
-    file::project::ProjectConfig, reporting::debug::info, runner::WXMode, timeout_duration,
+    file::project::ProjectConfig,
+    reporting::{
+        debug::info,
+        error::{error_code, ERROR_EXEC_ROUTE, ERROR_HANDLER_CALL},
+    },
+    runner::WXMode,
+    timeout_duration,
 };
 
 use super::runtime::{WXRuntimeError, WXRuntimeMessage};
@@ -202,15 +209,36 @@ impl Service<Request<Incoming>> for WXSvc {
                 &format!("Request from: {}", self.address.unwrap()),
             );
         }
+        let date_spec = self.mode.date_specifier();
         // Send the actor RPC request via channels to the runtime.
         let (tx, rx) = tokio::sync::oneshot::channel();
-        self.runtime_tx
-            .send(WXRuntimeMessage::ExecuteRoute {
-                request: req,
-                addr: self.address.unwrap(),
-                respond_to: tx,
+        if let Err(err) = self.runtime_tx.send(WXRuntimeMessage::ExecuteRoute {
+            request: req,
+            addr: self.address.unwrap(),
+            respond_to: tx,
+        }) {
+            let error_msg = format!("Failed to execute route due to: {}", err);
+            error_code(error_msg.clone(), ERROR_EXEC_ROUTE, date_spec);
+            Box::pin(async move {
+                Err(WXRuntimeError {
+                    code: 500,
+                    message: error_msg,
+                })
             })
-            .unwrap();
-        Box::pin(async move { rx.await.unwrap() })
+        } else {
+            Box::pin(async move {
+                match rx.await {
+                    Ok(value) => value,
+                    Err(err) => {
+                        let error_msg = format!("Failed to execute route due to: {}", err);
+                        error_code(error_msg.clone(), ERROR_EXEC_ROUTE, date_spec);
+                        Err(WXRuntimeError {
+                            code: 500,
+                            message: error_msg,
+                        })
+                    }
+                }
+            })
+        }
     }
 }
