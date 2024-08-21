@@ -113,11 +113,8 @@ pub mod responses {
         <address>{}</address>
     </body>
 </html>"#,
-            if message.is_empty() {
-                ""
-            } else {
-                &format!(
-                    r#"
+            format!(
+                r#"
         <h2>Debugging Information</h2>
         <p>
             <strong>Message:</strong>
@@ -125,9 +122,8 @@ pub mod responses {
 {}
             </pre>
         </p>"#,
-                    message
-                )
-            },
+                message
+            ),
             server_banner(mode)
         );
         Response::builder()
