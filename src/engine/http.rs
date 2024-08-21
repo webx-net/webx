@@ -72,6 +72,26 @@ pub mod responses {
             .unwrap()
     }
 
+    pub fn ok_json(body: &Global<Value>, scope: &mut HandleScope, mode: WXMode) -> Response<Bytes> {
+        let local = Local::new(scope, body);
+        let value = v8::json::stringify(scope, local).expect("Failed to serialize JSON value");
+        let json = value.to_rust_string_lossy(scope);
+        let bytes = Bytes::from(json);
+        Response::builder()
+            .status(hyper::StatusCode::OK)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Content-Type", "application/json")
+            .header("Content-Length", bytes.len().to_string())
+            .header("Connection", "close")
+            .header("Server", server_header(mode))
+            .header("Date", chrono::Utc::now().to_rfc2822())
+            .header("Cache-Control", "no-cache")
+            .header("Pragma", "no-cache")
+            .header("Expires", "0")
+            .body(bytes)
+            .unwrap()
+    }
+
     pub fn not_found_default_webx(mode: WXMode) -> Response<String> {
         let body = format!(
             r#"<html>
