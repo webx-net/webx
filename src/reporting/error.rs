@@ -12,6 +12,7 @@ pub const ERROR_SYNTAX: i32 = 5;
 pub const ERROR_DUPLICATE_ROUTE: i32 = 6;
 pub const ERROR_INVALID_ROUTE: i32 = 7;
 pub const ERROR_HANDLER_CALL: i32 = 8;
+pub const ERROR_EXEC_ROUTE: i32 = 9;
 
 pub fn code_to_name(code: i32) -> String {
     match code {
@@ -20,6 +21,7 @@ pub fn code_to_name(code: i32) -> String {
         ERROR_CIRCULAR_DEPENDENCY => "Circular Dependency".to_owned(),
         ERROR_DUPLICATE_ROUTE => "Duplicate Route".to_owned(),
         ERROR_INVALID_ROUTE => "Invalid Route".to_owned(),
+        ERROR_EXEC_ROUTE => "Execute Route".to_owned(),
         ERROR_HANDLER_CALL => "Handler Call".to_owned(),
         ERROR_PARSE_IO => "Parse IO".to_owned(),
         ERROR_SYNTAX => "Syntax".to_owned(),
