@@ -21,7 +21,8 @@ pub mod requests {
 }
 
 pub mod responses {
-    use hyper::Response;
+    use deno_core::v8::{self, Global, HandleScope, Local, Value};
+    use hyper::{body::Bytes, Response};
 
     use crate::runner::WXMode;
 
@@ -41,13 +42,17 @@ pub mod responses {
         }
     }
 
-    pub fn serialize<D: Default + ToString>(response: &Response<D>) -> String {
+    pub fn serialize(response: &Response<Bytes>) -> String {
         let mut result = format!("HTTP/1.1 {}\r\n", response.status());
         for (header, value) in response.headers() {
             result.push_str(&format!("{}: {}\r\n", header, value.to_str().unwrap_or("")));
         }
         result.push_str("\r\n");
-        result.push_str(&response.body().to_string());
+        if let Ok(body) = String::from_utf8(response.body().to_vec()) {
+            result.push_str(&body);
+        } else {
+            result.push_str("<Failed to serialize>");
+        }
         result
     }
 
@@ -97,7 +102,7 @@ pub mod responses {
             .unwrap()
     }
 
-    pub fn internal_server_error_default_webx(mode: WXMode, message: String) -> Response<String> {
+    pub fn internal_server_error_default_webx(mode: WXMode, message: String) -> Response<Bytes> {
         let body = format!(
             r#"<html>
     <head>
@@ -137,7 +142,7 @@ pub mod responses {
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
             .header("Expires", "0")
-            .body(body)
+            .body(Bytes::from(body))
             .unwrap()
     }
 }
