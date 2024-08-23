@@ -22,6 +22,7 @@ A framework for building minimal but powerful **web app backends**, **REST APIs*
 <br>
 
 ## Features & Roadmap
+
 Below is a high-level overview of the existing (implemented) and planned features of the WebX technology (in no particular order).
 
 - [X] Blazingly fast[^1] 🔥
@@ -29,7 +30,7 @@ Below is a high-level overview of the existing (implemented) and planned feature
 - [X] Versatile, flexible, and powerful 🤸
 - [X] Easy to use and learn 🧠
 
-[^1]: https://www.youtube.com/watch?v=1M9hPXg-bFM
+[^1]: [BLAZING FAST @ThePrimeagen](https://www.youtube.com/watch?v=1M9hPXg-bFM)
 
 <details><summary>Batteries included 🔋</summary>
 
@@ -242,28 +243,41 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):user, isAdmin
 
 <br>
 
-
 ## Getting started
-### Installation
+
+### →&nbsp; Read the [Documentation](https://docs.webx.sh/)
+
+### →&nbsp; Installation
+
 Download the latest prebuilt binaries from the [releases page](https://github.com/WilliamRagstad/WebX/releases) and extract it to a folder of your choice.
 
-### Usage
-To start the web server in `dev` mode for a project, use:
+### →&nbsp; Development
+
+Run the web server in `dev` mode for the current project:
+
 ```sh
 webx run
 ```
+
 This enables **hot reloading** 🔥, **extensive logging**, **safe real-time error reporting**, and other useful features.
-<br><br>
-To run the project in production mode, use:
+
+### →&nbsp; Production
+
+To run the project in production mode:
+
 ```sh
 webx run --prod
 ```
-This enables **optimizations** 🚀 (*for speed and memory performance improvements*), **caching**, **compression**, and other valuable features. It also *disables hot reloading and logging* to **not leak any sensitive information**.
+
+This performs compile-time **optimizations** 🚀 (*for performance improvements*), **caching**, and other valuable features.
+It also disables hot reloading and response-logging to reduce sensitive debug information.
 
 <br>
 
 ## Examples
+
 The following is an example of a simple WebX to-do list application.
+
 ```typescript
 include "../common.webx"
 
@@ -317,7 +331,8 @@ get /todos/(id: number) -> initServices:s, auth(s.userService, id):a, isAdmin(a.
 
 <br>
 
-## Why <b>Web<font color="#3d72d7">X</font></b>?
+## Why <b>Web <font color="#3d72d7">X</font></b>?
+
 **Our vision** is to reduce the boilerplate and complexity of building backends and APIs.\
 ▸ WebX is designed to be **simple**, **minimal**, **easy to learn**, and **intuitive** while still being **versatile** and **flexible**.
 It can build complex applications **quickly** while still being **lightweight🪶** and **blazingly fast🔥**.
@@ -327,12 +342,15 @@ It can build complex applications **quickly** while still being **lightweight�
 > ▸ Jump straight to ***the goodi-goodi parts*** and get [started using](#getting-started) **WebX** today!
 
 ### ❤️ Perfect match for <b><<font color="#3d72d7">/</font>> htm<font color="#3d72d7">x</font></b>
+
 WebX is designed to be a minimalistic web framework that is easy to learn and use.
 It is ***intended*** to be used with **HTMX**, a great alternative to frameworks like React, Vue, and Angular (or other stacks).
 HTMX allows you to build dynamic web applications without learning a new language or framework for the front end.
 WebX is designed to be versatile and flexible, and it is easy to quickly build backends for complex applications.\
 ▸ [Read more about HTMX](https://htmx.org/)
+
 ### What about <b><font color="#3d72d7">///_h</font>yper<font color="#3d72d7">s</font>cript</b>?
+
 HyperScript is a front-end JavaScript DSL for creating and manipulating HTML DOM elements. It is lightweight, tightly coupled with your HTML code, and is easy to learn.\
 *While JSX is the default JS+HTML DSL* in Webx, HyperScript is supported **natively** by WebX and can also be configured to be used in the project settings.\
 ▸ [Read more about HyperScript](https://hyperscript.org/)
@@ -340,6 +358,7 @@ HyperScript is a front-end JavaScript DSL for creating and manipulating HTML DOM
 <br>
 
 ## Contributing
+
 Contributions are welcome!
 If you have any suggestions or find any bugs, please create an issue or a pull request.
 
