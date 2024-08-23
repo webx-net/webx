@@ -1,7 +1,6 @@
 use deno_core::{
-    include_js_files,
     v8::{self, Global, Local, Value},
-    Extension,
+    JsRuntime,
 };
 
 use crate::reporting::error::ERROR_HANDLER_CALL;
@@ -13,19 +12,20 @@ use super::runtime::{WXRuntimeError, WXRuntimeInfo};
 /// # Arguments
 /// - `path`: The path to the file to serve relative to the project root.
 fn webx_static(
-    relative_path: &Local<'_, Value>,
+    global_relative_path: &Global<Value>,
+    rt: &mut JsRuntime,
     info: &WXRuntimeInfo,
 ) -> Result<Global<Value>, WXRuntimeError> {
-    let mut isolate = v8::Isolate::new(Default::default());
-    let mut scope = v8::HandleScope::new(&mut isolate);
+    let scope = &mut rt.handle_scope();
     // Read the file from the filesystem.
-    if let Ok(path) = Local::<'_, v8::String>::try_from(*relative_path) {
-        let path = path.to_rust_string_lossy(&mut scope);
+    let local_relative_path = Local::new(scope, global_relative_path);
+    if let Ok(path) = Local::<'_, v8::String>::try_from(local_relative_path) {
+        let path = path.to_rust_string_lossy(scope);
         let file = std::fs::read(info.project_root.join(path.clone()));
         if let Ok(file) = file {
             let content = String::from_utf8(file).unwrap();
-            let local: Local<'_, v8::Value> = v8::String::new(&mut scope, &content).unwrap().into();
-            return Ok(Global::new(&mut scope, local));
+            let local: Local<'_, v8::Value> = v8::String::new(scope, &content).unwrap().into();
+            return Ok(Global::new(scope, local));
         } else {
             return Err(WXRuntimeError {
                 message: format!("static: failed to read file '{}'", path),
@@ -34,7 +34,7 @@ fn webx_static(
         }
     }
     Err(WXRuntimeError {
-        message: format!("static: failed to read file '{:?}'", relative_path),
+        message: format!("static: failed to read file '{:?}'", global_relative_path),
         code: ERROR_HANDLER_CALL,
     })
 }
@@ -43,7 +43,8 @@ fn webx_static(
 /// TODO: Figure out if this should be replaced with a JS extension.
 pub fn try_call(
     name: &str,
-    args: &[Local<'_, Value>],
+    args: &[Global<Value>],
+    rt: &mut JsRuntime,
     info: &WXRuntimeInfo,
 ) -> Option<Result<Global<Value>, WXRuntimeError>> {
     let assert_args = |n: usize| {
@@ -57,7 +58,7 @@ pub fn try_call(
     };
 
     Some(match name {
-        "static" => assert_args(1).and_then(|_| webx_static(&args[0], info)),
+        "static" => assert_args(1).and_then(|_| webx_static(&args[0], rt, info)),
         _ => return None,
     })
 }

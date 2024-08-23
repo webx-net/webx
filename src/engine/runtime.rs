@@ -119,19 +119,19 @@ impl WXRouteHandlerCall {
         }
     }
 
-    fn extract_arguments<'a>(
+    fn extract_arguments(
         &self,
         global_args: v8::Global<v8::Value>,
-        rt: &'a mut JsRuntime,
-    ) -> Result<Vec<Local<'a, Value>>, WXRuntimeError> {
+        rt: &mut JsRuntime,
+    ) -> Result<Vec<Global<Value>>, WXRuntimeError> {
         let mut js_args = Vec::new();
 
         {
             // Isolate the HandleScope to this block to avoid lifetime issues
-            let mut scope = rt.handle_scope();
-            let local_args = Local::new(&mut scope, global_args);
+            let scope = &mut rt.handle_scope();
+            let local_args = Local::new(scope, global_args);
 
-            let arr_args = match Local::<'a, v8::Array>::try_from(local_args) {
+            let arr_args = match Local::<'_, v8::Array>::try_from(local_args) {
                 Ok(args) => args,
                 Err(err) => {
                     return Err(WXRuntimeError {
@@ -147,8 +147,9 @@ impl WXRouteHandlerCall {
             let len = arr_args.length() as usize;
 
             for i in 0..len {
-                let arg = arr_args.get_index(&mut scope, i as u32).unwrap();
-                js_args.push(arg);
+                let arg = arr_args.get_index(scope, i as u32).unwrap();
+                let global_arg = Global::new(scope, arg);
+                js_args.push(global_arg);
             }
         }
 
@@ -174,7 +175,7 @@ impl WXRouteHandlerCall {
             Ok(args) => args,
             Err(e) => return Some(Err(e)),
         };
-        stdlib::try_call(&self.name, &js_args, info)
+        stdlib::try_call(&self.name, &js_args, rt, info)
     }
 
     fn execute_user_script(&self, rt: &mut JsRuntime) -> Result<Global<Value>, WXRuntimeError> {
