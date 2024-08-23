@@ -434,64 +434,6 @@ impl WXRTRoute {
                 message: format!("Route execution not implemented for: pre_handlers={}, body={}, post_handlers={}", has_pre_handlers, has_body, has_post_handlers),
             }),
         };
-        // if !has_pre_handlers && !has_body && !has_post_handlers {
-        //     // No handlers or body are present, return an empty response.
-        //     Err(WXRuntimeError {
-        //         code: 500,
-        //         message: "Route is empty".into(),
-        //     })
-        // } else if !has_pre_handlers && has_body && !has_post_handlers {
-        //     // Only a body is present, execute it and return the result.
-        //     self.execute_body()
-        // } else if !has_body {
-        //     // Only handlers are present, execute them sequentially.
-        //     // Merge all pre and post handlers into a single handler vector.
-        //     let mut handlers = self.pre_handlers.clone();
-        //     handlers.extend(self.post_handlers.clone());
-        //     // Execute all (but last() handlers sequentially.
-        //     for handler in handlers.iter().take(handlers.len() - 1) {
-        //         let result = handler.execute(ctx, rt, info)?;
-        //         // Bind the result to the output variable.
-        //         if let Some(output) = &handler.output {
-        //             ctx.bind(output, result);
-        //         }
-        //     }
-        //     // Execute the last handler and return the result as the response.
-        //     let handler = handlers.last().unwrap();
-        //     // Ok(ok_html(handler.execute(ctx, rt, info)?.to_raw()))
-        //     let result = handler.execute(ctx, rt, info)?;
-        //     if let Some(output) = &handler.output {
-        //         ctx.bind(output, result);
-        //     }
-        // } else {
-        //     // Both handlers and a body are present.
-        //     // Execute pre-handlers sequentially.
-        //     for handler in self.pre_handlers.iter() {
-        //         let result = handler.execute(ctx, rt, info)?;
-        //         if let Some(output) = &handler.output {
-        //             ctx.bind(output, result);
-        //         }
-        //     }
-        //     let body = self.execute_body(ctx)?;
-        //     if self.post_handlers.is_empty() {
-        //         // No post-handlers are present, return the body result.
-        //         return Ok(ok_html(body.to_raw()));
-        //     }
-        //     // Execute post-handlers sequentially.
-        //     for handler in self.post_handlers.iter().take(self.post_handlers.len() - 1) {
-        //         let result = handler.execute(ctx, rt, info)?;
-        //         if let Some(output) = &handler.output {
-        //             ctx.bind(output, result);
-        //         }
-        //     }
-        //     Ok(ok_html(
-        //         self.post_handlers
-        //             .last()
-        //             .unwrap()
-        //             .execute(ctx, rt, info)?
-        //             .to_raw(),
-        //     ))
-        // }
     }
 }
 
