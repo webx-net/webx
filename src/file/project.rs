@@ -173,7 +173,7 @@ pub fn load_modules(src: &Path) -> Vec<WXModule> {
     let webx_modules = files.iter().map(parse_webx_file).collect::<Vec<_>>();
     let errors = webx_modules
         .iter()
-        .filter_map(|m| if let Err(e) = m { Some(e) } else { None })
+        .filter_map(|m| if let Err(err) = m { Some(err) } else { None })
         .collect::<Vec<_>>();
     if !errors.is_empty() {
         for err in errors {

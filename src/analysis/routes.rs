@@ -22,8 +22,8 @@ fn flatten_scopes(
     for route in scope.routes.iter() {
         let flat_path = path_prefix.combine(&route.path);
         let route_key = (route.clone(), flat_path);
-        if let std::collections::hash_map::Entry::Vacant(e) = routes.entry(route_key.clone()) {
-            e.insert(vec![route.info.clone()]);
+        if let std::collections::hash_map::Entry::Vacant(entry) = routes.entry(route_key.clone()) {
+            entry.insert(vec![route.info.clone()]);
         } else {
             routes.get_mut(&route_key).unwrap().push(route.info.clone());
         }

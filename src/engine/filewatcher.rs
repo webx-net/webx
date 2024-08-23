@@ -72,8 +72,8 @@ impl WXFileWatcher {
                                     Ok(module) => {
                                         rt_tx.send(WXRuntimeMessage::New(module)).unwrap()
                                     }
-                                    Err(e) => {
-                                        warning(mode, format!("(FileWatcher) Error: {:?}", e))
+                                    Err(err) => {
+                                        warning(mode, format!("(FileWatcher) Error: {:?}", err))
                                     }
                                 }
                             }
@@ -86,8 +86,8 @@ impl WXFileWatcher {
                                     Ok(module) => rt_tx
                                         .send(WXRuntimeMessage::Swap(event.path.clone(), module))
                                         .unwrap(),
-                                    Err(e) => {
-                                        warning(mode, format!("(FileWatcher) Error: {:?}", e))
+                                    Err(err) => {
+                                        warning(mode, format!("(FileWatcher) Error: {:?}", err))
                                     }
                                 }
                             }

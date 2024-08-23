@@ -96,9 +96,9 @@ fn eval_js_expression(
     let val = rt.execute_script("[webx expression]", expr.into());
     match val {
         Ok(val) => Ok(val),
-        Err(e) => Err(WXRuntimeError {
+        Err(err) => Err(WXRuntimeError {
             code: 500,
-            message: format!("Expression threw an error:\n{}", e),
+            message: format!("Expression threw an error:\n{}", err),
         }),
     }
 }
@@ -161,16 +161,16 @@ impl WXRouteHandlerCall {
     ) -> Option<Result<Global<Value>, WXRuntimeError>> {
         let global_args = match eval_js_expression(format!("[{}]", self.args), rt, ctx) {
             Ok(val) => val,
-            Err(e) => {
+            Err(err) => {
                 return Some(Err(WXRuntimeError {
                     code: 500,
-                    message: format!("Handler '{}' threw an error:\n{}", self.name, e),
+                    message: format!("Handler '{}' threw an error:\n{}", self.name, err),
                 }))
             }
         };
         let js_args = match self.extract_arguments(global_args, rt) {
             Ok(args) => args,
-            Err(e) => return Some(Err(e)),
+            Err(err) => return Some(Err(err)),
         };
         stdlib::try_call(&self.name, &js_args, rt, info)
     }
@@ -605,12 +605,12 @@ impl WXRuntime {
             ..Default::default()
         });
         // Load WebX Standard Library
-        if let Err(e) = rt.execute_script(
+        if let Err(err) = rt.execute_script(
             "[webx stdlib]",
             deno_core::FastString::Static(stdlib::JAVASCRIPT),
         ) {
             exit_error(
-                format!("Failed to execute stdlib:\n{}", e),
+                format!("Failed to execute stdlib:\n{}", err),
                 500,
                 self.mode.date_specifier(),
             );
@@ -622,14 +622,14 @@ impl WXRuntime {
     /// Initialize the module and execute the global scope
     fn new_module_js_runtime(&mut self, module: &WXModule) -> JsRuntime {
         let mut rt = self.new_js_runtime();
-        if let Err(e) =
+        if let Err(err) =
             rt.execute_script("[global scope]", module.scope.global_ts.to_owned().into())
         {
             error_code(
                 format!(
                     "Failed to execute global scope for module '{}':\n{}",
                     module.path.module_name(),
-                    e
+                    err
                 ),
                 500,
                 self.mode.date_specifier(),

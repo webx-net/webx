@@ -1,6 +1,7 @@
 use std::{
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
+    io,
     path::PathBuf,
 };
 
@@ -115,18 +116,22 @@ impl WXModulePath {
         Self { inner }
     }
     /// "/path/to/file.webx" -> "path/to"
-    pub fn parent(&self) -> String {
-        let cwd = std::env::current_dir().unwrap().canonicalize().unwrap();
-        let path = self.inner.canonicalize().unwrap();
-        let stripped = path
-            .strip_prefix(&cwd)
-            .unwrap_or_else(|_| panic!("Failed to strip prefix of {:?}", path));
-        stripped
-            .parent()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .replace('\\', "/")
+    pub fn parent(&self) -> io::Result<String> {
+        let cwd = std::env::current_dir()?.canonicalize()?;
+        let path = self.inner.canonicalize()?;
+        let Ok(stripped) = path.strip_prefix(&cwd) else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Failed to strip prefix of {:?}", path),
+            ));
+        };
+        let Some(parent) = stripped.parent() else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Failed to get parent of {:?}", stripped),
+            ));
+        };
+        Ok(parent.to_str().unwrap().replace('\\', "/"))
     }
 
     /// "/path/to/file.webx" -> "file"
@@ -145,8 +150,8 @@ impl WXModulePath {
 
     /// "/path/to/file.webx" -> "path/to/file"
     pub fn module_name(&self) -> String {
-        if !self.parent().is_empty() {
-            format!("{}/{}", self.parent(), self.name())
+        if let Ok(parent) = self.parent() {
+            format!("{}/{}", parent, self.name())
         } else {
             self.name().to_string()
         }
