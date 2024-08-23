@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     future::Future,
     net::SocketAddr,
     pin::Pin,
@@ -24,7 +23,7 @@ use crate::{
     file::project::ProjectConfig,
     reporting::{
         debug::info,
-        error::{error_code, ERROR_EXEC_ROUTE, ERROR_HANDLER_CALL},
+        error::{error_code, ERROR_EXEC_ROUTE},
     },
     runner::WXMode,
     timeout_duration,

@@ -52,9 +52,6 @@ impl Display for WXRuntimeError {
 
 impl std::error::Error for WXRuntimeError {}
 
-trait AssertSendSync: Send + Sync + 'static {}
-impl AssertSendSync for WXRuntimeError {}
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct WXRTContext {
     pub values: HashMap<String, Global<Value>>,
