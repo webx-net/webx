@@ -74,10 +74,7 @@ impl WXFileWatcher {
                                         {
                                             warning(
                                                 mode,
-                                                format!(
-                                                    "(FileWatcher) Error send module: {:?}",
-                                                    err
-                                                ),
+                                                format!("(FileWatcher) Error send module: {}", err),
                                             )
                                         }
                                     }
