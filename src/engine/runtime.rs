@@ -18,7 +18,7 @@ use deno_core::{
 use hyper::body::Bytes;
 
 use crate::{
-    analysis::routes::verify_model_routes,
+    analysis::routes::{verify_model_routes, FlatRoutes},
     file::webx::{
         WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXRouteHandlerCall, WXTypedIdentifier,
         WXUrlPath, WXUrlPathSegment,
@@ -454,32 +454,21 @@ impl WXRouteMap {
 
     /// Create a new route map from a list of modules.
     fn from_modules(modules: &[WXModule]) -> Result<Self, WXRuntimeError> {
-        let routes = verify_model_routes(modules);
-        if let Err((message, code)) = routes {
-            return Err(WXRuntimeError { code, message });
-        }
+        let routes: FlatRoutes = verify_model_routes(modules)?;
         let mut route_map: WXRouteMapInner = HashMap::new();
         // Insert all routes into each method map category.
-        for ((route, path), _) in routes.unwrap().into_iter() {
-            let module_path = route.info.path.clone();
-            let method_map = route_map.entry(route.method.clone()).or_default();
-            method_map.insert(path.clone(), Self::compile_route(route, module_path)?);
+        for ((route, path), _) in routes {
+            route_map.entry(route.method.clone()).or_default().insert(
+                path.clone(),
+                WXRTRoute {
+                    module_path: route.info.path,
+                    body: route.body,
+                    pre_handlers: route.pre_handlers,
+                    post_handlers: route.post_handlers,
+                },
+            );
         }
         Ok(WXRouteMap(route_map))
-    }
-
-    /// Compile a parsed route into a runtime route.
-    fn compile_route(
-        route: WXRoute,
-        module_path: WXModulePath,
-    ) -> Result<WXRTRoute, WXRuntimeError> {
-        let body = route.body.clone();
-        Ok(WXRTRoute {
-            module_path,
-            body,
-            pre_handlers: route.pre_handlers,
-            post_handlers: route.post_handlers,
-        })
     }
 
     /// Get a route from the route map.

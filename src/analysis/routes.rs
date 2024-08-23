@@ -3,6 +3,7 @@ use colored::*;
 use std::collections::HashMap;
 
 use crate::{
+    engine::runtime::WXRuntimeError,
     file::webx::{WXInfoField, WXModule, WXRoute, WXScope, WXUrlPath, WXROOT_PATH},
     reporting::error::{
         exit_error, format_info_field, DateTimeSpecifier, ERROR_DUPLICATE_ROUTE,
@@ -10,7 +11,7 @@ use crate::{
     },
 };
 
-type FlatRoutes = HashMap<(WXRoute, WXUrlPath), Vec<WXInfoField>>;
+pub type FlatRoutes = HashMap<(WXRoute, WXUrlPath), Vec<WXInfoField>>;
 
 fn flatten_scopes(
     module_name: String,
@@ -62,17 +63,17 @@ pub fn extract_duplicate_routes(routes: &FlatRoutes) -> Vec<String> {
         .collect()
 }
 
-pub fn analyze_duplicate_routes(modules: &[WXModule]) -> Result<FlatRoutes, (String, i32)> {
+pub fn analyze_duplicate_routes(modules: &[WXModule]) -> Result<FlatRoutes, WXRuntimeError> {
     let routes = extract_flat_routes(modules);
     let duplicate_routes = extract_duplicate_routes(&routes);
     if !duplicate_routes.is_empty() {
-        return Err((
-            format!(
+        return Err(WXRuntimeError {
+            code: ERROR_DUPLICATE_ROUTE,
+            message: format!(
                 "Duplicate routes detected:\n  - {}",
                 duplicate_routes.join("\n  - ")
             ),
-            ERROR_DUPLICATE_ROUTE,
-        ));
+        });
     }
     Ok(routes)
 }
@@ -101,24 +102,24 @@ fn extract_invalid_routes(routes: &FlatRoutes) -> Vec<String> {
 /// If an invalid route is detected, an error is reported and the program exits.
 /// Invalid routes include:
 /// - bad combinations of route methods and request body format types (e.g. GET + body)
-pub fn analyze_invalid_routes(modules: &[WXModule]) -> Result<(), (String, i32)> {
+pub fn analyze_invalid_routes(modules: &[WXModule]) -> Result<(), WXRuntimeError> {
     let routes = extract_flat_routes(modules);
     let invalid_routes = extract_invalid_routes(&routes);
     if !invalid_routes.is_empty() {
-        return Err((
-            format!(
+        return Err(WXRuntimeError {
+            code: ERROR_INVALID_ROUTE,
+            message: format!(
                 "Invalid routes detected:\n  - {}",
                 invalid_routes.join("\n  - ")
             ),
-            ERROR_INVALID_ROUTE,
-        ));
+        });
     }
     Ok(())
 }
 
-fn exit_on_err<T>(result: Result<T, (String, i32)>) {
-    if let Err((message, code)) = result {
-        exit_error(message, code, DateTimeSpecifier::None);
+fn exit_on_err<T>(result: Result<T, WXRuntimeError>) {
+    if let Err(err) = result {
+        exit_error(err.message, err.code, DateTimeSpecifier::None);
     }
 }
 
@@ -127,7 +128,7 @@ pub fn analyze_module_routes(modules: &[WXModule]) {
     exit_on_err(analyze_invalid_routes(modules));
 }
 
-pub fn verify_model_routes(modules: &[WXModule]) -> Result<FlatRoutes, (String, i32)> {
+pub fn verify_model_routes(modules: &[WXModule]) -> Result<FlatRoutes, WXRuntimeError> {
     let routes = analyze_duplicate_routes(modules)?;
     analyze_invalid_routes(modules)?;
     Ok(routes)
