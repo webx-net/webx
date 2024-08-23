@@ -2,7 +2,15 @@
 
 get /public/(asset: String) -> static("assets/" + asset)
 
-get / (<html>
+get / (
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="A Web X demo site">
+        <title>Web X Demo</title>
+    </head>
     <body>
         <h1>Hello from WebX!</h1>
         <p>
