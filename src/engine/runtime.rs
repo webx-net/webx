@@ -767,7 +767,8 @@ impl WXRuntime {
             Ok(response.map(http_body_util::Full::from))
         } else {
             warning(self.mode, format!("No route match: {}", req.uri().path()));
-            let response = responses::not_found_default_webx(self.mode, req.uri().to_string());
+            let response =
+                responses::not_found_default_webx(self.mode, req.method(), req.uri().to_string());
             info(
                 self.mode,
                 &format!("{} response to: {}", response.status(), addr),

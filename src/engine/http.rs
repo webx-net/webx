@@ -22,7 +22,7 @@ pub mod requests {
 
 pub mod responses {
     use deno_core::v8::{self, Global, HandleScope, Local, Value};
-    use hyper::{body::Bytes, Response};
+    use hyper::{body::Bytes, Method, Response};
 
     use crate::runner::WXMode;
 
@@ -92,7 +92,7 @@ pub mod responses {
             .unwrap()
     }
 
-    pub fn not_found_default_webx(mode: WXMode) -> Response<String> {
+    pub fn not_found_default_webx(mode: WXMode, method: &Method, url: String) -> Response<String> {
         let body = format!(
             r#"<html>
     <head>
@@ -101,10 +101,16 @@ pub mod responses {
     <body>
         <h1>404 Not Found</h1>
         <p>The requested URL was not found on this server.</p>
+		<p>
+			<strong>Resource:</strong>
+			<code>{} {}</code>
+		</p>
         <hr>
         <address>{}</address>
     </body>
 </html>"#,
+            method,
+            url,
             server_banner(mode)
         );
         Response::builder()
@@ -133,22 +139,19 @@ pub mod responses {
         <p>
             The server encountered an internal error and was unable to complete your request. <br>
             Either the server is overloaded or there is an error in the application.
-        </p>{}
-        <hr>
-        <address>{}</address>
-    </body>
-</html>"#,
-            format!(
-                r#"
+        </p>
         <h2>Debugging Information</h2>
         <p>
             <strong>Message:</strong>
             <pre>
 {}
             </pre>
-        </p>"#,
-                message
-            ),
+        </p>
+        <hr>
+        <address>{}</address>
+    </body>
+</html>"#,
+            message,
             server_banner(mode)
         );
         Response::builder()
