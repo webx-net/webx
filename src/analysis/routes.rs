@@ -5,9 +5,12 @@ use std::collections::HashMap;
 use crate::{
     engine::runtime::WXRuntimeError,
     file::webx::{WXInfoField, WXModule, WXRoute, WXScope, WXUrlPath, WXROOT_PATH},
-    reporting::error::{
-        exit_error, format_info_field, DateTimeSpecifier, ERROR_DUPLICATE_ROUTE,
-        ERROR_INVALID_ROUTE,
+    reporting::{
+        error::{
+            exit_error, format_info_field, DateTimeSpecifier, ERROR_DUPLICATE_ROUTE,
+            ERROR_INVALID_ROUTE,
+        },
+        route::print_route,
     },
 };
 
@@ -54,9 +57,8 @@ pub fn extract_duplicate_routes(routes: &FlatRoutes) -> Vec<String> {
         .map(|((route, path), modules)| {
             let locations = modules.iter().map(format_info_field).collect::<Vec<_>>();
             format!(
-                "Route {} {} is defined in modules:\n    - {}",
-                route.method.to_string().green(),
-                path.to_string().yellow(),
+                "Route {} is defined in modules:\n    - {}",
+                print_route(&route.method, path),
                 locations.join("\n    - ")
             )
         })

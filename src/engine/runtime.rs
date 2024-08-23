@@ -20,12 +20,13 @@ use hyper::body::Bytes;
 use crate::{
     analysis::routes::{verify_model_routes, FlatRoutes},
     file::webx::{
-        WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXRouteHandlerCall, WXTypedIdentifier,
+        WXBody, WXBodyType, WXModule, WXModulePath, WXRouteHandlerCall, WXTypedIdentifier,
         WXUrlPath, WXUrlPathSegment,
     },
     reporting::{
         debug::info,
         error::{error_code, exit_error},
+        route::print_route,
         warning::warning,
     },
     runner::WXMode,
@@ -672,7 +673,7 @@ impl WXRuntime {
                 })
                 .collect();
             for (method, path) in routes {
-                println!(" - {} {}", method, path);
+                println!(" - {}", print_route(method, path));
             }
         }
     }
@@ -766,7 +767,7 @@ impl WXRuntime {
             Ok(response.map(http_body_util::Full::from))
         } else {
             warning(self.mode, format!("No route match: {}", req.uri().path()));
-            let response = responses::not_found_default_webx(self.mode);
+            let response = responses::not_found_default_webx(self.mode, req.uri().to_string());
             info(
                 self.mode,
                 &format!("{} response to: {}", response.status(), addr),
