@@ -13,6 +13,12 @@ get / (<html>
     </body>
 </html>)
 
+get /about (<div>
+    <h1>About</h1>
+    <p>This is an example WebX project.</p>
+    <a href="/">Home</a>
+</div>)
+
 post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
     const a = [5];
     if true { console.log(text); }
@@ -57,12 +63,6 @@ handler authenticate(user_id: Number) {
         return Guard::Deny;
     }
 }
-
-get /about (<div>
-    <h1>About</h1>
-    <p>This is an example WebX project.</p>
-    <a href="/">Home</a>
-</div>)
 
 location todos {
     // The main todo app page.
