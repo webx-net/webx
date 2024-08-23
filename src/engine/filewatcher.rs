@@ -70,7 +70,16 @@ impl WXFileWatcher {
                             if !event.is_duplicate(&last_event) {
                                 match parse_webx_file(&event.path.inner) {
                                     Ok(module) => {
-                                        rt_tx.send(WXRuntimeMessage::New(module)).unwrap()
+                                        if let Err(err) = rt_tx.send(WXRuntimeMessage::New(module))
+                                        {
+                                            warning(
+                                                mode,
+                                                format!(
+                                                    "(FileWatcher) Error send module: {:?}",
+                                                    err
+                                                ),
+                                            )
+                                        }
                                     }
                                     Err(err) => {
                                         warning(mode, format!("(FileWatcher) Error: {:?}", err))
@@ -105,7 +114,7 @@ impl WXFileWatcher {
                         _ => (),
                     }
                 }
-                Err(e) => warning(mode, format!("watch error: {:?}", e)),
+                Err(err) => warning(mode, format!("watch error: {:?}", err)),
             }
         })
         .unwrap();
