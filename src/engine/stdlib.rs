@@ -68,15 +68,15 @@ pub fn try_call(
 //     Ok(file)
 // }
 
-pub fn init() -> Extension {
-    Extension {
-        name: "webx stdlib",
-        ops: vec![].into(), //  vec![op_webx_static::decl()],
-        esm_files: include_js_files!(stdlib "src/engine/stdlib.js",)
-            .to_vec()
-            .into(),
-        ..Default::default()
-    }
-}
+// pub fn init() -> Extension {
+//     Extension {
+//         name: "webx stdlib",
+//         ops: vec![].into(), //  vec![op_webx_static::decl()],
+//         esm_files: include_js_files!(stdlib "src/engine/stdlib.js",)
+//             .to_vec()
+//             .into(),
+//         ..Default::default()
+//     }
+// }
 
 pub const JAVASCRIPT: &str = include_str!("./stdlib.js");
