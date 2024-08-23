@@ -6,9 +6,8 @@ use std::{
 };
 
 use super::webx::{
-    WXBody, WXBodyType, WXHandler, WXInfoField, WXLiteralValue, WXModel, WXModulePath, WXRoute,
-    WXRouteHandler, WXRouteReqBody, WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment,
-    WXROOT_PATH,
+    WXBody, WXBodyType, WXHandler, WXInfoField, WXModel, WXModulePath, WXRoute, WXRouteHandlerCall,
+    WXRouteReqBody, WXScope, WXTypedIdentifier, WXUrlPath, WXUrlPathSegment, WXROOT_PATH,
 };
 
 // ======================== Errors ========================
@@ -506,135 +505,26 @@ impl<'a> WebXFileParser<'a> {
         Ok(pairs)
     }
 
-    fn parse_literal(&mut self) -> Result<WXLiteralValue, WebXParserError> {
-        let context = "parsing a literal value";
-        self.skip_whitespace(true);
-        let nc = self.peek();
-        if nc.is_none() {
-            return Err(WebXParserError::unexpected_eof(
-                context,
-                self.line,
-                self.column,
-                self.file.clone(),
-            ));
-        }
-        let nc = nc.unwrap();
-        Ok(match nc {
-            '"' => {
-                self.expect_next_specific('"', context)?;
-                WXLiteralValue::String(self.parse_string()?)
-            }
-            '[' => {
-                self.expect_next_specific('[', context)?;
-                let mut values = vec![];
-                loop {
-                    values.push(self.parse_literal()?);
-                    let nc = self.expect_next_any_of(vec![',', ']'], context)?;
-                    if nc == ']' {
-                        break;
-                    }
-                    self.next()?; // Consume the comma.
-                }
-                WXLiteralValue::Array(values)
-            }
-            '{' => {
-                self.expect_next_specific('{', context)?;
-                let mut values = vec![];
-                loop {
-                    let name = self.parse_identifier()?;
-                    self.expect_next_specific(':', context)?;
-                    let value = self.parse_literal()?;
-                    values.push((name, value));
-                    let nc = self.expect_next_any_of(vec![',', '}'], context)?;
-                    if nc == '}' {
-                        break;
-                    }
-                    self.next()?; // Consume the comma.
-                }
-                WXLiteralValue::Object(values)
-            }
-            c if c.is_numeric() => {
-                let integer = self.read_while(|c| c.is_numeric())?;
-                let mut fraction = "0".to_string();
-                if self.peek().is_some() && self.peek().unwrap() == '.' {
-                    self.next()?; // Consume the dot.
-                    fraction = self.read_while(|c| c.is_numeric())?;
-                }
-                WXLiteralValue::Number(
-                    integer.parse::<u32>().unwrap(),
-                    fraction.parse::<u32>().unwrap(),
-                )
-            }
-            c if c.is_alphabetic() => {
-                let name = self.parse_identifier()?;
-                if name == "true" {
-                    WXLiteralValue::Boolean(true)
-                } else if name == "false" {
-                    WXLiteralValue::Boolean(false)
-                } else if name == "null" {
-                    WXLiteralValue::Null
-                } else {
-                    WXLiteralValue::Identifier(name)
-                }
-            }
-            _ => {
-                return Err(WebXParserError::unexpected_char(
-                    nc,
-                    context,
-                    self.line,
-                    self.column,
-                    self.file.clone(),
-                ))
-            }
-        })
-    }
-
-    fn parse_arguments(&mut self, end: char) -> Result<Vec<String>, WebXParserError> {
-        let mut args = vec![];
-        if let Some(nc) = self.peek() {
-            if nc == end {
-                return Ok(args);
-            } // Empty arguments.
-        }
+    fn parse_ts_expression(&mut self, until: char) -> Result<String, WebXParserError> {
+        let mut s = String::new();
+        const GROUPING: [(char, char); 3] = [('(', ')'), ('{', '}'), ('[', ']')];
         loop {
-            match self.parse_literal()? {
-                WXLiteralValue::Identifier(name) => args.push(name),
-                other => {
-                    return Err(WebXParserError::expected_but_found(
-                        "identifier",
-                        other.to_string(),
-                        "parsing arguments",
-                        self.line,
-                        self.column,
-                        self.file.clone(),
-                    ))
-                }
+            let Some(nc) = self.peek() else {
+                break;
+            };
+            if nc == until {
+                break;
             }
-            if let Some(nc) = self.peek() {
-                if nc == end {
-                    break; // End of arguments.
-                } else if nc == ',' {
-                    self.next()?; // Consume the comma.
-                } else {
-                    return Err(WebXParserError::expected_any_of_but_found(
-                        &[',', end],
-                        nc,
-                        "parsing arguments",
-                        self.line,
-                        self.column,
-                        self.file.clone(),
-                    ));
-                }
+            let nc = self.next()?.unwrap();
+            if let Some((_, end)) = GROUPING.iter().find(|(start, _)| *start == nc) {
+                s.push(nc);
+                s.push_str(&self.parse_ts_expression(*end)?);
+                s.push(self.next()?.unwrap()); // Consume the end character.
             } else {
-                return Err(WebXParserError::unexpected_eof(
-                    "parsing arguments",
-                    self.line,
-                    self.column,
-                    self.file.clone(),
-                ));
+                s.push(nc);
             }
         }
-        Ok(args)
+        Ok(s)
     }
 
     fn parse_model(&mut self) -> Result<WXModel, WebXParserError> {
@@ -819,11 +709,11 @@ impl<'a> WebXFileParser<'a> {
         })
     }
 
-    fn parse_handler_call(&mut self) -> Result<WXRouteHandler, WebXParserError> {
+    fn parse_handler_call(&mut self) -> Result<WXRouteHandlerCall, WebXParserError> {
         let context = "parsing a handler call";
         let name = self.parse_identifier()?;
         self.expect_next_specific('(', context)?;
-        let args = self.parse_arguments(')')?;
+        let args = self.parse_ts_expression(')')?;
         self.expect_next_specific(')', context)?;
         self.skip_whitespace(true);
         let nc = self.peek();
@@ -834,10 +724,10 @@ impl<'a> WebXFileParser<'a> {
         } else {
             None
         };
-        Ok(WXRouteHandler { name, args, output })
+        Ok(WXRouteHandlerCall { name, args, output })
     }
 
-    fn parse_route_handlers(&mut self) -> Result<Vec<WXRouteHandler>, WebXParserError> {
+    fn parse_route_handlers(&mut self) -> Result<Vec<WXRouteHandlerCall>, WebXParserError> {
         let context = "parsing route handlers";
         self.skip_whitespace(true);
         Ok(match self.peek() {

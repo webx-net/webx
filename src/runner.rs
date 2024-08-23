@@ -14,6 +14,7 @@ use crate::engine::server::WXServer;
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
 use crate::file::webx::WXModule;
 use crate::reporting::error::{exit_error_hint, DateTimeSpecifier, ERROR_PROJECT};
+use crate::reporting::warning::warning;
 
 pub fn get_project_config_file_path(root: &Path) -> PathBuf {
     root.join("webx.config.json")
@@ -86,6 +87,14 @@ impl WXMode {
         match self {
             Self::Dev(level) => *level,
             _ => DebugLevel::Low,
+        }
+    }
+
+    pub fn date_specifier(&self) -> DateTimeSpecifier {
+        if self.debug_level().is_high() {
+            DateTimeSpecifier::Verbose
+        } else {
+            DateTimeSpecifier::Short
         }
     }
 }
@@ -231,8 +240,12 @@ pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
         let sv_rt_tx = rt_tx.clone();
         let mut server = WXServer::new(mode, config, sv_rt_tx);
         server.run(running).expect("Failed to run server");
-        runtime_hnd.join().unwrap();
-        fw_hnd.join().unwrap();
+        if runtime_hnd.join().is_err() {
+            warning(mode, "Failed to stop runtime".into());
+        }
+        if fw_hnd.join().is_err() {
+            warning(mode, "Failed to stop file watcher".into())
+        }
     } else {
         // If we are in production mode, run the `server` in main thread.
         let info = WXRuntimeInfo::new(root);
@@ -245,7 +258,9 @@ pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
         let sv_rt_tx = rt_tx.clone();
         let mut server = WXServer::new(mode, config, sv_rt_tx);
         server.run(running).expect("Failed to run server");
-        runtime_hnd.join().unwrap();
+        if runtime_hnd.join().is_err() {
+            warning(mode, "Failed to stop runtime".into())
+        }
     }
     // Check ps info: `ps | ? ProcessName -eq "webx"`
     // On interrupt, all threads are also terminated

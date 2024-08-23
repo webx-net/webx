@@ -1,5 +1,4 @@
 use std::{
-    borrow::Borrow,
     collections::HashMap,
     fmt::Display,
     net::SocketAddr,
@@ -13,7 +12,7 @@ use std::{
 };
 
 use deno_core::{
-    v8::{self, GetPropertyNamesArgs, Local, Value},
+    v8::{self, Global, Local, Value},
     JsRuntime, RuntimeOptions,
 };
 use hyper::body::Bytes;
@@ -21,12 +20,12 @@ use hyper::body::Bytes;
 use crate::{
     analysis::routes::verify_model_routes,
     file::webx::{
-        WXBody, WXBodyType, WXLiteralValue, WXModule, WXModulePath, WXRoute, WXRouteHandler,
-        WXTypedIdentifier, WXUrlPath, WXUrlPathSegment,
+        WXBody, WXBodyType, WXModule, WXModulePath, WXRoute, WXRouteHandlerCall, WXTypedIdentifier,
+        WXUrlPath, WXUrlPathSegment,
     },
     reporting::{
         debug::info,
-        error::{error_code, exit_error, DateTimeSpecifier},
+        error::{error_code, exit_error},
         warning::warning,
     },
     runner::WXMode,
@@ -34,7 +33,7 @@ use crate::{
 };
 
 use super::{
-    http::responses::{self, ok_html},
+    http::responses::{self, ok_html, ok_json},
     stdlib,
 };
 
@@ -58,205 +57,18 @@ impl AssertSendSync for WXRuntimeError {}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct WXRTContext {
-    pub values: HashMap<String, WXRTValue>,
+    pub values: HashMap<String, Global<Value>>,
 }
 
 impl WXRTContext {
-    fn new() -> Self {
+    pub fn new() -> WXRTContext {
         WXRTContext {
             values: HashMap::new(),
         }
     }
 
-    fn bind(&mut self, ident: &str, value: WXRTValue) {
-        self.values.insert(ident.into(), value);
-    }
-
-    fn resolve(&self, ident: &str) -> Option<WXRTValue> {
-        self.values.get(ident).cloned()
-    }
-}
-
-/// Runtime values in WebX.
-#[derive(Debug, PartialEq, Clone)]
-pub enum WXRTValue {
-    String(String),
-    Number(f64),
-    Boolean(bool),
-    Null,
-    Array(Vec<WXRTValue>),
-    Object(Vec<(String, WXRTValue)>),
-}
-
-impl WXRTValue {
-    /// Convert the runtime value into a string representing a JavaScript value.
-    pub fn to_js_string(&self) -> String {
-        match self {
-            WXRTValue::String(s) => format!("\"{}\"", s),
-            WXRTValue::Number(f) => f.to_string(),
-            WXRTValue::Boolean(b) => b.to_string(),
-            WXRTValue::Null => "null".into(),
-            WXRTValue::Array(arr) => {
-                let mut values = Vec::new();
-                for value in arr.iter() {
-                    values.push(value.to_js_string());
-                }
-                format!("[{}]", values.join(", "))
-            }
-            WXRTValue::Object(obj) => {
-                let mut values = Vec::new();
-                for (key, value) in obj.iter() {
-                    values.push(format!("{}: {}", key, value.to_js_string()));
-                }
-                format!("{{{}}}", values.join(", "))
-            }
-        }
-    }
-
-    pub fn to_js_value<'a>(&self, scope: &mut v8::HandleScope<'a>) -> Local<'a, Value> {
-        match self {
-            WXRTValue::String(s) => v8::String::new(scope, s).unwrap().into(),
-            WXRTValue::Number(f) => v8::Number::new(scope, *f).into(),
-            WXRTValue::Boolean(b) => v8::Boolean::new(scope, *b).into(),
-            WXRTValue::Null => v8::null(scope).into(),
-            WXRTValue::Array(arr) => {
-                let mut values = Vec::new();
-                for value in arr.iter() {
-                    values.push(value.to_js_value(scope));
-                }
-                let arr = v8::Array::new(scope, values.len() as i32);
-                for (i, value) in values.into_iter().enumerate() {
-                    arr.set_index(scope, i as u32, value);
-                }
-                arr.into()
-            }
-            WXRTValue::Object(obj) => {
-                let js_obj = v8::Object::new(scope);
-                for (key, value) in obj.iter() {
-                    let key = v8::String::new(scope, key).unwrap();
-                    let value = value.to_js_value(scope);
-                    js_obj.set(scope, key.into(), value);
-                }
-                js_obj.into()
-            }
-        }
-    }
-
-    /// Convert the runtime value into a raw value string.
-    /// This function will **not** wrap strings in quotes.
-    /// This function is used for sanitizing values in JSX render functions to be sent to the client.
-    /// This function will **not** escape any characters.
-    pub fn to_raw(&self) -> String {
-        match self {
-            WXRTValue::String(s) => s.clone(),
-            WXRTValue::Number(f) => f.to_string(),
-            WXRTValue::Boolean(b) => b.to_string(),
-            WXRTValue::Null => "null".into(),
-            WXRTValue::Array(arr) => {
-                let mut values = Vec::new();
-                for value in arr.iter() {
-                    values.push(value.to_raw());
-                }
-                format!("[{}]", values.join(", "))
-            }
-            WXRTValue::Object(obj) => {
-                let mut values = Vec::new();
-                for (key, value) in obj.iter() {
-                    values.push(format!("{}: {}", key, value.to_raw()));
-                }
-                format!("{{{}}}", values.join(", "))
-            }
-        }
-    }
-
-    pub fn from_js_value(val: &v8::Value) -> Result<Self, String> {
-        let mut isolate = v8::Isolate::new(Default::default());
-        let mut handle_scope = v8::HandleScope::new(&mut isolate);
-        let context = v8::Context::new(&mut handle_scope);
-        let scope = &mut v8::ContextScope::new(&mut handle_scope, context);
-        let val: &crate::engine::runtime::v8::Value = val;
-        if val.is_undefined() {
-            return Ok(WXRTValue::Null);
-        }
-        if val.is_null() {
-            return Ok(WXRTValue::Null);
-        }
-        if val.is_string() {
-            return Ok(WXRTValue::String(val.to_rust_string_lossy(scope)));
-        }
-        if val.is_number() {
-            return Ok(WXRTValue::Number(val.number_value(scope).unwrap()));
-        }
-        if val.is_boolean() {
-            return Ok(WXRTValue::Boolean(val.boolean_value(scope)));
-        }
-        if val.is_array() {
-            let mut values = Vec::new();
-            let arr_obj = val.to_object(scope).unwrap();
-            let len_str = v8::String::new(scope, "length").unwrap();
-            let len = arr_obj.get(scope, len_str.into()).unwrap();
-            let len = len.number_value(scope).unwrap() as usize;
-            for i in 0..len {
-                let val = arr_obj.get_index(scope, i as u32).unwrap();
-                let val = WXRTValue::from_js_value(&val).unwrap();
-                values.push(val);
-            }
-            return Ok(WXRTValue::Array(values));
-        }
-        if val.is_object() {
-            let mut fields = Vec::new();
-            let obj = val.to_object(scope).unwrap();
-            let keys = obj
-                .get_own_property_names(scope, GetPropertyNamesArgs::default())
-                .unwrap();
-            let len = keys.length() as usize;
-            for i in 0..len {
-                let key = keys.get_index(scope, i as u32).unwrap();
-                let key = key.to_string(scope).unwrap();
-                let key = key.to_rust_string_lossy(scope);
-                let key_str = v8::String::new(scope, &key).unwrap();
-                let val = obj.get(scope, key_str.into()).unwrap();
-                let val = WXRTValue::from_js_value(&val).unwrap();
-                fields.push((key, val));
-            }
-            return Ok(WXRTValue::Object(fields));
-        }
-        Err("Unsupported value type".into())
-    }
-}
-
-fn eval_literal(literal: &WXLiteralValue, ctx: &WXRTContext) -> Result<WXRTValue, WXRuntimeError> {
-    match literal {
-        WXLiteralValue::String(s) => Ok(WXRTValue::String(s.clone())),
-        WXLiteralValue::Number(i, d) => Ok(WXRTValue::Number(
-            format!("{}.{}", i, d).parse::<f64>().unwrap(),
-        )),
-        WXLiteralValue::Boolean(b) => Ok(WXRTValue::Boolean(*b)),
-        WXLiteralValue::Null => Ok(WXRTValue::Null),
-        WXLiteralValue::Array(arr) => {
-            let mut values = Vec::new();
-            for value in arr.iter() {
-                values.push(eval_literal(value, ctx)?);
-            }
-            Ok(WXRTValue::Array(values))
-        }
-        WXLiteralValue::Object(obj) => {
-            let mut values = Vec::new();
-            for (key, value) in obj.iter() {
-                values.push((key.clone(), eval_literal(value, ctx)?));
-            }
-            Ok(WXRTValue::Object(values))
-        }
-        WXLiteralValue::Identifier(ident) => {
-            if let Some(value) = ctx.resolve(ident) {
-                Ok(value)
-            } else {
-                Err(WXRuntimeError {
-                    code: 500,
-                    message: format!("Identifier '{}' not found in context", ident),
-                })
-            }
-        }
+    pub fn bind(&mut self, key: &str, value: Global<Value>) {
+        self.values.insert(key.to_string(), value);
     }
 }
 
@@ -269,7 +81,7 @@ fn init_context<'a>(
     for (key, value) in ctx.values.iter() {
         // Maybe replace key with Symbol instead?
         let key = v8::String::new(scope, key).unwrap();
-        let value = value.to_js_value(scope);
+        let value = Local::new(scope, value);
         global.set(scope, key.into(), value);
     }
     js_ctx
@@ -279,79 +91,100 @@ fn eval_js_expression(
     expr: String,
     rt: &mut JsRuntime,
     ctx: &WXRTContext,
-) -> Result<WXRTValue, WXRuntimeError> {
+) -> Result<Global<Value>, WXRuntimeError> {
     {
         let mut scope = rt.handle_scope();
         init_context(&mut scope, ctx);
     }
-    // unsafe {
-    //     scope.enter();
-    // }
     let val = rt.execute_script("[webx expression]", expr.into());
-    // unsafe {
-    //     scope.exit();
-    // }
     match val {
-        Ok(val) => WXRTValue::from_js_value(val.borrow()).map_err(|e| WXRuntimeError {
-            code: 500,
-            message: format!("Invalid value returned from expression:\n{}", e),
-        }),
+        Ok(val) => Ok(val),
         Err(e) => Err(WXRuntimeError {
             code: 500,
             message: format!("Expression threw an error:\n{}", e),
         }),
     }
 }
-
-/// A runtime handler call.
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct WXRTHandlerCall {
-    /// The handler name.
-    pub name: String,
-    /// The handler arguments.
-    pub args: Vec<String>,
-    /// The output variable name.
-    pub output: Option<String>,
-}
-
-impl WXRTHandlerCall {
-    fn from_handler(handler: &WXRouteHandler) -> Self {
-        WXRTHandlerCall {
-            name: handler.name.clone(),
-            args: handler.args.clone(),
-            output: handler.output.clone(),
-        }
-    }
-
+impl WXRouteHandlerCall {
     /// Execute the handler in the given context and return the result.
     fn execute(
         &self,
         ctx: &WXRTContext,
         rt: &mut JsRuntime,
         info: &WXRuntimeInfo,
-    ) -> Result<WXRTValue, WXRuntimeError> {
-        let args = self
-            .args
-            .iter()
-            .map(|arg| eval_js_expression(arg.to_owned(), rt, ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-        // Try to call a native handler.
-        if let Some(native_res) = stdlib::try_call(&self.name, &args, info) {
-            return native_res;
+    ) -> Result<Global<Value>, WXRuntimeError> {
+        match self.try_execute_native_script(rt, ctx, info) {
+            Some(result) => result,
+            None => self.execute_user_script(rt),
         }
-        // User-defined handler
-        let js_args = args.iter().map(WXRTValue::to_js_string).collect::<Vec<_>>();
-        let js_call = format!("{}({})", self.name, js_args.join(", "));
-        match rt.execute_script("[webx handler call]", js_call.into()) {
-            Ok(val) => WXRTValue::from_js_value(val.borrow()).map_err(|e| WXRuntimeError {
-                code: 500,
-                message: format!("Handler '{}' returned an invalid value:\n{}", self.name, e),
-            }),
-            Err(e) => Err(WXRuntimeError {
-                code: 500,
-                message: format!("Handler '{}' threw an error:\n{}", self.name, e),
-            }),
+    }
+
+    fn extract_arguments(
+        &self,
+        global_args: v8::Global<v8::Value>,
+        rt: &mut JsRuntime,
+    ) -> Result<Vec<Global<Value>>, WXRuntimeError> {
+        let mut js_args = Vec::new();
+
+        {
+            // Isolate the HandleScope to this block to avoid lifetime issues
+            let scope = &mut rt.handle_scope();
+            let local_args = Local::new(scope, global_args);
+
+            let arr_args = match Local::<'_, v8::Array>::try_from(local_args) {
+                Ok(args) => args,
+                Err(err) => {
+                    return Err(WXRuntimeError {
+                        code: 500,
+                        message: format!(
+                            "Handler '{}' expected an array, got: {:?} and failed with error: {:?}",
+                            self.name, local_args, err
+                        ),
+                    })
+                }
+            };
+
+            let len = arr_args.length() as usize;
+
+            for i in 0..len {
+                let arg = arr_args.get_index(scope, i as u32).unwrap();
+                let global_arg = Global::new(scope, arg);
+                js_args.push(global_arg);
+            }
         }
+
+        Ok(js_args)
+    }
+
+    fn try_execute_native_script(
+        &self,
+        rt: &mut JsRuntime,
+        ctx: &WXRTContext,
+        info: &WXRuntimeInfo,
+    ) -> Option<Result<Global<Value>, WXRuntimeError>> {
+        let global_args = match eval_js_expression(format!("[{}]", self.args), rt, ctx) {
+            Ok(val) => val,
+            Err(e) => {
+                return Some(Err(WXRuntimeError {
+                    code: 500,
+                    message: format!("Handler '{}' threw an error:\n{}", self.name, e),
+                }))
+            }
+        };
+        let js_args = match self.extract_arguments(global_args, rt) {
+            Ok(args) => args,
+            Err(e) => return Some(Err(e)),
+        };
+        stdlib::try_call(&self.name, &js_args, rt, info)
+    }
+
+    fn execute_user_script(&self, rt: &mut JsRuntime) -> Result<Global<Value>, WXRuntimeError> {
+        let js_call = format!("{}({})", self.name, self.args);
+        let call_res = rt.execute_script("[webx handler call]", js_call.into());
+        call_res.map_err(|e| WXRuntimeError {
+            code: 500,
+            message: format!("Handler '{}' threw an error:\n{}", self.name, e),
+        })
     }
 }
 
@@ -371,24 +204,32 @@ impl WXUrlPath {
             .collect::<Vec<_>>()
     }
 
-    pub fn matches(&self, url: &hyper::Uri) -> WXPathResolution {
+    pub fn matches<'a, 'b: 'a>(&self, url: &hyper::Uri) -> WXPathResolution {
         let url = WXUrlPath::get_url_segments(url);
         let url_count = url.len();
         // dbg!(url.clone().collect::<Vec<_>>(), url_count, self.segments());
         let mut bindings = WXRTContext::new();
+        let mut isolate = v8::Isolate::new(Default::default());
+        let mut scope = v8::HandleScope::new(&mut isolate);
 
         let match_segment = |(pattern, part): (&WXUrlPathSegment, &&str)| -> bool {
             match pattern {
                 WXUrlPathSegment::Literal(literal) => literal.as_str() == *part,
                 WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_: _ }) => {
                     // TODO: Check type.
-                    bindings.bind(name, WXRTValue::String(part.to_string()));
+                    let js_value: Local<'_, Value> =
+                        v8::String::new(&mut scope, part).unwrap().into();
+                    let js_value: Global<v8::Value> = Global::new(&mut scope, js_value);
+                    bindings.bind(name, js_value);
                     true
                 }
                 WXUrlPathSegment::Regex(regex_name, regex) => {
                     let re = regex::Regex::new(regex).unwrap();
                     if re.is_match(part) {
-                        bindings.bind(regex_name, WXRTValue::String(part.to_string()));
+                        let js_value: Local<'_, Value> =
+                            v8::String::new(&mut scope, part).unwrap().into();
+                        let js_value: Global<v8::Value> = Global::new(&mut scope, js_value);
+                        bindings.bind(regex_name, js_value);
                         true
                     } else {
                         false
@@ -415,6 +256,13 @@ impl WXUrlPath {
         WXPathResolution::None
     }
 }
+
+/// Possible values produced by a handler or route body.
+pub enum WXRouteResult {
+    Html(String),
+    Js(Global<Value>),
+}
+
 /// A runtime flat-route.
 #[derive(Debug, Clone)]
 pub struct WXRTRoute {
@@ -424,18 +272,87 @@ pub struct WXRTRoute {
     // TODO: - models ORM and types
     module_path: WXModulePath,
     body: Option<WXBody>,
-    pre_handlers: Vec<WXRTHandlerCall>,
-    post_handlers: Vec<WXRTHandlerCall>,
+    pre_handlers: Vec<WXRouteHandlerCall>,
+    post_handlers: Vec<WXRouteHandlerCall>,
 }
 
 impl WXRTRoute {
-    fn execute_body(&self, _ctx: &mut WXRTContext) -> Result<WXRTValue, WXRuntimeError> {
-        assert!(self.body.is_some());
-        let body = self.body.as_ref().unwrap();
+    fn execute_body(
+        &self,
+        _ctx: &mut WXRTContext,
+        _rt: &mut JsRuntime,
+        _info: &WXRuntimeInfo,
+    ) -> Result<WXRouteResult, WXRuntimeError> {
+        let Some(body) = &self.body else {
+            return Err(WXRuntimeError {
+                code: 500,
+                message: "Route body is empty".into(),
+            });
+        };
         match body.body_type {
             WXBodyType::Ts => todo!("TS body type is not supported yet"),
-            // TODO: Resolve bindings, render and execute JSX (dynamic)
-            WXBodyType::Tsx => Ok(WXRTValue::String(body.body.clone())),
+            // TODO: - Resolve bindings, render and execute JSX (dynamic)
+            // TODO: - Use JSX runtime to render JSX
+            WXBodyType::Tsx => Ok(WXRouteResult::Html(body.body.clone())),
+        }
+    }
+
+    fn execute_handlers(
+        &self,
+        handlers: &[WXRouteHandlerCall],
+        ctx: &mut WXRTContext,
+        rt: &mut JsRuntime,
+        info: &WXRuntimeInfo,
+    ) -> Option<Result<WXRouteResult, WXRuntimeError>> {
+        let mut handlers = handlers.iter();
+        for _ in 0..self.pre_handlers.len() - 1 {
+            let handler = handlers.next().unwrap();
+            let result = match handler.execute(ctx, rt, info) {
+                Ok(result) => result,
+                Err(err) => return Some(Err(err)),
+            };
+            if let Some(output) = &handler.output {
+                ctx.bind(output, result);
+            }
+        }
+        handlers
+            .last()
+            .map(|last| last.execute(ctx, rt, info).map(WXRouteResult::Js))
+    }
+
+    fn bind_out(ctx: &mut WXRTContext, value: WXRouteResult, scope: &mut v8::HandleScope) {
+        match value {
+            WXRouteResult::Html(s) => {
+                let handle: Local<'_, v8::Value> =
+                    v8::String::new(scope, s.as_str()).unwrap().into();
+                ctx.bind("out", v8::Global::new(scope, handle))
+            }
+            WXRouteResult::Js(v) => ctx.bind("out", v),
+        }
+    }
+
+    fn to_response(
+        value: WXRouteResult,
+        scope: &mut v8::HandleScope,
+        mode: WXMode,
+    ) -> hyper::Response<hyper::body::Bytes> {
+        match value {
+            WXRouteResult::Html(body) => {
+                let body = hyper::body::Bytes::from(body);
+                let len = body.len();
+                ok_html(body, len, mode)
+            }
+            WXRouteResult::Js(value) => {
+                if let Ok(str_val) =
+                    Local::<'_, v8::String>::try_from(Local::new(scope, value.clone()))
+                {
+                    let str = hyper::body::Bytes::from(str_val.to_rust_string_lossy(scope));
+                    let len = str.len();
+                    ok_html(str, len, mode)
+                } else {
+                    ok_json(&value, scope, mode)
+                }
+            }
         }
     }
 
@@ -449,65 +366,135 @@ impl WXRTRoute {
         ctx: &mut WXRTContext,
         rt: &mut JsRuntime,
         info: &WXRuntimeInfo,
-    ) -> Result<hyper::Response<String>, WXRuntimeError> {
+        mode: WXMode,
+    ) -> Result<hyper::Response<hyper::body::Bytes>, WXRuntimeError> {
         // TODO: Refactor this function to combine all logic into a better structure.
-        if self.pre_handlers.is_empty() && self.body.is_none() && self.post_handlers.is_empty() {
-            // No handlers or body are present, return an empty response.
-            Err(WXRuntimeError {
+        let has_pre_handlers: bool = !self.pre_handlers.is_empty();
+        let has_body: bool = self.body.is_some();
+        let has_post_handlers: bool = !self.post_handlers.is_empty();
+        return match (has_pre_handlers, has_body, has_post_handlers) {
+			// All three are present, execute pre-handlers, body, and post-handlers.
+            (true, true, true) => {
+                self.execute_handlers(&self.pre_handlers, ctx, rt, info);
+                let value = self.execute_body(ctx, rt, info)?;
+				Self::bind_out(ctx, value, &mut rt.handle_scope());
+                Ok(Self::to_response(
+                    self.execute_handlers(&self.post_handlers, ctx, rt, info)
+                        .unwrap()?,
+                    &mut rt.handle_scope(),
+                    mode,
+                ))
+            }
+			// Execute pre-handlers and body.
+			(true, true, false) => {
+                self.execute_handlers(&self.pre_handlers, ctx, rt, info);
+                Ok(Self::to_response(
+                    self.execute_body(ctx, rt, info)?,
+                    &mut rt.handle_scope(),
+                    mode,
+                ))
+			}
+			// Execute pre and post-handlers.
+			(true, false, true) => {
+                self.execute_handlers(&self.pre_handlers, ctx, rt, info);
+                Ok(Self::to_response(
+                    self.execute_handlers(&self.post_handlers, ctx, rt, info).unwrap()?,
+                    &mut rt.handle_scope(),
+                    mode,
+                ))
+			}
+			// Execute only pre-handlers.
+			(true, false, false) => Ok(Self::to_response(
+				self.execute_handlers(&self.pre_handlers, ctx, rt, info).unwrap()?,
+				&mut rt.handle_scope(),
+				mode,
+			)),
+			// Execute body and post-handlers.
+			(false, true, true) => {
+                let value = self.execute_body(ctx, rt, info)?;
+				Self::bind_out(ctx, value, &mut rt.handle_scope());
+                Ok(Self::to_response(
+                    self.execute_handlers(&self.post_handlers, ctx, rt, info)
+                        .unwrap()?,
+                    &mut rt.handle_scope(),
+                    mode,
+                ))
+            }
+			// Execute only body
+            (false, true, false) => Ok(Self::to_response(
+                self.execute_body(ctx, rt, info)?,
+                &mut rt.handle_scope(),
+                mode,
+            )),
+			// Execute only post-handlers
+            (false, false, true) => Ok(Self::to_response(
+				self.execute_handlers(&self.post_handlers, ctx, rt, info).unwrap()?,
+				&mut rt.handle_scope(),
+				mode,
+			)),
+            (false, false, false) => Err(WXRuntimeError {
                 code: 500,
-                message: "Route is empty".into(),
-            })
-        } else if self.pre_handlers.is_empty()
-            && self.body.is_some()
-            && self.post_handlers.is_empty()
-        {
-            // Only a body is present, execute it and return the result.
-            Ok(ok_html(self.execute_body(ctx)?.to_raw()))
-        } else if self.body.is_none() {
-            // Only handlers are present, execute them sequentially.
-            // Merge all pre and post handlers into a single handler vector.
-            let mut handlers = self.pre_handlers.clone();
-            handlers.extend(self.post_handlers.clone());
-            // Execute all (but last() handlers sequentially.
-            for handler in handlers.iter().take(handlers.len() - 1) {
-                let result = handler.execute(ctx, rt, info)?;
-                // Bind the result to the output variable.
-                if let Some(output) = &handler.output {
-                    ctx.bind(output, result);
-                }
-            }
-            // Execute the last handler and return the result as the response.
-            let handler = handlers.last().unwrap();
-            Ok(ok_html(handler.execute(ctx, rt, info)?.to_raw()))
-        } else {
-            // Both handlers and a body are present.
-            // Execute pre-handlers sequentially.
-            for handler in self.pre_handlers.iter() {
-                let result = handler.execute(ctx, rt, info)?;
-                if let Some(output) = &handler.output {
-                    ctx.bind(output, result);
-                }
-            }
-            let body = self.execute_body(ctx)?;
-            if self.post_handlers.is_empty() {
-                // No post-handlers are present, return the body result.
-                return Ok(ok_html(body.to_raw()));
-            }
-            // Execute post-handlers sequentially.
-            for handler in self.post_handlers.iter().take(self.post_handlers.len() - 1) {
-                let result = handler.execute(ctx, rt, info)?;
-                if let Some(output) = &handler.output {
-                    ctx.bind(output, result);
-                }
-            }
-            Ok(ok_html(
-                self.post_handlers
-                    .last()
-                    .unwrap()
-                    .execute(ctx, rt, info)?
-                    .to_raw(),
-            ))
-        }
+                message: format!("Route execution not implemented for: pre_handlers={}, body={}, post_handlers={}", has_pre_handlers, has_body, has_post_handlers),
+            }),
+        };
+        // if !has_pre_handlers && !has_body && !has_post_handlers {
+        //     // No handlers or body are present, return an empty response.
+        //     Err(WXRuntimeError {
+        //         code: 500,
+        //         message: "Route is empty".into(),
+        //     })
+        // } else if !has_pre_handlers && has_body && !has_post_handlers {
+        //     // Only a body is present, execute it and return the result.
+        //     self.execute_body()
+        // } else if !has_body {
+        //     // Only handlers are present, execute them sequentially.
+        //     // Merge all pre and post handlers into a single handler vector.
+        //     let mut handlers = self.pre_handlers.clone();
+        //     handlers.extend(self.post_handlers.clone());
+        //     // Execute all (but last() handlers sequentially.
+        //     for handler in handlers.iter().take(handlers.len() - 1) {
+        //         let result = handler.execute(ctx, rt, info)?;
+        //         // Bind the result to the output variable.
+        //         if let Some(output) = &handler.output {
+        //             ctx.bind(output, result);
+        //         }
+        //     }
+        //     // Execute the last handler and return the result as the response.
+        //     let handler = handlers.last().unwrap();
+        //     // Ok(ok_html(handler.execute(ctx, rt, info)?.to_raw()))
+        //     let result = handler.execute(ctx, rt, info)?;
+        //     if let Some(output) = &handler.output {
+        //         ctx.bind(output, result);
+        //     }
+        // } else {
+        //     // Both handlers and a body are present.
+        //     // Execute pre-handlers sequentially.
+        //     for handler in self.pre_handlers.iter() {
+        //         let result = handler.execute(ctx, rt, info)?;
+        //         if let Some(output) = &handler.output {
+        //             ctx.bind(output, result);
+        //         }
+        //     }
+        //     let body = self.execute_body(ctx)?;
+        //     if self.post_handlers.is_empty() {
+        //         // No post-handlers are present, return the body result.
+        //         return Ok(ok_html(body.to_raw()));
+        //     }
+        //     // Execute post-handlers sequentially.
+        //     for handler in self.post_handlers.iter().take(self.post_handlers.len() - 1) {
+        //         let result = handler.execute(ctx, rt, info)?;
+        //         if let Some(output) = &handler.output {
+        //             ctx.bind(output, result);
+        //         }
+        //     }
+        //     Ok(ok_html(
+        //         self.post_handlers
+        //             .last()
+        //             .unwrap()
+        //             .execute(ctx, rt, info)?
+        //             .to_raw(),
+        //     ))
+        // }
     }
 }
 
@@ -534,35 +521,25 @@ impl WXRouteMap {
         }
         let mut route_map: WXRouteMapInner = HashMap::new();
         // Insert all routes into each method map category.
-        for ((route, path), _) in routes.unwrap().iter() {
+        for ((route, path), _) in routes.unwrap().into_iter() {
+            let module_path = route.info.path.clone();
             let method_map = route_map.entry(route.method.clone()).or_default();
-            method_map.insert(
-                path.clone(),
-                Self::compile_route(route, route.info.path.clone())?,
-            );
+            method_map.insert(path.clone(), Self::compile_route(route, module_path)?);
         }
         Ok(WXRouteMap(route_map))
     }
 
     /// Compile a parsed route into a runtime route.
     fn compile_route(
-        route: &WXRoute,
+        route: WXRoute,
         module_path: WXModulePath,
     ) -> Result<WXRTRoute, WXRuntimeError> {
         let body = route.body.clone();
         Ok(WXRTRoute {
             module_path,
             body,
-            pre_handlers: route
-                .pre_handlers
-                .iter()
-                .map(WXRTHandlerCall::from_handler)
-                .collect(),
-            post_handlers: route
-                .post_handlers
-                .iter()
-                .map(WXRTHandlerCall::from_handler)
-                .collect(),
+            pre_handlers: route.pre_handlers,
+            post_handlers: route.post_handlers,
         })
     }
 
@@ -660,14 +637,6 @@ impl WXRuntime {
         }
     }
 
-    pub fn error_date_specifier(&self) -> DateTimeSpecifier {
-        if self.mode.debug_level().is_high() {
-            DateTimeSpecifier::Verbose
-        } else {
-            DateTimeSpecifier::Short
-        }
-    }
-
     /// Load a list of modules into the runtime.
     ///
     /// ## Note
@@ -704,7 +673,7 @@ impl WXRuntime {
     fn new_js_runtime(&mut self) -> JsRuntime {
         let mut rt = JsRuntime::new(RuntimeOptions {
             module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
-            extensions: vec![stdlib::init()],
+            // extensions: vec![stdlib::init()],
             ..Default::default()
         });
         // Load WebX Standard Library
@@ -715,7 +684,7 @@ impl WXRuntime {
             exit_error(
                 format!("Failed to execute stdlib:\n{}", e),
                 500,
-                self.error_date_specifier(),
+                self.mode.date_specifier(),
             );
         }
         info(self.mode, "Initialized stdlib");
@@ -735,7 +704,7 @@ impl WXRuntime {
                     e
                 ),
                 500,
-                self.error_date_specifier(),
+                self.mode.date_specifier(),
             );
         }
         info(
@@ -758,7 +727,7 @@ impl WXRuntime {
     fn recompile(&mut self) {
         match WXRouteMap::from_modules(&self.source_modules) {
             Ok(routes) => self.routes = routes,
-            Err(err) => error_code(err.message, err.code, self.error_date_specifier()),
+            Err(err) => error_code(err.message, err.code, self.mode.date_specifier()),
         }
         if self.mode.is_dev() && self.mode.debug_level().is_high() {
             // Print the route map in dev mode.
@@ -845,14 +814,14 @@ impl WXRuntime {
     ) -> Result<hyper::Response<http_body_util::Full<Bytes>>, WXRuntimeError> {
         if let Some((_path, mut ctx, route)) = self.routes.resolve(req.method(), req.uri()) {
             let module_runtime = self.modules.get_mut(&route.module_path).unwrap();
-            let route_result = route.execute(&mut ctx, module_runtime, &self.info);
+            let route_result = route.execute(&mut ctx, module_runtime, &self.info, self.mode);
             let response = match route_result {
                 Ok(response) => response,
                 Err(err) => {
                     error_code(
                         err.message.to_string(),
                         err.code,
-                        self.error_date_specifier(),
+                        self.mode.date_specifier(),
                     );
                     responses::internal_server_error_default_webx(self.mode, err.message)
                 }
