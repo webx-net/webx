@@ -276,7 +276,12 @@ pub struct WXRTRoute {
 }
 
 impl WXRTRoute {
-    fn execute_body(&self) -> Result<WXRouteResult, WXRuntimeError> {
+    fn execute_body(
+        &self,
+        _ctx: &mut WXRTContext,
+        _rt: &mut JsRuntime,
+        _info: &WXRuntimeInfo,
+    ) -> Result<WXRouteResult, WXRuntimeError> {
         let Some(body) = &self.body else {
             return Err(WXRuntimeError {
                 code: 500,
@@ -367,10 +372,11 @@ impl WXRTRoute {
         let has_body: bool = self.body.is_some();
         let has_post_handlers: bool = !self.post_handlers.is_empty();
         return match (has_pre_handlers, has_body, has_post_handlers) {
+			// All three are present, execute pre-handlers, body, and post-handlers.
             (true, true, true) => {
-                // All three are present, execute pre-handlers, body, and post-handlers.
                 self.execute_handlers(&self.pre_handlers, ctx, rt, info);
-                Self::bind_out(ctx, self.execute_body()?, &mut rt.handle_scope());
+                let value = self.execute_body(ctx, rt, info)?;
+				Self::bind_out(ctx, value, &mut rt.handle_scope());
                 Ok(Self::to_response(
                     self.execute_handlers(&self.post_handlers, ctx, rt, info)
                         .unwrap()?,
@@ -378,12 +384,54 @@ impl WXRTRoute {
                     mode,
                 ))
             }
+			// Execute pre-handlers and body.
+			(true, true, false) => {
+                self.execute_handlers(&self.pre_handlers, ctx, rt, info);
+                Ok(Self::to_response(
+                    self.execute_body(ctx, rt, info)?,
+                    &mut rt.handle_scope(),
+                    mode,
+                ))
+			}
+			// Execute pre and post-handlers.
+			(true, false, true) => {
+                self.execute_handlers(&self.pre_handlers, ctx, rt, info);
+                Ok(Self::to_response(
+                    self.execute_handlers(&self.post_handlers, ctx, rt, info).unwrap()?,
+                    &mut rt.handle_scope(),
+                    mode,
+                ))
+			}
+			// Execute only pre-handlers.
+			(true, false, false) => Ok(Self::to_response(
+				self.execute_handlers(&self.pre_handlers, ctx, rt, info).unwrap()?,
+				&mut rt.handle_scope(),
+				mode,
+			)),
+			// Execute body and post-handlers.
+			(false, true, true) => {
+                let value = self.execute_body(ctx, rt, info)?;
+				Self::bind_out(ctx, value, &mut rt.handle_scope());
+                Ok(Self::to_response(
+                    self.execute_handlers(&self.post_handlers, ctx, rt, info)
+                        .unwrap()?,
+                    &mut rt.handle_scope(),
+                    mode,
+                ))
+            }
+			// Execute only body
             (false, true, false) => Ok(Self::to_response(
-                self.execute_body()?,
+                self.execute_body(ctx, rt, info)?,
                 &mut rt.handle_scope(),
                 mode,
             )),
-            (_, _, _) => Err(WXRuntimeError {
+			// Execute only post-handlers
+            (false, false, true) => Ok(Self::to_response(
+				self.execute_handlers(&self.post_handlers, ctx, rt, info).unwrap()?,
+				&mut rt.handle_scope(),
+				mode,
+			)),
+            (false, false, false) => Err(WXRuntimeError {
                 code: 500,
                 message: format!("Route execution not implemented for: pre_handlers={}, body={}, post_handlers={}", has_pre_handlers, has_body, has_post_handlers),
             }),
