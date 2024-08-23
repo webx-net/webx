@@ -1,6 +1,6 @@
 /* import { Todo, renderAllTodos, renderTodo } from "./todos"; */
 
-get /(asset: String) -> static("assets/" + asset)
+get /public/(asset: String) -> static("assets/" + asset)
 
 get / (<html>
     <body>
