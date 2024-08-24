@@ -13,9 +13,7 @@ use crate::engine::runtime::{WXRuntime, WXRuntimeInfo};
 use crate::engine::server::WXServer;
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
 use crate::file::webx::WXModule;
-use crate::reporting::error::{
-    error_code, exit_error, exit_error_hint, DateTimeSpecifier, ERROR_PROJECT,
-};
+use crate::reporting::error::{exit_error, exit_error_hint, DateTimeSpecifier, ERROR_PROJECT};
 use crate::reporting::warning::warning;
 
 pub fn get_project_config_file_path(root: &Path) -> PathBuf {

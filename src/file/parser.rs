@@ -2,7 +2,6 @@ use crate::file::webx::WXModule;
 use std::{
     fmt::Display,
     io::{BufReader, Read},
-    path::PathBuf,
 };
 
 use super::webx::{
