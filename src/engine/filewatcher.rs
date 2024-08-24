@@ -1,4 +1,5 @@
 use notify::{self, Error, Event, Watcher};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
@@ -20,23 +21,25 @@ struct FSWEvent {
     is_empty_state: bool,
 }
 
-impl FSWEvent {
-    fn new(kind: notify::EventKind, path: &Path) -> Self {
+impl Default for FSWEvent {
+    fn default() -> Self {
         Self {
-            kind,
-            path: WXModulePath::new(path.to_path_buf()),
-            timestamp: Instant::now(),
-            is_empty_state: false,
-        }
-    }
-
-    fn empty() -> Self {
-        Self {
-            kind: notify::EventKind::default(),
-            path: WXModulePath::new(PathBuf::default()),
+            kind: Default::default(),
+            path: Default::default(),
             timestamp: Instant::now(),
             is_empty_state: true,
         }
+    }
+}
+
+impl FSWEvent {
+    fn new(kind: notify::EventKind, path: &Path) -> io::Result<Self> {
+        Ok(Self {
+            kind,
+            path: WXModulePath::new(path.to_path_buf())?,
+            timestamp: Instant::now(),
+            is_empty_state: false,
+        })
     }
 
     fn is_duplicate(&self, earlier: &Self) -> bool {
@@ -60,15 +63,15 @@ impl WXFileWatcher {
         rt_tx: Sender<WXRuntimeMessage>,
         running: Arc<AtomicBool>,
     ) {
-        let mut last_event: FSWEvent = FSWEvent::empty();
+        let mut last_event: FSWEvent = FSWEvent::default();
         let mut watcher = notify::recommended_watcher(move |res: Result<Event, Error>| {
             match res {
                 Ok(event) => {
                     match event.kind {
                         notify::EventKind::Create(_) => {
-                            let event = FSWEvent::new(event.kind, &event.paths[0]);
+                            let event = FSWEvent::new(event.kind, &event.paths[0]).unwrap();
                             if !event.is_duplicate(&last_event) {
-                                match parse_webx_file(&event.path.inner) {
+                                match parse_webx_file(event.path.clone()) {
                                     Ok(module) => {
                                         if let Err(err) = rt_tx.send(WXRuntimeMessage::New(module))
                                         {
@@ -86,9 +89,9 @@ impl WXFileWatcher {
                             last_event = event; // Update last event
                         }
                         notify::EventKind::Modify(_) => {
-                            let event = FSWEvent::new(event.kind, &event.paths[0]);
+                            let event = FSWEvent::new(event.kind, &event.paths[0]).unwrap();
                             if !event.is_duplicate(&last_event) {
-                                match parse_webx_file(&event.path.inner) {
+                                match parse_webx_file(event.path.clone()) {
                                     Ok(module) => rt_tx
                                         .send(WXRuntimeMessage::Swap(event.path.clone(), module))
                                         .unwrap(),
@@ -100,7 +103,7 @@ impl WXFileWatcher {
                             last_event = event; // Update last event
                         }
                         notify::EventKind::Remove(_) => {
-                            let event = FSWEvent::new(event.kind, &event.paths[0]);
+                            let event = FSWEvent::new(event.kind, &event.paths[0]).unwrap();
                             if !event.is_duplicate(&last_event) {
                                 rt_tx
                                     .send(WXRuntimeMessage::Remove(event.path.clone()))
