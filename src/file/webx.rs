@@ -212,6 +212,65 @@ pub fn into_relative_string(path: &Path) -> io::Result<String> {
     }
     Ok(path)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_into_relative_string_same_dir() {
+        // Assume the current directory is "/home/user/project"
+        let current_dir = PathBuf::from("/home/user/project");
+        std::env::set_current_dir(&current_dir).unwrap();
+
+        let path = Path::new("/home/user/project/src/main.rs");
+        let result = into_relative_string(path).expect("Relative path failed");
+        assert_eq!(result, "src/main.rs");
+    }
+
+    #[test]
+    fn test_into_relative_string_parent_dir() {
+        // Assume the current directory is "/home/user/project/src"
+        let current_dir = PathBuf::from("/home/user/project/src");
+        std::env::set_current_dir(&current_dir).unwrap();
+
+        let path = Path::new("/home/user/project/README.md");
+        let result = into_relative_string(path).expect("Relative path failed");
+        assert_eq!(result, "../README.md");
+    }
+
+    #[test]
+    fn test_into_relative_string_different_path() {
+        // Assume the current directory is "/home/user/project/src"
+        let current_dir = PathBuf::from("/home/user/project/src");
+        std::env::set_current_dir(&current_dir).unwrap();
+
+        let path = Path::new("/etc/hosts");
+        let result = into_relative_string(path).expect("Relative path failed");
+        assert_eq!(result, "/etc/hosts");
+    }
+
+    #[test]
+    fn test_into_relative_string_windows() {
+        // Assume the current directory is "C:\\Users\\user\\project"
+        let current_dir = PathBuf::from("C:\\Users\\user\\project");
+        std::env::set_current_dir(&current_dir).unwrap();
+
+        let path = Path::new("C:\\Users\\user\\project\\src\\main.rs");
+        let result = into_relative_string(path).expect("Relative path failed");
+        assert_eq!(result, "src\\main.rs");
+    }
+
+    #[test]
+    fn test_into_relative_string_windows_parent_dir() {
+        // Assume the current directory is "C:\\Users\\user\\project\\src"
+        let current_dir = PathBuf::from("C:\\Users\\user\\project\\src");
+        std::env::set_current_dir(&current_dir).unwrap();
+
+        let path = Path::new("C:\\Users\\user\\project\\README.md");
+        let result = into_relative_string(path).expect("Relative path failed");
+        assert_eq!(result, "..\\README.md");
+    }
 }
 
 #[derive(Debug, Clone)]
