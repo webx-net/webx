@@ -14,8 +14,8 @@ use super::webx::{
 
 #[derive(Debug)]
 pub enum WebXParserError {
-    IoError(std::io::Error, PathBuf),
-    SyntaxError(String, PathBuf),
+    IoError(std::io::Error, WXModulePath),
+    SyntaxError(String, WXModulePath),
 }
 
 impl WebXParserError {
@@ -29,7 +29,7 @@ impl WebXParserError {
         context: T3,
         line: usize,
         column: usize,
-        file: PathBuf,
+        file: &WXModulePath,
     ) -> Self {
         WebXParserError::SyntaxError(
             Self::at_lc(
@@ -40,7 +40,7 @@ impl WebXParserError {
                 line,
                 column,
             ),
-            file,
+            file.clone(),
         )
     }
 
@@ -50,7 +50,7 @@ impl WebXParserError {
         context: T3,
         line: usize,
         column: usize,
-        file: PathBuf,
+        file: &WXModulePath,
     ) -> Self {
         let listing = expected
             .iter()
@@ -72,7 +72,7 @@ impl WebXParserError {
                 line,
                 column,
             ),
-            file,
+            file.clone(),
         )
     }
 
@@ -81,7 +81,7 @@ impl WebXParserError {
         context: T2,
         line: usize,
         column: usize,
-        file: PathBuf,
+        file: &WXModulePath,
     ) -> Self {
         WebXParserError::SyntaxError(
             Self::at_lc(
@@ -89,7 +89,7 @@ impl WebXParserError {
                 line,
                 column,
             ),
-            file,
+            file.clone(),
         )
     }
 
@@ -98,7 +98,7 @@ impl WebXParserError {
         context: T,
         line: usize,
         column: usize,
-        file: PathBuf,
+        file: &WXModulePath,
     ) -> Self {
         Self::unexpected(format!("character '{}'", what), context, line, column, file)
     }
@@ -107,7 +107,7 @@ impl WebXParserError {
         context: T,
         line: usize,
         column: usize,
-        file: PathBuf,
+        file: &WXModulePath,
     ) -> Self {
         Self::unexpected("EOF", context, line, column, file)
     }
@@ -116,7 +116,7 @@ impl WebXParserError {
 // ======================== Parser ========================
 
 struct WebXFileParser<'a> {
-    file: &'a PathBuf,
+    file: WXModulePath,
     _content: &'a String,
     reader: BufReader<&'a [u8]>,
     line: usize,
@@ -127,7 +127,7 @@ struct WebXFileParser<'a> {
 }
 
 impl<'a> WebXFileParser<'a> {
-    fn new(file: &'a PathBuf, content: &'a String) -> WebXFileParser<'a> {
+    fn new(file: WXModulePath, content: &'a String) -> WebXFileParser<'a> {
         let mut p = WebXFileParser {
             file,
             _content: content,
@@ -195,7 +195,7 @@ impl<'a> WebXFileParser<'a> {
                 context,
                 self.line,
                 self.column,
-                self.file.clone(),
+                &self.file,
             )),
         }
     }
@@ -219,7 +219,7 @@ impl<'a> WebXFileParser<'a> {
                 context,
                 self.line,
                 self.column,
-                self.file.clone(),
+                &self.file,
             ))
         } else {
             Ok(nc)
@@ -249,7 +249,7 @@ impl<'a> WebXFileParser<'a> {
                     context,
                     self.line,
                     self.column,
-                    self.file.clone(),
+                    &self.file,
                 ));
             }
         }
@@ -275,7 +275,7 @@ impl<'a> WebXFileParser<'a> {
                 context,
                 self.line,
                 self.column,
-                self.file.clone(),
+                &self.file,
             ));
         }
         Ok(nc)
@@ -607,7 +607,7 @@ impl<'a> WebXFileParser<'a> {
                 context,
                 self.line,
                 self.column,
-                self.file.clone(),
+                &self.file,
             ));
         }
         let body = body.unwrap();
@@ -774,7 +774,7 @@ impl<'a> WebXFileParser<'a> {
     fn parse_route(&mut self, method: hyper::Method) -> Result<WXRoute, WebXParserError> {
         Ok(WXRoute {
             info: WXInfoField {
-                path: WXModulePath::new(self.file.clone()),
+                path: self.file.clone(),
                 line: self.line,
             },
             method,
@@ -819,7 +819,7 @@ impl<'a> WebXFileParser<'a> {
                         context,
                         self.line,
                         self.column,
-                        self.file.clone(),
+                        &self.file,
                     ));
                 }
             }
@@ -835,7 +835,7 @@ impl<'a> WebXFileParser<'a> {
                             context,
                             self.line,
                             self.column,
-                            self.file.clone(),
+                            &self.file,
                         ));
                     } else {
                         break;
@@ -861,7 +861,7 @@ impl<'a> WebXFileParser<'a> {
                             context,
                             self.line,
                             self.column,
-                            self.file.clone(),
+                            &self.file,
                         ))
                     }
                 },
@@ -883,7 +883,7 @@ impl<'a> WebXFileParser<'a> {
                             context,
                             self.line,
                             self.column,
-                            self.file.clone(),
+                            &self.file,
                         ))
                     }
                 },
@@ -907,7 +907,7 @@ impl<'a> WebXFileParser<'a> {
                             context,
                             self.line,
                             self.column,
-                            self.file.clone(),
+                            &self.file,
                         ))
                     }
                 },
@@ -933,7 +933,7 @@ impl<'a> WebXFileParser<'a> {
                         context,
                         self.line,
                         self.column,
-                        self.file.clone(),
+                        &self.file,
                     ))
                 }
             }
@@ -943,15 +943,15 @@ impl<'a> WebXFileParser<'a> {
 
     fn parse_module(&mut self) -> Result<WXModule, WebXParserError> {
         Ok(WXModule {
-            path: WXModulePath::new(self.file.clone()),
+            path: self.file.clone(),
             scope: self.parse_scope(true, WXROOT_PATH)?,
         })
     }
 }
 
-pub fn parse_webx_file(file: &PathBuf) -> Result<WXModule, WebXParserError> {
-    let file_contents =
-        std::fs::read_to_string(file).map_err(|err| WebXParserError::IoError(err, file.clone()))?;
+pub fn parse_webx_file(file: WXModulePath) -> Result<WXModule, WebXParserError> {
+    let file_contents = std::fs::read_to_string(file.to_path())
+        .map_err(|err| WebXParserError::IoError(err, file.clone()))?;
     let mut parser = WebXFileParser::new(file, &file_contents);
     parser.parse_module()
 }

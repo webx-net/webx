@@ -595,7 +595,7 @@ impl WXRuntime {
 
     fn remove_module(&mut self, module_path: &WXModulePath) {
         self.modules.remove(module_path);
-        self.source_modules.retain(|m| m.path != *module_path);
+        self.source_modules.retain(|m| !m.path.equals(module_path));
     }
 
     /// Initialize the JavaScript runtime with the stdlib.

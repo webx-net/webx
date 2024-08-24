@@ -22,10 +22,10 @@ fn construct_dependency_tree(files: &[WXModule]) -> DependencyTree {
     for file in files.iter() {
         // Insert dependencies into the tree as keys and the file path as the value.
         for dependency in file.scope.includes.iter() {
-            let dependency_target = file.path.inner.join(dependency);
+            let dependency_target = file.path.to_path().join(dependency);
             tree.entry(dependency_target)
                 .or_default()
-                .push(file.path.inner.clone());
+                .push(file.path.to_path());
         }
     }
     tree

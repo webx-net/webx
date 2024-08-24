@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsStr,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -17,7 +17,7 @@ use crate::{
     runner::WXMode,
 };
 
-use super::parser::WebXParserError;
+use super::{parser::WebXParserError, webx::WXModulePath};
 
 /// The configuration for a WebX project.
 ///
@@ -132,7 +132,7 @@ pub fn load_project_config(config_file: &PathBuf) -> Option<ProjectConfig> {
 ///
 /// ## Errors
 /// If the source directory does not exist, an error is returned.
-pub fn locate_files(src: &Path) -> Vec<PathBuf> {
+pub fn locate_files(src: &Path) -> io::Result<Vec<WXModulePath>> {
     let src = src.to_path_buf();
     if !src.exists() {
         exit_error(
@@ -151,13 +151,13 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
         let cmp_ext = |ext: &str| path.extension() == Some(OsStr::new(ext));
         if path.is_dir() {
             // Recursively find all .webx files in the directory.
-            files.append(&mut locate_files(&path));
+            files.append(&mut locate_files(&path)?);
         } else if cmp_ext("webx") || cmp_ext("wx") {
             // Add the WebX module to the list of files.
-            files.push(path.canonicalize().unwrap());
+            files.push(WXModulePath::new(path)?);
         }
     }
-    files
+    Ok(files)
 }
 
 /// Load all WebX modules from a given directory.
@@ -168,9 +168,11 @@ pub fn locate_files(src: &Path) -> Vec<PathBuf> {
 /// ## Note
 /// This function does not perform any static analysis on the modules
 /// such as detecting circular dependencies.
-pub fn load_modules(src: &Path) -> Vec<WXModule> {
-    let files = locate_files(src);
-    let webx_modules = files.iter().map(parse_webx_file).collect::<Vec<_>>();
+pub fn load_modules(src: &Path) -> io::Result<Vec<WXModule>> {
+    let webx_modules = locate_files(src)?
+        .into_iter()
+        .map(parse_webx_file)
+        .collect::<Vec<_>>();
     let errors = webx_modules
         .iter()
         .filter_map(|m| if let Err(err) = m { Some(err) } else { None })
@@ -179,17 +181,17 @@ pub fn load_modules(src: &Path) -> Vec<WXModule> {
         for err in errors {
             match err {
                 WebXParserError::SyntaxError(message, file) => {
-                    let file = into_relative_string(file);
+                    let file = file.to_path();
                     error_code(
-                        format!("{}, in file '{}'", message, file),
+                        format!("{}, in file '{:?}'", message, file),
                         ERROR_SYNTAX,
                         DateTimeSpecifier::None,
                     );
                 }
                 WebXParserError::IoError(err, file) => {
-                    let file = into_relative_string(file);
+                    let file = file.to_path();
                     error_code(
-                        format!("{}, in file '{}'", err, file),
+                        format!("{}, in file '{:?}'", err, file),
                         ERROR_PARSE_IO,
                         DateTimeSpecifier::None,
                     );
@@ -198,10 +200,10 @@ pub fn load_modules(src: &Path) -> Vec<WXModule> {
         }
         std::process::exit(ERROR_READ_WEBX_FILES);
     }
-    webx_modules
+    Ok(webx_modules
         .into_iter()
         .map(|m| m.unwrap())
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>())
 }
 
 /// Create a new WebX project in the given directory.
@@ -319,46 +321,4 @@ location /todo {
         serde_json::to_string_pretty(&default_config).unwrap(),
     )
     .expect("Failed to create config file.");
-}
-
-/// A safe implementation that tries to strip the prefix of a path.
-/// If all attempts fail, the function returns the original path.
-fn into_relative_string(path: &Path) -> String {
-    let path = path.display().to_string();
-    // Remove '\\?\' prefix on Windows.
-    let path = if cfg!(windows) {
-        if let Some(stripped) = path.strip_prefix(r"\\?\") {
-            stripped.to_string()
-        } else {
-            path
-        }
-    } else {
-        path
-    };
-    let Ok(mut current_dir) = std::env::current_dir() else {
-        return path;
-    };
-    let mut levels_up = 0;
-    loop {
-        let current_dir_str = if cfg!(windows) {
-            format!("{}\\", current_dir.display())
-        } else {
-            format!("{}/", current_dir.display())
-        };
-        if let Some(stripped) = path.strip_prefix(&current_dir_str) {
-            // Append the levels as `../` to the path.
-            let mut path = String::new();
-            for _ in 0..levels_up {
-                path.push_str("..");
-            }
-            path.push_str(stripped);
-            return path;
-        }
-        match current_dir.parent() {
-            Some(parent) => current_dir = parent.to_path_buf(),
-            None => break,
-        }
-        levels_up += 1;
-    }
-    path
 }

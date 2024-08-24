@@ -13,7 +13,9 @@ use crate::engine::runtime::{WXRuntime, WXRuntimeInfo};
 use crate::engine::server::WXServer;
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
 use crate::file::webx::WXModule;
-use crate::reporting::error::{exit_error_hint, DateTimeSpecifier, ERROR_PROJECT};
+use crate::reporting::error::{
+    error_code, exit_error, exit_error_hint, DateTimeSpecifier, ERROR_PROJECT,
+};
 use crate::reporting::warning::warning;
 
 pub fn get_project_config_file_path(root: &Path) -> PathBuf {
@@ -219,7 +221,14 @@ pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
         );
     };
     let source_root = root.join(&config.src);
-    let webx_modules = load_modules(&source_root);
+    let webx_modules = match load_modules(&source_root) {
+        Ok(modules) => modules,
+        Err(err) => exit_error(
+            format!("Failed to load project modules due to: {}", err),
+            ERROR_PROJECT,
+            DateTimeSpecifier::None,
+        ),
+    };
     analyze_module_deps(&webx_modules);
     analyze_module_routes(&webx_modules);
     print_start_info(&webx_modules, mode, &config, time_start.elapsed());

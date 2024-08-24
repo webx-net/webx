@@ -23,7 +23,7 @@ mod tests {
         let root = Path::new("examples/todo");
         let config = load_project_config(&get_project_config_file_path(root)).unwrap();
         let source_root = root.join(config.src);
-        let webx_modules = load_modules(&source_root);
+        let webx_modules = load_modules(&source_root).unwrap();
         analyze_module_deps(&webx_modules);
         analyze_module_routes(&webx_modules);
         let (_, dummy_rx) = std::sync::mpsc::channel();

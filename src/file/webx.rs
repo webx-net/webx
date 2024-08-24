@@ -2,10 +2,12 @@ use std::{
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
     io,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+use deno_core::normalize_path;
+
+#[derive(Debug, Clone, Hash, PartialEq)]
 pub struct WXInfoField {
     pub path: WXModulePath,
     pub line: usize,
@@ -106,23 +108,28 @@ pub struct WXModule {
     pub scope: WXScope,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub struct WXModulePath {
-    pub inner: PathBuf,
+    path: PathBuf,
+    relative: String,
 }
 
 impl WXModulePath {
-    pub fn new(inner: PathBuf) -> Self {
-        Self { inner }
+    pub fn new(inner: PathBuf) -> io::Result<Self> {
+        let normalized = normalize_path(inner.canonicalize().unwrap_or(inner));
+        let relative = into_relative_string(&normalized)?;
+        Ok(Self {
+            path: normalized,
+            relative,
+        })
     }
     /// "/path/to/file.webx" -> "path/to"
     pub fn parent(&self) -> io::Result<String> {
         let cwd = std::env::current_dir()?.canonicalize()?;
-        let path = self.inner.canonicalize()?;
-        let Ok(stripped) = path.strip_prefix(&cwd) else {
+        let Ok(stripped) = self.path.strip_prefix(&cwd) else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("Failed to strip prefix of {:?}", path),
+                format!("Failed to strip prefix of {:?}", self.path),
             ));
         };
         let Some(parent) = stripped.parent() else {
@@ -136,15 +143,15 @@ impl WXModulePath {
 
     /// "/path/to/file.webx" -> "file"
     pub fn name(&self) -> &str {
-        match self.inner.file_name() {
+        match self.path.file_name() {
             Some(name) => match name.to_str() {
                 Some(name) => match name.split('.').next() {
                     Some(name) => name,
-                    None => panic!("Failed to extract file module name of {:?}", self.inner),
+                    None => panic!("Failed to extract file module name of {:?}", self.path),
                 },
-                None => panic!("Failed to convert file name to string of {:?}", self.inner),
+                None => panic!("Failed to convert file name to string of {:?}", self.path),
             },
-            None => panic!("Failed to get file name of {:?}", self.inner),
+            None => panic!("Failed to get file name of {:?}", self.path),
         }
     }
 
@@ -156,6 +163,55 @@ impl WXModulePath {
             self.name().to_string()
         }
     }
+
+    pub fn to_path(&self) -> PathBuf {
+        self.path.clone()
+    }
+
+    pub fn equals(&self, other: &Self) -> bool {
+        self.module_name() == other.module_name()
+    }
+}
+
+/// A safe implementation that tries to strip the prefix of a path.
+/// If all attempts fail, the function returns the original path.
+pub fn into_relative_string(path: &Path) -> io::Result<String> {
+    let path = path.display().to_string();
+    // Remove '\\?\' prefix on Windows.
+    // let path = if cfg!(windows) {
+    //     if let Some(stripped) = path.strip_prefix(r"\\?\") {
+    //         stripped.to_string()
+    //     } else {
+    //         path
+    //     }
+    // } else {
+    //     path
+    // };
+    let mut current_dir = std::env::current_dir()?.canonicalize()?;
+    let mut levels_up = 0;
+    loop {
+        let current_dir_str = if cfg!(windows) {
+            format!("{}\\", current_dir.display())
+        } else {
+            format!("{}/", current_dir.display())
+        };
+        if let Some(stripped) = path.strip_prefix(&current_dir_str) {
+            // Append the levels as `../` to the path.
+            let mut path = String::new();
+            for _ in 0..levels_up {
+                path.push_str("..");
+            }
+            path.push_str(stripped);
+            return Ok(path);
+        }
+        match current_dir.parent() {
+            Some(parent) => current_dir = parent.to_path_buf(),
+            None => break,
+        }
+        levels_up += 1;
+    }
+    Ok(path)
+}
 }
 
 #[derive(Debug, Clone)]
