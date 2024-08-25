@@ -25,7 +25,7 @@ use crate::{
     },
     reporting::{
         debug::info,
-        error::{error_code, exit_error},
+        error::{error_code, exit_error, ERROR_EXEC_ROUTE},
         route::print_route,
         warning::warning,
     },
@@ -654,10 +654,13 @@ impl WXRuntime {
     /// from the current source modules, and will **not** replace the current route map.
     /// However, the program will **continue to run with the old route map**.
     fn recompile(&mut self) {
-        match WXRouteMap::from_modules(&self.source_modules) {
-            Ok(routes) => self.routes = routes,
-            Err(err) => error_code(err.message, err.code, self.mode.date_specifier()),
-        }
+        self.routes = match WXRouteMap::from_modules(&self.source_modules) {
+            Ok(routes) => routes,
+            Err(err) => {
+                error_code(err.message, err.code, self.mode.date_specifier());
+                return;
+            }
+        };
         if self.mode.is_dev() && self.mode.debug_level().is_high() {
             // Print the route map in dev mode.
             info(self.mode, "Route map:");
@@ -742,7 +745,12 @@ impl WXRuntime {
         addr: SocketAddr,
     ) -> Result<hyper::Response<http_body_util::Full<Bytes>>, WXRuntimeError> {
         if let Some((_path, mut ctx, route)) = self.routes.resolve(req.method(), req.uri()) {
-            let module_runtime = self.modules.get_mut(&route.module_path).unwrap();
+            let Some(module_runtime) = self.modules.get_mut(&route.module_path) else {
+                return Err(WXRuntimeError {
+                    code: ERROR_EXEC_ROUTE,
+                    message: "Failed to get module from route".into(),
+                });
+            };
             let route_result = route.execute(&mut ctx, module_runtime, &self.info, self.mode);
             let response = match route_result {
                 Ok(response) => response,
