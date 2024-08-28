@@ -718,7 +718,7 @@ impl WXRuntime {
                         );
                         // Module JS runtime is persistent between hot-swaps.
                         self.remove_module(&path);
-                        self.source_modules.push(module);
+                        self.load_module(module);
                         self.recompile();
                     }
                     WXRuntimeMessage::Remove(path) => {
