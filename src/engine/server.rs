@@ -216,7 +216,7 @@ impl Service<Request<Incoming>> for WXSvc {
             addr: self.address.unwrap(),
             respond_to: tx,
         }) {
-            let error_msg = format!("Failed to execute route due to: {}", err);
+            let error_msg = format!("Failed to send execute route command: {}", err);
             error_code(error_msg.clone(), ERROR_EXEC_ROUTE, date_spec);
             Box::pin(async move {
                 Err(WXRuntimeError {
@@ -229,7 +229,7 @@ impl Service<Request<Incoming>> for WXSvc {
                 match rx.await {
                     Ok(value) => value,
                     Err(err) => {
-                        let error_msg = format!("Failed to execute route due to: {}", err);
+                        let error_msg = format!("Failed to execute route: {}", err);
                         error_code(error_msg.clone(), ERROR_EXEC_ROUTE, date_spec);
                         Err(WXRuntimeError {
                             code: 500,
