@@ -41,7 +41,7 @@ pub fn extract_flat_routes(modules: &[WXModule]) -> FlatRoutes {
     let mut routes = HashMap::new();
     for module in modules.iter() {
         flatten_scopes(
-            module.path.module_name(),
+            module.path.relative(),
             &module.scope,
             WXROOT_PATH,
             &mut routes,

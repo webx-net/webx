@@ -154,7 +154,7 @@ pub fn locate_files(src: &Path) -> io::Result<Vec<WXModulePath>> {
             files.append(&mut locate_files(&path)?);
         } else if cmp_ext("webx") || cmp_ext("wx") {
             // Add the WebX module to the list of files.
-            files.push(WXModulePath::new(path)?);
+            files.push(WXModulePath::new(path));
         }
     }
     Ok(files)
@@ -181,7 +181,7 @@ pub fn load_modules(src: &Path) -> io::Result<Vec<WXModule>> {
         for err in errors {
             match err {
                 WebXParserError::SyntaxError(message, file) => {
-                    let file = file.to_path();
+                    let file = file.inner_path();
                     error_code(
                         format!("{}, in file '{:?}'", message, file),
                         ERROR_SYNTAX,
@@ -189,7 +189,7 @@ pub fn load_modules(src: &Path) -> io::Result<Vec<WXModule>> {
                     );
                 }
                 WebXParserError::IoError(err, file) => {
-                    let file = file.to_path();
+                    let file = file.inner_path();
                     error_code(
                         format!("{}, in file '{:?}'", err, file),
                         ERROR_PARSE_IO,

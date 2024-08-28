@@ -109,108 +109,83 @@ pub struct WXModule {
 }
 
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
-pub struct WXModulePath {
-    path: PathBuf,
-    relative: String,
-}
+pub struct WXModulePath(PathBuf);
 
 impl WXModulePath {
-    pub fn new(inner: PathBuf) -> io::Result<Self> {
-        let normalized = normalize_path(inner.canonicalize().unwrap_or(inner));
-        let relative = into_relative_string(&normalized)?;
-        Ok(Self {
-            path: normalized,
-            relative,
-        })
-    }
-    /// "/path/to/file.webx" -> "path/to"
-    pub fn parent(&self) -> io::Result<String> {
-        let cwd = std::env::current_dir()?.canonicalize()?;
-        let Ok(stripped) = self.path.strip_prefix(&cwd) else {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("Failed to strip prefix of {:?}", self.path),
-            ));
-        };
-        let Some(parent) = stripped.parent() else {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("Failed to get parent of {:?}", stripped),
-            ));
-        };
-        Ok(parent.to_str().unwrap().replace('\\', "/"))
+    pub fn new(inner: PathBuf) -> Self {
+        Self(normalize_path(inner.canonicalize().unwrap_or(inner)))
     }
 
-    /// "/path/to/file.webx" -> "file"
-    pub fn name(&self) -> &str {
-        match self.path.file_name() {
-            Some(name) => match name.to_str() {
-                Some(name) => match name.split('.').next() {
-                    Some(name) => name,
-                    None => panic!("Failed to extract file module name of {:?}", self.path),
-                },
-                None => panic!("Failed to convert file name to string of {:?}", self.path),
-            },
-            None => panic!("Failed to get file name of {:?}", self.path),
-        }
-    }
+    // /// "/path/to/file.webx" -> "path/to"
+    // pub fn parent(&self) -> io::Result<String> {
+    //     let cwd = std::env::current_dir()?.canonicalize()?;
+    //     let Ok(stripped) = self.path.strip_prefix(&cwd) else {
+    //         return Err(io::Error::new(
+    //             io::ErrorKind::InvalidInput,
+    //             format!("Failed to strip prefix of {:?}", self.path),
+    //         ));
+    //     };
+    //     let Some(parent) = stripped.parent() else {
+    //         return Err(io::Error::new(
+    //             io::ErrorKind::InvalidInput,
+    //             format!("Failed to get parent of {:?}", stripped),
+    //         ));
+    //     };
+    //     Ok(parent.to_str().unwrap().replace('\\', "/"))
+    // }
 
-    /// "/path/to/file.webx" -> "path/to/file"
-    pub fn module_name(&self) -> String {
-        if let Ok(parent) = self.parent() {
-            format!("{}/{}", parent, self.name())
-        } else {
-            self.name().to_string()
-        }
-    }
-
-    pub fn to_path(&self) -> PathBuf {
-        self.path.clone()
-    }
-
-    pub fn equals(&self, other: &Self) -> bool {
-        self.module_name() == other.module_name()
-    }
-}
-
-/// A safe implementation that tries to strip the prefix of a path.
-/// If all attempts fail, the function returns the original path.
-pub fn into_relative_string(path: &Path) -> io::Result<String> {
-    let path = path.display().to_string();
-    // Remove '\\?\' prefix on Windows.
-    // let path = if cfg!(windows) {
-    //     if let Some(stripped) = path.strip_prefix(r"\\?\") {
-    //         stripped.to_string()
-    //     } else {
-    //         path
+    // /// "/path/to/file.webx" -> "file"
+    // pub fn name(&self) -> &str {
+    //     match self.path.file_name() {
+    //         Some(name) => match name.to_str() {
+    //             Some(name) => match name.split('.').next() {
+    //                 Some(name) => name,
+    //                 None => panic!("Failed to extract file module name of {:?}", self.path),
+    //             },
+    //             None => panic!("Failed to convert file name to string of {:?}", self.path),
+    //         },
+    //         None => panic!("Failed to get file name of {:?}", self.path),
     //     }
-    // } else {
-    //     path
-    // };
-    let mut current_dir = std::env::current_dir()?.canonicalize()?;
-    let mut levels_up = 0;
-    loop {
-        let current_dir_str = if cfg!(windows) {
-            format!("{}\\", current_dir.display())
-        } else {
-            format!("{}/", current_dir.display())
-        };
-        if let Some(stripped) = path.strip_prefix(&current_dir_str) {
-            // Append the levels as `../` to the path.
-            let mut path = String::new();
-            for _ in 0..levels_up {
-                path.push_str("..");
+    // }
+
+    /// A safe implementation that tries to strip the prefix of a path.
+    /// If all attempts fail, the function returns the original path.
+    /// E.g `long/path/to/file.webx` -> `path/to/file`
+    fn try_relative(&self) -> io::Result<String> {
+        let long_path = self.0.display().to_string();
+        let mut current_dir = std::env::current_dir()?.canonicalize()?;
+        let mut parent_levels = 0;
+        loop {
+            let current_dir_str = if cfg!(windows) {
+                format!("{}\\", current_dir.display())
+            } else {
+                format!("{}/", current_dir.display())
+            };
+            if let Some(stripped) = long_path.strip_prefix(&current_dir_str) {
+                // Append the levels as `../` to the path.
+                let mut path = String::new();
+                for _ in 0..parent_levels {
+                    path.push_str("../");
+                }
+                path.push_str(stripped);
+                return Ok(path);
             }
-            path.push_str(stripped);
-            return Ok(path);
+            match current_dir.parent() {
+                Some(parent) => current_dir = parent.to_path_buf(),
+                None => break,
+            }
+            parent_levels += 1;
         }
-        match current_dir.parent() {
-            Some(parent) => current_dir = parent.to_path_buf(),
-            None => break,
-        }
-        levels_up += 1;
+        Ok(long_path)
     }
-    Ok(path)
+
+    pub fn relative(&self) -> String {
+        self.try_relative().unwrap_or(self.0.display().to_string())
+    }
+
+    pub fn inner_path(&self) -> PathBuf {
+        self.0.clone()
+    }
 }
 
 #[cfg(test)]
@@ -224,7 +199,7 @@ mod tests {
         std::env::set_current_dir(&current_dir).unwrap();
 
         let path = Path::new("/home/user/project/src/main.rs");
-        let result = into_relative_string(path).expect("Relative path failed");
+        let result = WXModulePath::new(path.to_path_buf()).relative();
         assert_eq!(result, "src/main.rs");
     }
 
@@ -235,7 +210,7 @@ mod tests {
         std::env::set_current_dir(&current_dir).unwrap();
 
         let path = Path::new("/home/user/project/README.md");
-        let result = into_relative_string(path).expect("Relative path failed");
+        let result = WXModulePath::new(path.to_path_buf()).relative();
         assert_eq!(result, "../README.md");
     }
 
@@ -246,7 +221,7 @@ mod tests {
         std::env::set_current_dir(&current_dir).unwrap();
 
         let path = Path::new("/etc/hosts");
-        let result = into_relative_string(path).expect("Relative path failed");
+        let result = WXModulePath::new(path.to_path_buf()).relative();
         assert_eq!(result, "/etc/hosts");
     }
 
@@ -257,7 +232,7 @@ mod tests {
         std::env::set_current_dir(&current_dir).unwrap();
 
         let path = Path::new("C:\\Users\\user\\project\\src\\main.rs");
-        let result = into_relative_string(path).expect("Relative path failed");
+        let result = WXModulePath::new(path.to_path_buf()).relative();
         assert_eq!(result, "src\\main.rs");
     }
 
@@ -268,7 +243,7 @@ mod tests {
         std::env::set_current_dir(&current_dir).unwrap();
 
         let path = Path::new("C:\\Users\\user\\project\\README.md");
-        let result = into_relative_string(path).expect("Relative path failed");
+        let result = WXModulePath::new(path.to_path_buf()).relative();
         assert_eq!(result, "..\\README.md");
     }
 }

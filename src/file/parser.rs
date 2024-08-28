@@ -949,7 +949,7 @@ impl<'a> WebXFileParser<'a> {
 }
 
 pub fn parse_webx_file(file: WXModulePath) -> Result<WXModule, WebXParserError> {
-    let file_contents = std::fs::read_to_string(file.to_path())
+    let file_contents = std::fs::read_to_string(file.inner_path())
         .map_err(|err| WebXParserError::IoError(err, file.clone()))?;
     let mut parser = WebXFileParser::new(file, &file_contents);
     parser.parse_module()

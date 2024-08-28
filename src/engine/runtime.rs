@@ -593,9 +593,9 @@ impl WXRuntime {
         self.source_modules.push(module);
     }
 
-    fn remove_module(&mut self, module_path: &WXModulePath) {
-        self.modules.remove(module_path);
-        self.source_modules.retain(|m| !m.path.equals(module_path));
+    fn remove_module(&mut self, path: &WXModulePath) {
+        self.modules.remove(path);
+        self.source_modules.retain(|m| m.path != *path);
     }
 
     /// Initialize the JavaScript runtime with the stdlib.
@@ -629,7 +629,7 @@ impl WXRuntime {
             error_code(
                 format!(
                     "Failed to execute global scope for module '{}':\n{}",
-                    module.path.module_name(),
+                    module.path.relative(),
                     err
                 ),
                 500,
@@ -638,7 +638,7 @@ impl WXRuntime {
         }
         info(
             self.mode,
-            &format!("Initialized module '{}'", module.path.module_name()),
+            &format!("Initialized module '{}'", module.path.relative()),
         );
         rt
     }
@@ -706,7 +706,7 @@ impl WXRuntime {
                     WXRuntimeMessage::New(module) => {
                         info(
                             self.mode,
-                            &format!("New module: {}", module.path.module_name()),
+                            &format!("New module: {}", module.path.relative()),
                         );
                         self.load_module(module);
                         self.recompile();
@@ -714,7 +714,7 @@ impl WXRuntime {
                     WXRuntimeMessage::Swap(path, module) => {
                         info(
                             self.mode,
-                            &format!("Reloaded module: {}", module.path.module_name()),
+                            &format!("Reloaded module: {}", module.path.relative()),
                         );
                         // Module JS runtime is persistent between hot-swaps.
                         self.remove_module(&path);
@@ -722,10 +722,7 @@ impl WXRuntime {
                         self.recompile();
                     }
                     WXRuntimeMessage::Remove(path) => {
-                        info(
-                            self.mode,
-                            &format!("Removed module: {}", path.module_name()),
-                        );
+                        info(self.mode, &format!("Removed module: {}", path.relative()));
                         self.remove_module(&path);
                         self.recompile();
                     }
@@ -733,7 +730,9 @@ impl WXRuntime {
                         request,
                         addr,
                         respond_to,
-                    } => respond_to.send(self.execute_route(request, addr)).unwrap(),
+                    } => respond_to
+                        .send(self.execute_route(request, addr))
+                        .expect("Sending ExecuteRoute response"),
                 }
             }
         }
@@ -745,6 +744,11 @@ impl WXRuntime {
         addr: SocketAddr,
     ) -> Result<hyper::Response<http_body_util::Full<Bytes>>, WXRuntimeError> {
         if let Some((_path, mut ctx, route)) = self.routes.resolve(req.method(), req.uri()) {
+            info(self.mode, "Loaded modules:");
+            for (m, _) in self.modules.iter() {
+                println!(" - {}", m.relative());
+            }
+
             let Some(module_runtime) = self.modules.get_mut(&route.module_path) else {
                 return Err(WXRuntimeError {
                     code: ERROR_EXEC_ROUTE,

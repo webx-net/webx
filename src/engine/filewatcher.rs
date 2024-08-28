@@ -1,5 +1,4 @@
 use notify::{self, Error, Event, Watcher};
-use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
@@ -33,13 +32,13 @@ impl Default for FSWEvent {
 }
 
 impl FSWEvent {
-    fn new(kind: notify::EventKind, path: &Path) -> io::Result<Self> {
-        Ok(Self {
+    fn new(kind: notify::EventKind, path: &Path) -> Self {
+        Self {
             kind,
-            path: WXModulePath::new(path.to_path_buf())?,
+            path: WXModulePath::new(path.to_path_buf()),
             timestamp: Instant::now(),
             is_empty_state: false,
-        })
+        }
     }
 
     fn is_duplicate(&self, earlier: &Self) -> bool {
@@ -69,7 +68,7 @@ impl WXFileWatcher {
                 Ok(event) => {
                     match event.kind {
                         notify::EventKind::Create(_) => {
-                            let event = FSWEvent::new(event.kind, &event.paths[0]).unwrap();
+                            let event = FSWEvent::new(event.kind, &event.paths[0]);
                             if !event.is_duplicate(&last_event) {
                                 match parse_webx_file(event.path.clone()) {
                                     Ok(module) => {
@@ -89,7 +88,7 @@ impl WXFileWatcher {
                             last_event = event; // Update last event
                         }
                         notify::EventKind::Modify(_) => {
-                            let event = FSWEvent::new(event.kind, &event.paths[0]).unwrap();
+                            let event = FSWEvent::new(event.kind, &event.paths[0]);
                             if !event.is_duplicate(&last_event) {
                                 match parse_webx_file(event.path.clone()) {
                                     Ok(module) => rt_tx
@@ -103,7 +102,7 @@ impl WXFileWatcher {
                             last_event = event; // Update last event
                         }
                         notify::EventKind::Remove(_) => {
-                            let event = FSWEvent::new(event.kind, &event.paths[0]).unwrap();
+                            let event = FSWEvent::new(event.kind, &event.paths[0]);
                             if !event.is_duplicate(&last_event) {
                                 rt_tx
                                     .send(WXRuntimeMessage::Remove(event.path.clone()))

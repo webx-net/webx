@@ -135,13 +135,13 @@ fn print_start_info(
             "{} {}: {}",
             prefix,
             "Module".bold(),
-            modules[0].path.module_name()
+            modules[0].path.relative()
         );
     } else {
         println!("{} {} ({}):", prefix, "Modules".bold(), modules.len());
         let mut names = modules
             .iter()
-            .map(|module| module.path.module_name())
+            .map(|module| module.path.relative())
             .collect::<Vec<_>>();
         names.sort();
         for name in names.iter() {

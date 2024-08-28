@@ -38,6 +38,7 @@ pub enum DateTimeSpecifier {
 
 fn error_generic(message: String, error_name: &str) {
     eprintln!("{}: {}", error_name.red(), message);
+    println!("{}: {}", error_name.red(), message);
 }
 
 fn error_generic_code(message: String, code: i32, date: DateTimeSpecifier) {
@@ -71,7 +72,7 @@ pub fn exit_error(message: String, code: i32, date: DateTimeSpecifier) -> ! {
 }
 
 pub fn format_info_field(info: &WXInfoField) -> String {
-    format!("{} line {}", info.path.module_name(), info.line)
+    format!("{} line {}", info.path.relative(), info.line)
         .bright_black()
         .to_string()
 }
