@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/webx-net/webx/main/schemas/webx.config.schema.json",
   "name": "My todo WebX Project",
   "version": "1.0.0",
   "description": "An example WebX project.",
