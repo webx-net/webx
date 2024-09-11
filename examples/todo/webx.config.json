@@ -1,16 +1,12 @@
 {
-  "name": "My todo WebX Project",
-  "version": "1.0.0",
-  "description": "An example WebX project.",
-  "port": 8080,
-  "host": "localhost",
-  "src": ".",
-  "logLevel": null,
-  "migrationsPath": null,
-  "cors": {
-    "allowOrigin": "*"
-  },
-  "rateLimit": null,
-  "database": null,
-  "cache": null
+	"$schema": "https://raw.githubusercontent.com/webx-net/webx/main/schemas/webx.config.schema.json",
+	"name": "My todo WebX Project",
+	"description": "An example WebX project.",
+	"version": "1.0.0",
+	"port": 8080,
+	"tls": {
+		"key": "path/to/key.pem",
+		"cert": "path/to/cert.pem"
+	},
+	"cors": { "allowOrigin": "*" }
 }
