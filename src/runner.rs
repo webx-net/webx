@@ -205,19 +205,7 @@ fn print_start_info(
 pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
     let time_start = Instant::now();
     let config_file = get_project_config_file_path(root);
-    let config = if let Some(config) = load_project_config(&config_file) {
-        config
-    } else {
-        exit_error_hint(
-            "Failed to open WebX configuration.",
-            &[
-                "Have you created a WebX project?",
-                "Are you in the project root directory?",
-            ],
-            ERROR_PROJECT,
-            DateTimeSpecifier::None,
-        );
-    };
+    let config = load_project_config(&config_file);
     let source_root = root.join(&config.src);
     let webx_modules = match load_modules(&source_root) {
         Ok(modules) => modules,

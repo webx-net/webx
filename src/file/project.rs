@@ -9,8 +9,8 @@ use crate::{
     file::{parser::parse_webx_file, webx::WXModule},
     reporting::{
         error::{
-            error_code, exit_error, DateTimeSpecifier, ERROR_PARSE_IO, ERROR_READ_WEBX_FILES,
-            ERROR_SYNTAX,
+            error_code, exit_error, exit_error_hint, DateTimeSpecifier, ERROR_PARSE_IO,
+            ERROR_PROJECT, ERROR_READ_WEBX_FILES, ERROR_SYNTAX,
         },
         warning::warning,
     },
@@ -112,13 +112,34 @@ pub struct CacheConfig {
 ///
 /// ## Returns
 /// The project configuration.
-pub fn load_project_config(config_file: &PathBuf) -> Option<ProjectConfig> {
-    match fs::read_to_string(config_file) {
-        Ok(txt) => Some(
-            serde_json::from_str::<ProjectConfig>(&txt)
-                .expect("Failed to parse project configuration."),
-        ),
-        Err(_) => None,
+pub fn load_project_config(config_file: &PathBuf) -> ProjectConfig {
+    let Ok(txt) = fs::read_to_string(config_file) else {
+        exit_error_hint(
+            &format!(
+                "Failed to open WebX configuration file '{}'.",
+                config_file.display()
+            ),
+            &[
+                "Have you created a WebX project?",
+                "Are you in the project root directory?",
+            ],
+            ERROR_PROJECT,
+            DateTimeSpecifier::None,
+        );
+    };
+    match serde_json::from_str::<ProjectConfig>(&txt) {
+        Ok(config) => config,
+        Err(err) => {
+            exit_error(
+                format!(
+                    "Failed to parse WebX configuration file '{}': {}",
+                    config_file.display(),
+                    err
+                ),
+                ERROR_PROJECT,
+                DateTimeSpecifier::None,
+            );
+        }
     }
 }
 
