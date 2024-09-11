@@ -5,20 +5,20 @@ get /public/(asset: String) -> static("assets/" + asset)
 get / (
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description" content="A Web X demo site">
-        <title>Web X Demo</title>
-    </head>
-    <body>
-        <h1>Hello from WebX!</h1>
-        <p>
-            This is an example index page.
-        </p>
-        <a href="/about">About</a>
-        <a href="/todos">Todos</a>
-    </body>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<meta name="description" content="A Web X demo site"/>
+		<title>Web X Demo</title>
+	</head>
+	<body>
+		<h1>Hello from WebX!</h1>
+		<p>
+			This is an example index page.
+		</p>
+		<a href="/about">About</a>
+		<a href="/todos">Todos</a>
+	</body>
 </html>)
 
 get /about (<div>
@@ -27,12 +27,12 @@ get /about (<div>
     <a href="/">Home</a>
 </div>)
 
-post /about/(id: Num) form(text: String) -> renderAllTodos(a, b): c {
+post /about/(id: number) form(text: string) -> renderAllTodos(a, b): c {
     const a = [5];
     if true { console.log(text); }
 } -> renderAllTodos(a, b, c)
 
-post list/all/(data : Int)/data json(a: T, b : U) -> renderAllTodos(todos, test): out, hc() : u
+post list/all/(data : number)/data json(a: T, b : U) -> renderAllTodos(todos, test): out, hc() : u
 
 // This is an example WebX todo app project.
 global {
@@ -48,8 +48,8 @@ global {
 }
 
 model Todo {
-    title: String,
-    completed: Boolean,
+    title: string,
+    completed: bool,
     createdAt: Date,
 }
 
