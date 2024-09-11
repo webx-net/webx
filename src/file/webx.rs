@@ -190,6 +190,8 @@ impl WXModulePath {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
 
     #[test]

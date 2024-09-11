@@ -616,13 +616,17 @@ impl WXRuntime {
                 self.mode.date_specifier(),
             );
         }
-        info(self.mode, "Initialized stdlib");
+        info(self.mode, "Loaded WebX Standard Library");
         rt
     }
 
     /// Initialize the module and execute the global scope
     fn new_module_js_runtime(&mut self, module: &WXModule) -> JsRuntime {
         let mut rt = self.new_js_runtime();
+        info(
+            self.mode,
+            &format!("Initializing module '{}'...", module.path.relative()),
+        );
         if let Err(err) =
             rt.execute_script("[global scope]", module.scope.global_ts.to_owned().into())
         {
@@ -636,10 +640,7 @@ impl WXRuntime {
                 self.mode.date_specifier(),
             );
         }
-        info(
-            self.mode,
-            &format!("Initialized module '{}'", module.path.relative()),
-        );
+        info(self.mode, "Successfully initialized module!");
         rt
     }
 
