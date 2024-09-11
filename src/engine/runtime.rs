@@ -707,7 +707,7 @@ impl WXRuntime {
                     WXRuntimeMessage::New(module) => {
                         info(
                             self.mode,
-                            &format!("New module: {}", module.path.relative()),
+                            &format!("New module: '{}'", module.path.relative()),
                         );
                         self.load_module(module);
                         self.recompile();
@@ -715,7 +715,7 @@ impl WXRuntime {
                     WXRuntimeMessage::Swap(module) => {
                         info(
                             self.mode,
-                            &format!("Reloaded module: {}", module.path.relative()),
+                            &format!("Reloaded module: '{}'", module.path.relative()),
                         );
                         // Module JS runtime is persistent between hot-swaps.
                         self.remove_module(&module.path);
@@ -723,7 +723,7 @@ impl WXRuntime {
                         self.recompile();
                     }
                     WXRuntimeMessage::Remove(path) => {
-                        info(self.mode, &format!("Removed module: {}", path.relative()));
+                        info(self.mode, &format!("Removed module: '{}'", path.relative()));
                         self.remove_module(&path);
                         self.recompile();
                     }
