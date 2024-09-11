@@ -1,0 +1,137 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://raw.githubusercontent.com/webx-net/webx/main/schemas/webx.config.schema.json",
+	"title": "WebX Project Configuration",
+	"type": "object",
+	"required": ["name", "version", "port"],
+	"properties": {
+	  "name": {
+		"type": "string",
+		"description": "The name of the project."
+	  },
+	  "version": {
+		"type": "string",
+		"description": "The version of the project.",
+		"pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+	  },
+	  "description": {
+		"type": "string",
+		"description": "A brief description of the project."
+	  },
+	  "port": {
+		"type": "integer",
+		"description": "The port on which the project will run.",
+		"minimum": 1,
+		"maximum": 65535
+	  },
+	  "host": {
+		"type": "string",
+		"description": "The host on which the project will run, defaults to localhost."
+	  },
+	  "src": {
+		"type": "string",
+		"description": "The source directory of the project."
+	  },
+	  "database": {
+		"type": "object",
+		"required": ["type", "host", "port", "username", "password", "databaseName"],
+		"properties": {
+		  "type": {
+			"type": "string",
+			"enum": ["postgresql", "mysql", "sqlite"],
+			"description": "The type of the database."
+		  },
+		  "host": {
+			"type": "string",
+			"description": "The database host."
+		  },
+		  "port": {
+			"type": "integer",
+			"description": "The database port.",
+			"minimum": 1,
+			"maximum": 65535
+		  },
+		  "username": {
+			"type": "string",
+			"description": "The database username."
+		  },
+		  "password": {
+			"type": "string",
+			"description": "The database password."
+		  },
+		  "databaseName": {
+			"type": "string",
+			"description": "The name of the database."
+		  }
+		},
+		"description": "Database configuration."
+	  },
+	  "logLevel": {
+		"type": "string",
+		"enum": ["debug", "info", "warn", "error"],
+		"description": "The log level for the project."
+	  },
+	  "cors": {
+		"type": "object",
+		"required": ["allowOrigin"],
+		"properties": {
+		  "allowOrigin": {
+			"type": "string",
+			"description": "The origin allowed for CORS."
+		  }
+		},
+		"description": "CORS configuration."
+	  },
+	  "tls": {
+		"type": "object",
+		"properties": {
+		  "cert": {
+			"type": "string",
+			"description": "The path to the TLS certificate."
+		  },
+		  "key": {
+			"type": "string",
+			"description": "The path to the TLS key."
+		  }
+		},
+		"description": "TLS configuration."
+	  },
+	  "rateLimit": {
+		"type": "object",
+		"required": ["windowMs", "maxRequests"],
+		"properties": {
+		  "windowMs": {
+			"type": "integer",
+			"description": "The time window for rate limiting in milliseconds."
+		  },
+		  "maxRequests": {
+			"type": "integer",
+			"description": "The maximum number of requests allowed within the window."
+		  }
+		},
+		"description": "Rate limiting configuration."
+	  },
+	  "migrationsPath": {
+		"type": "string",
+		"description": "The path to the database migrations directory."
+	  },
+	  "cache": {
+		"type": "object",
+		"required": ["strategy", "duration"],
+		"properties": {
+		  "strategy": {
+			"type": "string",
+			"enum": ["memory", "redis", "none"],
+			"description": "The caching strategy to use."
+		  },
+		  "duration": {
+			"type": "string",
+			"pattern": "^[0-9]+[smhd]$",
+			"description": "Cache duration (e.g., 10s, 10m, 1h, 1d)."
+		  }
+		},
+		"description": "Cache configuration."
+	  }
+	},
+	"additionalProperties": false
+  }
