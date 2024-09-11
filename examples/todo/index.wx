@@ -6,9 +6,9 @@ get / (
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description" content="A Web X demo site">
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="A Web X demo site" />
         <title>Web X Demo</title>
     </head>
     <body>
@@ -23,7 +23,7 @@ get / (
 
 get /about (<div>
     <h1>About</h1>
-    <p>This is an example WebX project.</p>
+    <p>This is an example Web X project.</p>
     <a href="/">Home</a>
 </div>)
 
