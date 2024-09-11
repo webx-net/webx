@@ -9,8 +9,8 @@ use crate::{
     file::{parser::parse_webx_file, webx::WXModule},
     reporting::{
         error::{
-            error_code, exit_error, DateTimeSpecifier, ERROR_PARSE_IO, ERROR_READ_WEBX_FILES,
-            ERROR_SYNTAX,
+            error_code, exit_error, exit_error_hint, DateTimeSpecifier, ERROR_PARSE_IO,
+            ERROR_PROJECT, ERROR_READ_WEBX_FILES, ERROR_SYNTAX,
         },
         warning::warning,
     },
@@ -42,6 +42,10 @@ use super::parser::WebXParserError;
 ///     "cors": {
 ///         "allowOrigin": "*"
 ///     },
+///     "tls": {
+///         "cert": "./cert.pem",
+///         "key": "./key.pem"
+///     },
 ///     "rateLimit": {
 ///         "windowMs": 60000,
 ///         "maxRequests": 100
@@ -64,6 +68,7 @@ pub struct ProjectConfig {
     pub src: Option<PathBuf>,
     pub log_level: Option<String>,
     pub migrations_path: Option<PathBuf>,
+    pub tls: Option<TlsConfig>,
     pub cors: Option<CorsConfig>,
     pub rate_limit: Option<RateLimitConfig>,
     pub database: Option<DatabaseConfig>,
@@ -75,6 +80,31 @@ pub struct ProjectConfig {
 #[serde(rename_all = "camelCase")]
 pub struct CorsConfig {
     pub allow_origin: String,
+}
+
+/// The configuration for the TLS middleware.
+/// This configuration is used to specify the paths to the certificate and key files.
+/// The certificate and key files can be generated using a tool like OpenSSL.
+/// ```sh
+/// openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365
+/// openssl req -x509 -nodes -new -sha256 -days 365 -newkey rsa:4096 -keyout key.pem -out cert.pem
+/// ```
+/// The above command will generate a **self-signed certificate** and key pair that is valid for 365 days.
+/// Alternatively, you can use a service like Let's Encrypt to generate a free **signed certificate**, or purchase one from a certificate authority.
+/// Certbot is a popular tool for generating free certificates from Let's Encrypt.
+/// ```sh
+/// certbot certonly --standalone -d example.com
+/// ```
+/// The generated files should be placed in the project directory.
+///
+/// ## Note
+/// - The certificate and key files are used to create a secure HTTPS server.
+/// - If the certificate and key files are not provided, the server will run in HTTP mode.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TlsConfig {
+    pub cert: PathBuf,
+    pub key: PathBuf,
 }
 
 /// The configuration for the rate limit middleware.
