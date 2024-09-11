@@ -61,7 +61,7 @@ pub struct ProjectConfig {
     pub description: Option<String>,
     pub port: u16,
     pub host: String,
-    pub src: PathBuf,
+    pub src: Option<PathBuf>,
     pub log_level: Option<String>,
     pub migrations_path: Option<PathBuf>,
     pub cors: Option<CorsConfig>,
@@ -112,13 +112,28 @@ pub struct CacheConfig {
 ///
 /// ## Returns
 /// The project configuration.
-pub fn load_project_config(config_file: &PathBuf) -> Option<ProjectConfig> {
-    match fs::read_to_string(config_file) {
-        Ok(txt) => Some(
-            serde_json::from_str::<ProjectConfig>(&txt)
-                .expect("Failed to parse project configuration."),
+pub fn load_project_config(config_file: &PathBuf) -> ProjectConfig {
+    let Ok(txt) = fs::read_to_string(config_file) else {
+        exit_error_hint(
+            &format!(
+                "Failed to open WebX configuration file '{}'",
+                config_file.display()
+            ),
+            &[
+                "Have you created a WebX project?",
+                "Are you in the project root directory?",
+            ],
+            ERROR_PROJECT,
+            DateTimeSpecifier::None,
+        );
+    };
+    match serde_json::from_str::<ProjectConfig>(&txt) {
+        Ok(config) => config,
+        Err(err) => exit_error(
+            format!("Failed to parse WebX configuration due to: {}", err),
+            ERROR_PROJECT,
+            DateTimeSpecifier::None,
         ),
-        Err(_) => None,
     }
 }
 
@@ -246,7 +261,8 @@ pub fn create_new_project(mode: WXMode, name: String, root_dir: &Path, override_
         description: Some("An example WebX project.".to_string()),
         port: 8080,
         host: "localhost".to_string(),
-        src: PathBuf::from("./webx/"),
+        src: Some(PathBuf::from("./webx/")),
+        tls: None,
         log_level: None,
         migrations_path: None,
         cors: Some(CorsConfig {

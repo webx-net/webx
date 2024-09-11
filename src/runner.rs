@@ -13,7 +13,7 @@ use crate::engine::runtime::{WXRuntime, WXRuntimeInfo};
 use crate::engine::server::WXServer;
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
 use crate::file::webx::WXModule;
-use crate::reporting::error::{exit_error_hint, DateTimeSpecifier, ERROR_PROJECT};
+use crate::reporting::error::DateTimeSpecifier;
 use crate::reporting::warning::warning;
 
 pub fn get_project_config_file_path(root: &Path) -> PathBuf {
@@ -205,20 +205,12 @@ fn print_start_info(
 pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
     let time_start = Instant::now();
     let config_file = get_project_config_file_path(root);
-    let config = if let Some(config) = load_project_config(&config_file) {
-        config
+    let config = load_project_config(&config_file);
+    let source_root = if let Some(src) = &config.src {
+        root.join(src)
     } else {
-        exit_error_hint(
-            "Failed to open WebX configuration.",
-            &[
-                "Have you created a WebX project?",
-                "Are you in the project root directory?",
-            ],
-            ERROR_PROJECT,
-            DateTimeSpecifier::None,
-        );
+        root.to_path_buf()
     };
-    let source_root = root.join(&config.src);
     let webx_modules = load_modules(&source_root);
     analyze_module_deps(&webx_modules);
     analyze_module_routes(&webx_modules);
