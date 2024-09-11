@@ -2,7 +2,7 @@ use std::{
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
     io,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use deno_core::normalize_path;

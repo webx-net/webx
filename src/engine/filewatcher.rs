@@ -91,9 +91,9 @@ impl WXFileWatcher {
                             let event = FSWEvent::new(event.kind, &event.paths[0]);
                             if !event.is_duplicate(&last_event) {
                                 match parse_webx_file(event.path.clone()) {
-                                    Ok(module) => rt_tx
-                                        .send(WXRuntimeMessage::Swap(event.path.clone(), module))
-                                        .unwrap(),
+                                    Ok(module) => {
+                                        rt_tx.send(WXRuntimeMessage::Swap(module)).unwrap()
+                                    }
                                     Err(err) => {
                                         warning(mode, format!("(FileWatcher) Error: {:?}", err))
                                     }

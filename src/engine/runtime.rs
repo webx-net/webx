@@ -509,7 +509,7 @@ impl WXRouteMap {
 /// Channel message for the runtime.
 pub enum WXRuntimeMessage {
     New(WXModule),
-    Swap(WXModulePath, WXModule),
+    Swap(WXModule),
     Remove(WXModulePath),
     ExecuteRoute {
         request: hyper::Request<hyper::body::Incoming>,
@@ -711,13 +711,13 @@ impl WXRuntime {
                         self.load_module(module);
                         self.recompile();
                     }
-                    WXRuntimeMessage::Swap(path, module) => {
+                    WXRuntimeMessage::Swap(module) => {
                         info(
                             self.mode,
                             &format!("Reloaded module: {}", module.path.relative()),
                         );
                         // Module JS runtime is persistent between hot-swaps.
-                        self.remove_module(&path);
+                        self.remove_module(&module.path);
                         self.load_module(module);
                         self.recompile();
                     }
