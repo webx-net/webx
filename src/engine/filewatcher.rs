@@ -74,7 +74,10 @@ impl WXFileWatcher {
                                         {
                                             warning(
                                                 mode,
-                                                format!("(FileWatcher) Error send module: {}", err),
+                                                format!(
+                                                    "(FileWatcher) Error send New module: {}",
+                                                    err
+                                                ),
                                             )
                                         }
                                     }
@@ -89,9 +92,18 @@ impl WXFileWatcher {
                             let event = FSWEvent::new(event.kind, &event.paths[0]);
                             if !event.is_duplicate(&last_event) {
                                 match parse_webx_file(&event.path.inner) {
-                                    Ok(module) => rt_tx
-                                        .send(WXRuntimeMessage::Swap(event.path.clone(), module))
-                                        .unwrap(),
+                                    Ok(module) => {
+                                        if let Err(err) = rt_tx.send(WXRuntimeMessage::Swap(module))
+                                        {
+                                            warning(
+                                                mode,
+                                                format!(
+                                                    "(FileWatcher) Error send Swap module: {}",
+                                                    err
+                                                ),
+                                            )
+                                        }
+                                    }
                                     Err(err) => {
                                         warning(mode, format!("(FileWatcher) Error: {:?}", err))
                                     }
