@@ -9,8 +9,8 @@ use crate::{
     file::{parser::parse_webx_file, webx::WXModule},
     reporting::{
         error::{
-            error_code, exit_error, DateTimeSpecifier, ERROR_PARSE_IO, ERROR_READ_WEBX_FILES,
-            ERROR_SYNTAX,
+            error_code, exit_error, exit_error_hint, DateTimeSpecifier, ERROR_PARSE_IO,
+            ERROR_PROJECT, ERROR_READ_WEBX_FILES, ERROR_SYNTAX,
         },
         warning::warning,
     },
@@ -262,7 +262,6 @@ pub fn create_new_project(mode: WXMode, name: String, root_dir: &Path, override_
         port: 8080,
         host: None,
         src: Some(PathBuf::from("./webx/")),
-        tls: None,
         log_level: None,
         migrations_path: None,
         cors: Some(CorsConfig {
