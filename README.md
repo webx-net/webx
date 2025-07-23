@@ -349,11 +349,13 @@ HTMX allows you to build dynamic web applications without learning a new languag
 WebX is designed to be versatile and flexible, and it is easy to quickly build backends for complex applications.\
 ▸ [Read more about HTMX](https://htmx.org/)
 
+<!--
 ### What about <b><font color="#3d72d7">///_h</font>yper<font color="#3d72d7">s</font>cript</b>?
 
 HyperScript is a front-end JavaScript DSL for creating and manipulating HTML DOM elements. It is lightweight, tightly coupled with your HTML code, and is easy to learn.\
 *While JSX is the default JS+HTML DSL* in Webx, HyperScript is supported **natively** by WebX and can also be configured to be used in the project settings.\
 ▸ [Read more about HyperScript](https://hyperscript.org/)
+-->
 
 <br>
 
