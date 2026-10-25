@@ -76,10 +76,14 @@ struct TestResponse {
 
 impl TestServer {
     fn start(files: &[(&str, &str)]) -> Self {
+        Self::start_mode(files, WXMode::Dev(DebugLevel::Low))
+    }
+
+    fn start_mode(files: &[(&str, &str)], mode: WXMode) -> Self {
         let project = TestProject::new(files);
         let modules = files
             .iter()
-            .filter(|(name, _)| name.ends_with(".wx"))
+            .filter(|(name, _)| name.ends_with(".wx") || name.ends_with(".webx"))
             .map(|(name, _)| parse_webx_file(&project.0.join(name)).unwrap())
             .collect();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -88,7 +92,6 @@ impl TestServer {
         let running = Arc::new(AtomicBool::new(true));
         let (tx, rx) = mpsc::channel();
         let info = WXRuntimeInfo::new(&project.0);
-        let mode = WXMode::Dev(DebugLevel::Low);
         let rt_running = running.clone();
         let runtime_worker = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rx, mode, info);
@@ -306,4 +309,94 @@ fn duplicate_and_ambiguous_routes_report_both_locations() {
         1
     );
     analyze_invalid_routes(&modules).unwrap();
+}
+
+#[tokio::test]
+async fn edited_html_is_visible_on_the_very_next_request() {
+    let server = TestServer::start(&[("index.wx", "get / (<h1>before</h1>)\n")]);
+    assert_eq!(server.request("GET", "/").await.body, "<h1>before</h1>");
+    // No sleep or watcher polling: the completed save precedes the request.
+    for text in ["after", "again", "final", "Hej 🌍 — café"] {
+        server
+            .project
+            .write("index.wx", &format!("get / (<h1>{text}</h1>)\n"));
+        assert_eq!(
+            server.request("GET", "/").await.body,
+            format!("<h1>{text}</h1>")
+        );
+    }
+    server
+        .project
+        .write("save.tmp", "get / (<h1>atomic save</h1>)\n");
+    fs::rename(
+        server.project.0.join("save.tmp"),
+        server.project.0.join("index.wx"),
+    )
+    .unwrap();
+    assert_eq!(
+        server.request("GET", "/").await.body,
+        "<h1>atomic save</h1>"
+    );
+}
+
+#[tokio::test]
+async fn reload_adds_removes_and_renames_modules_and_keeps_last_good_snapshot() {
+    let source = "global { function count() { return 7; } }\nget / -> count()\n";
+    let server = TestServer::start(&[("index.wx", source)]);
+    assert_eq!(server.request("GET", "/").await.body, "7");
+    for bad in [
+        "get / (unfinished",
+        "get / (a)\nget / (b)\n",
+        "global { this is invalid JS; }\nget / (broken)\n",
+    ] {
+        server.project.write("index.wx", bad);
+        assert_eq!(server.request("GET", "/").await.body, "7", "{bad}");
+    }
+    server.project.write("index.wx", source);
+    server
+        .project
+        .write("nested/added.webx", "get /added (added)\n");
+    assert_eq!(server.request("GET", "/added").await.body, "added");
+    fs::rename(
+        server.project.0.join("nested/added.webx"),
+        server.project.0.join("renamed.wx"),
+    )
+    .unwrap();
+    assert_eq!(server.request("GET", "/added").await.body, "added");
+    fs::remove_file(server.project.0.join("renamed.wx")).unwrap();
+    assert_eq!(
+        server.request("GET", "/added").await.status,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(server.request("GET", "/").await.body, "7");
+}
+
+#[tokio::test]
+async fn html_only_reload_preserves_globals_and_changed_globals_reset_them() {
+    let source = "global { let n = 0; function count() { return ++n; } }\nget / -> count()\nget /page (before)\n";
+    let server = TestServer::start(&[("index.wx", source)]);
+    assert_eq!(server.request("GET", "/").await.body, "1");
+    server
+        .project
+        .write("index.wx", &source.replace("before", "after"));
+    assert_eq!(server.request("GET", "/page").await.body, "after");
+    assert_eq!(server.request("GET", "/").await.body, "2");
+    server
+        .project
+        .write("index.wx", &source.replace("n = 0", "n = 100"));
+    assert_eq!(server.request("GET", "/").await.body, "101");
+}
+
+#[tokio::test]
+async fn production_does_not_reload_modules_but_static_files_are_read_each_time() {
+    let source = "get / (before)\nget /file -> static(\"page.html\")\n";
+    let server = TestServer::start_mode(
+        &[("index.wx", source), ("page.html", "before")],
+        WXMode::Prod,
+    );
+    assert_eq!(server.request("GET", "/").await.body, "before");
+    server.project.write("index.wx", "get / (after)\n");
+    server.project.write("page.html", "after");
+    assert_eq!(server.request("GET", "/").await.body, "before");
+    assert_eq!(server.request("GET", "/file").await.body, "after");
 }
