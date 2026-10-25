@@ -216,13 +216,14 @@ pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
     analyze_module_routes(&webx_modules);
     print_start_info(&webx_modules, mode, &config, time_start.elapsed());
 
+    let mut info = WXRuntimeInfo::new(root);
+    info.source_root = source_root.clone();
     let (rt_tx, rt_rx) = std::sync::mpsc::channel();
     if mode.is_dev() {
         let fw_rt_tx = rt_tx.clone();
         let fw_running = running.clone();
         let fw_hnd =
             std::thread::spawn(move || WXFileWatcher::run(mode, source_root, fw_rt_tx, fw_running));
-        let info = WXRuntimeInfo::new(root);
         let runtime_running = running.clone();
         let runtime_hnd = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rt_rx, mode, info);
@@ -240,7 +241,6 @@ pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
         }
     } else {
         // If we are in production mode, run the `server` in main thread.
-        let info = WXRuntimeInfo::new(root);
         let runtime_running = running.clone();
         let runtime_hnd = std::thread::spawn(move || {
             let mut runtime = WXRuntime::new(rt_rx, mode, info);

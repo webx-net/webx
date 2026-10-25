@@ -1,9 +1,5 @@
 use crate::file::webx::WXModule;
-use std::{
-    fmt::Display,
-    io::{BufReader, Read},
-    path::PathBuf,
-};
+use std::{fmt::Display, path::PathBuf};
 
 use super::webx::{
     WXBody, WXBodyType, WXHandler, WXInfoField, WXModel, WXModulePath, WXRoute, WXRouteHandlerCall,
@@ -117,8 +113,8 @@ impl WebXParserError {
 
 struct WebXFileParser<'a> {
     file: &'a PathBuf,
-    _content: &'a String,
-    reader: BufReader<&'a [u8]>,
+    _content: &'a str,
+    reader: std::str::Chars<'a>,
     line: usize,
     column: usize,
     peeked_index: u64, // "next index"
@@ -127,11 +123,11 @@ struct WebXFileParser<'a> {
 }
 
 impl<'a> WebXFileParser<'a> {
-    fn new(file: &'a PathBuf, content: &'a String) -> WebXFileParser<'a> {
+    fn new(file: &'a PathBuf, content: &'a str) -> WebXFileParser<'a> {
         let mut p = WebXFileParser {
             file,
             _content: content,
-            reader: BufReader::new(content.as_bytes()),
+            reader: content.chars(),
             line: 1,
             column: 1,
             peeked_index: 0,
@@ -157,15 +153,9 @@ impl<'a> WebXFileParser<'a> {
     /// # Errors
     /// If the file cannot be read, an error is returned and the program exits.
     fn __raw_next(&mut self) -> Result<Option<char>, WebXParserError> {
-        let mut buf = [0; 1];
-        let bytes_read = self
-            .reader
-            .read(&mut buf)
-            .map_err(|err| WebXParserError::IoError(err, self.file.clone()))?;
-        if bytes_read == 0 {
+        let Some(c) = self.reader.next() else {
             return Ok(None);
-        }
-        let c = buf[0] as char;
+        };
         self.peeked_index += 1;
         // Index of the character returned by the next call to `next`.
         self.next_index = self.peeked_index - 1;
@@ -355,7 +345,13 @@ impl<'a> WebXFileParser<'a> {
         loop {
             let nc = self.next()?;
             if nc.is_none() {
-                break;
+                return Err(WebXParserError::unexpected(
+                    "end of file",
+                    format!("parsing a block (expected '{}')", end),
+                    self.line,
+                    self.column,
+                    self.file.clone(),
+                ));
             }
             let nc = nc.unwrap();
             if nc == start {
@@ -498,7 +494,7 @@ impl<'a> WebXFileParser<'a> {
             } // No comma means end of type pairs.
             self.next()?; // Consume the comma.
             self.skip_whitespace(true);
-            if allow_stray_comma && !char::is_alphabetic(self.peek().unwrap()) {
+            if allow_stray_comma && !self.peek().is_some_and(char::is_alphabetic) {
                 break;
             } // Allow stray comma.
         }
@@ -519,7 +515,7 @@ impl<'a> WebXFileParser<'a> {
             if let Some((_, end)) = GROUPING.iter().find(|(start, _)| *start == nc) {
                 s.push(nc);
                 s.push_str(&self.parse_ts_expression(*end)?);
-                s.push(self.next()?.unwrap()); // Consume the end character.
+                s.push(self.expect("parsing a grouped expression")?); // Consume the end character.
             } else {
                 s.push(nc);
             }
@@ -952,6 +948,10 @@ impl<'a> WebXFileParser<'a> {
 pub fn parse_webx_file(file: &PathBuf) -> Result<WXModule, WebXParserError> {
     let file_contents =
         std::fs::read_to_string(file).map_err(|err| WebXParserError::IoError(err, file.clone()))?;
-    let mut parser = WebXFileParser::new(file, &file_contents);
-    parser.parse_module()
+    parse_webx_source(file, &file_contents)
+}
+
+/// Parse a stable source snapshot, so a reload uses exactly the bytes it checked.
+pub fn parse_webx_source(file: &PathBuf, source: &str) -> Result<WXModule, WebXParserError> {
+    WebXFileParser::new(file, source).parse_module()
 }
