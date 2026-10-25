@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     fmt::Display,
     net::SocketAddr,
-    path::Path,
+    path::{Path, PathBuf},
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -19,16 +19,12 @@ use hyper::body::Bytes;
 
 use crate::{
     analysis::routes::{verify_model_routes, FlatRoutes},
+    file::parser::parse_webx_source,
     file::webx::{
         WXBody, WXBodyType, WXModule, WXModulePath, WXRouteHandlerCall, WXTypedIdentifier,
         WXUrlPath, WXUrlPathSegment,
     },
-    reporting::{
-        debug::info,
-        error::{error_code, exit_error},
-        route::print_route,
-        warning::warning,
-    },
+    reporting::{debug::info, error::error_code, route::print_route, warning::warning},
     runner::WXMode,
     timeout_duration,
 };
@@ -189,8 +185,7 @@ impl WXRouteHandlerCall {
 #[derive(Debug, Clone, PartialEq)]
 pub enum WXPathResolution {
     None,
-    Perfect(WXRTContext),
-    Partial(WXRTContext),
+    Perfect(HashMap<String, String>),
 }
 
 impl WXUrlPath {
@@ -202,56 +197,33 @@ impl WXUrlPath {
             .collect::<Vec<_>>()
     }
 
-    pub fn matches<'a, 'b: 'a>(&self, url: &hyper::Uri) -> WXPathResolution {
-        let url = WXUrlPath::get_url_segments(url);
-        let url_count = url.len();
-        // dbg!(url.clone().collect::<Vec<_>>(), url_count, self.segments());
-        let mut bindings = WXRTContext::new();
-        let mut isolate = v8::Isolate::new(Default::default());
-        let mut scope = v8::HandleScope::new(&mut isolate);
-
-        let match_segment = |(pattern, part): (&WXUrlPathSegment, &&str)| -> bool {
-            match pattern {
-                WXUrlPathSegment::Literal(literal) => literal.as_str() == *part,
-                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_: _ }) => {
-                    // TODO: Check type.
-                    let js_value: Local<'_, Value> =
-                        v8::String::new(&mut scope, part).unwrap().into();
-                    let js_value: Global<v8::Value> = Global::new(&mut scope, js_value);
-                    bindings.bind(name, js_value);
-                    true
-                }
-                WXUrlPathSegment::Regex(regex_name, regex) => {
-                    let re = regex::Regex::new(regex).unwrap();
-                    if re.is_match(part) {
-                        let js_value: Local<'_, Value> =
-                            v8::String::new(&mut scope, part).unwrap().into();
-                        let js_value: Global<v8::Value> = Global::new(&mut scope, js_value);
-                        bindings.bind(regex_name, js_value);
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
-        };
-
-        if self.segments() == url_count {
-            if self.0.iter().zip(&url).all(match_segment) {
-                return WXPathResolution::Perfect(bindings);
-            }
-        } else if self.segments() > url_count
-            && self
-                .0
-                .iter()
-                .zip(url.iter().chain(std::iter::repeat(&"")))
-                .all(match_segment)
-            && url_count == self.segments() - 1
-        {
-            return WXPathResolution::Partial(bindings);
+    pub fn matches(&self, url: &hyper::Uri) -> WXPathResolution {
+        let parts = WXUrlPath::get_url_segments(url);
+        if self.segments() != parts.len() {
+            return WXPathResolution::None;
         }
-
-        WXPathResolution::None
+        let mut bindings = HashMap::new();
+        for (pattern, part) in self.0.iter().zip(parts) {
+            match pattern {
+                WXUrlPathSegment::Literal(literal) if literal != part => {
+                    return WXPathResolution::None
+                }
+                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, .. }) => {
+                    bindings.insert(name.clone(), part.to_owned());
+                }
+                WXUrlPathSegment::Regex(name, pattern) => {
+                    if pattern != "*"
+                        && !regex::Regex::new(&format!("^(?:{})$", pattern))
+                            .is_ok_and(|re| re.is_match(part))
+                    {
+                        return WXPathResolution::None;
+                    }
+                    bindings.insert(name.clone(), part.to_owned());
+                }
+                _ => {}
+            }
+        }
+        WXPathResolution::Perfect(bindings)
     }
 }
 
@@ -438,7 +410,7 @@ impl WXRTRoute {
     }
 }
 
-type WXMethodMapInner = HashMap<WXUrlPath, WXRTRoute>;
+type WXMethodMapInner = Vec<(WXUrlPath, WXRTRoute)>;
 type WXRouteMapInner = HashMap<hyper::Method, WXMethodMapInner>;
 
 /// This is a map of all routes in the project.
@@ -458,8 +430,8 @@ impl WXRouteMap {
         let routes: FlatRoutes = verify_model_routes(modules)?;
         let mut route_map: WXRouteMapInner = HashMap::new();
         // Insert all routes into each method map category.
-        for ((route, path), _) in routes {
-            route_map.entry(route.method.clone()).or_default().insert(
+        for (route, path) in routes {
+            route_map.entry(route.method.clone()).or_default().push((
                 path.clone(),
                 WXRTRoute {
                     module_path: route.info.path,
@@ -467,7 +439,7 @@ impl WXRouteMap {
                     pre_handlers: route.pre_handlers,
                     post_handlers: route.post_handlers,
                 },
-            );
+            ));
         }
         Ok(WXRouteMap(route_map))
     }
@@ -482,35 +454,21 @@ impl WXRouteMap {
         &self,
         method: &hyper::Method,
         path: &hyper::Uri,
-    ) -> Option<(&WXUrlPath, WXRTContext, &WXRTRoute)> {
-        let routes = self.0.get(method)?;
-        // Sort all routes by path length in descending order.
-        // This is required to ensure that the most specific routes are matched first.
-        let mut routes: Vec<(&WXUrlPath, &WXRTRoute)> = routes.iter().collect();
-        routes.sort_by(|(a, _), (b, _)| b.segments().cmp(&a.segments()));
-        // Go through all routes and try to match the path.
-        let mut best_match = None;
-        for (route_path, route) in routes {
-            match route_path.matches(path) {
-                WXPathResolution::None => continue,
-                WXPathResolution::Perfect(bindings) => {
-                    best_match = Some((route_path, bindings, route));
-                    break;
-                }
-                WXPathResolution::Partial(bindings) => {
-                    best_match = Some((route_path, bindings, route));
-                }
+    ) -> Option<(&WXUrlPath, HashMap<String, String>, &WXRTRoute)> {
+        // The table is sorted once at compilation, independently of hash iteration.
+        for (route_path, route) in self.0.get(method)? {
+            if let WXPathResolution::Perfect(bindings) = route_path.matches(path) {
+                return Some((route_path, bindings, route));
             }
         }
-        best_match
+        None
     }
 }
 
 /// Channel message for the runtime.
 pub enum WXRuntimeMessage {
-    New(WXModule),
-    Swap(WXModule),
-    Remove(WXModulePath),
+    Shutdown,
+    Reload,
     ExecuteRoute {
         request: hyper::Request<hyper::body::Incoming>,
         addr: SocketAddr,
@@ -522,12 +480,14 @@ pub enum WXRuntimeMessage {
 #[derive(Clone)]
 pub struct WXRuntimeInfo {
     pub project_root: Box<Path>,
+    pub source_root: PathBuf,
 }
 
 impl WXRuntimeInfo {
     pub fn new(project_root: &Path) -> Self {
         WXRuntimeInfo {
             project_root: project_root.to_path_buf().into_boxed_path(),
+            source_root: project_root.to_path_buf(),
         }
     }
 }
@@ -537,20 +497,11 @@ pub struct WXRuntime {
     mode: WXMode,
     info: WXRuntimeInfo,
     source_modules: Vec<WXModule>,
+    last_sources: Option<HashMap<PathBuf, String>>,
     messages: Receiver<WXRuntimeMessage>,
     routes: WXRouteMap,
-    /// A WebX TypeScript runtime.
-    ///
-    /// ## Hot-swapping
-    /// These are persistent between hot-swapping modules in dev mode.
-    /// They are only created or destroyed when modules are added or removed.
-    /// This allows us to keep the state of the application between hot-swaps.
-    ///
-    /// ## Persistent state
-    /// Each JS runtime maintains a JavaScript execution context,
-    /// which means that it keeps track of its own persistent state, variables,
-    /// functions, and other constructs will persist between script executions
-    /// as long as they are run in the same runtime instance.
+    /// Module globals persist across requests and HTML-only edits. A changed
+    /// global block replaces its module runtime only after successful validation.
     modules: HashMap<WXModulePath, deno_core::JsRuntime>,
 }
 
@@ -558,6 +509,7 @@ impl WXRuntime {
     pub fn new(rx: Receiver<WXRuntimeMessage>, mode: WXMode, info: WXRuntimeInfo) -> Self {
         WXRuntime {
             source_modules: Vec::new(),
+            last_sources: None,
             routes: WXRouteMap::new(),
             messages: rx,
             mode,
@@ -575,6 +527,8 @@ impl WXRuntime {
     /// - trigger a module hot-swap in `dev` mode.
     pub fn load_modules(&mut self, modules: Vec<WXModule>) {
         modules.into_iter().for_each(|m| self.load_module(m));
+        // The first development request rechecks the exact on-disk snapshot.
+        self.last_sources = None;
     }
 
     /// Load a single module into the runtime.
@@ -588,59 +542,94 @@ impl WXRuntime {
     /// Only call this function once per module.
     /// This should **NOT** be called when hot-swapping modules.
     pub fn load_module(&mut self, module: WXModule) {
-        let rt = self.new_module_js_runtime(&module);
+        let rt = self
+            .new_module_js_runtime(&module)
+            .expect("Failed to initialize module");
         self.modules.insert(module.path.clone(), rt);
         self.source_modules.push(module);
     }
 
-    fn remove_module(&mut self, module_path: &WXModulePath) {
-        self.modules.remove(module_path);
-        self.source_modules.retain(|m| m.path != *module_path);
-    }
-
-    /// Initialize the JavaScript runtime with the stdlib.
-    fn new_js_runtime(&mut self) -> JsRuntime {
+    /// Build a candidate runtime without disturbing the currently serving module.
+    fn new_module_js_runtime(&self, module: &WXModule) -> Result<JsRuntime, WXRuntimeError> {
         let mut rt = JsRuntime::new(RuntimeOptions {
             module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
-            // extensions: vec![stdlib::init()],
             ..Default::default()
         });
-        // Load WebX Standard Library
-        if let Err(err) = rt.execute_script(
+        rt.execute_script(
             "[webx stdlib]",
             deno_core::FastString::Static(stdlib::JAVASCRIPT),
-        ) {
-            exit_error(
-                format!("Failed to execute stdlib:\n{}", err),
-                500,
-                self.mode.date_specifier(),
-            );
-        }
-        info(self.mode, "Initialized stdlib");
-        rt
-    }
-
-    /// Initialize the module and execute the global scope
-    fn new_module_js_runtime(&mut self, module: &WXModule) -> JsRuntime {
-        let mut rt = self.new_js_runtime();
-        if let Err(err) =
-            rt.execute_script("[global scope]", module.scope.global_ts.to_owned().into())
-        {
-            error_code(
-                format!(
-                    "Failed to execute global scope for module '{}':\n{}",
+        )
+        .map_err(|err| WXRuntimeError {
+            code: 500,
+            message: format!("Failed to execute stdlib: {}", err),
+        })?;
+        rt.execute_script("[global scope]", module.scope.global_ts.to_owned().into())
+            .map_err(|err| WXRuntimeError {
+                code: 500,
+                message: format!(
+                    "Failed to initialize {}: {}",
                     module.path.module_name(),
                     err
                 ),
-                500,
-                self.mode.date_specifier(),
-            );
+            })?;
+        Ok(rt)
+    }
+
+    /// Reconcile the whole source tree atomically. Checking here as well as on
+    /// watcher events guarantees that the first request after a save sees it.
+    fn refresh_sources(&mut self) -> Result<(), WXRuntimeError> {
+        fn read_sources(root: &Path, files: &mut HashMap<PathBuf, String>) -> std::io::Result<()> {
+            for entry in std::fs::read_dir(root)? {
+                let entry = entry?;
+                let path = entry.path();
+                if entry.file_type()?.is_dir() {
+                    read_sources(&path, files)?;
+                } else if matches!(
+                    path.extension().and_then(|s| s.to_str()),
+                    Some("wx" | "webx")
+                ) {
+                    files.insert(path.canonicalize()?, std::fs::read_to_string(path)?);
+                }
+            }
+            Ok(())
         }
-        info(
-            self.mode,
-            &format!("Initialized module '{}'", module.path.module_name()),
-        );
-        rt
+        let mut sources = HashMap::new();
+        read_sources(&self.info.source_root, &mut sources)?;
+        if self.last_sources.as_ref() == Some(&sources) {
+            return Ok(());
+        }
+        // Remember invalid snapshots too: report once, then retry when bytes change.
+        self.last_sources = Some(sources.clone());
+        let mut paths: Vec<_> = sources.keys().collect();
+        paths.sort();
+        let modules: Vec<_> = paths
+            .into_iter()
+            .map(|path| {
+                parse_webx_source(path, &sources[path]).map_err(|err| WXRuntimeError {
+                    code: 500,
+                    message: format!("Reload rejected: {:?}", err),
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        let routes = WXRouteMap::from_modules(&modules)?;
+        let mut replacements = HashMap::new();
+        for module in &modules {
+            let previous = self
+                .source_modules
+                .iter()
+                .find(|old| old.path == module.path);
+            if previous.is_none_or(|old| old.scope.global_ts != module.scope.global_ts) {
+                replacements.insert(module.path.clone(), self.new_module_js_runtime(module)?);
+            }
+        }
+        // Commit only after parsing, route validation, and JS initialization succeed.
+        self.modules
+            .retain(|path, _| modules.iter().any(|module| &module.path == path));
+        self.modules.extend(replacements);
+        self.source_modules = modules;
+        self.routes = routes;
+        info(self.mode, "Reloaded source snapshot");
+        Ok(())
     }
 
     /// Tries to recompile all loaded modules at once and replace the runtime route map.
@@ -700,37 +689,22 @@ impl WXRuntime {
             }
             if let Ok(msg) = self.messages.recv_timeout(timeout_duration(self.mode)) {
                 match msg {
-                    WXRuntimeMessage::New(module) => {
-                        info(
-                            self.mode,
-                            &format!("New module: {}", module.path.module_name()),
-                        );
-                        self.load_module(module);
-                        self.recompile();
-                    }
-                    WXRuntimeMessage::Swap(module) => {
-                        info(
-                            self.mode,
-                            &format!("Reloaded module: {}", module.path.module_name()),
-                        );
-                        // Module JS runtime is persistent between hot-swaps.
-                        self.remove_module(&module.path);
-                        self.load_module(module);
-                        self.recompile();
-                    }
-                    WXRuntimeMessage::Remove(path) => {
-                        info(
-                            self.mode,
-                            &format!("Removed module: {}", path.module_name()),
-                        );
-                        self.remove_module(&path);
-                        self.recompile();
+                    WXRuntimeMessage::Shutdown => break,
+                    WXRuntimeMessage::Reload => {
+                        if self.mode.is_dev() {
+                            if let Err(err) = self.refresh_sources() {
+                                error_code(err.message, err.code, self.mode.date_specifier());
+                            }
+                        }
                     }
                     WXRuntimeMessage::ExecuteRoute {
                         request,
                         addr,
                         respond_to,
-                    } => respond_to.send(self.execute_route(request, addr)).unwrap(),
+                    } => {
+                        // A disconnected client must not stop the runtime.
+                        let _ = respond_to.send(self.execute_route(request, addr));
+                    }
                 }
             }
         }
@@ -741,8 +715,22 @@ impl WXRuntime {
         req: hyper::Request<hyper::body::Incoming>,
         addr: SocketAddr,
     ) -> Result<hyper::Response<http_body_util::Full<Bytes>>, WXRuntimeError> {
-        if let Some((_path, mut ctx, route)) = self.routes.resolve(req.method(), req.uri()) {
+        if self.mode.is_dev() {
+            if let Err(err) = self.refresh_sources() {
+                error_code(err.message, err.code, self.mode.date_specifier());
+            }
+        }
+        if let Some((_path, bindings, route)) = self.routes.resolve(req.method(), req.uri()) {
             let module_runtime = self.modules.get_mut(&route.module_path).unwrap();
+            // V8 handles must be allocated in the runtime that will consume them.
+            let mut ctx = WXRTContext::new();
+            {
+                let scope = &mut module_runtime.handle_scope();
+                for (name, value) in bindings {
+                    let value: Local<Value> = v8::String::new(scope, &value).unwrap().into();
+                    ctx.bind(&name, Global::new(scope, value));
+                }
+            }
             let route_result = route.execute(&mut ctx, module_runtime, &self.info, self.mode);
             let response = match route_result {
                 Ok(response) => response,

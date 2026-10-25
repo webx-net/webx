@@ -26,7 +26,6 @@ use crate::{
         error::{error_code, ERROR_EXEC_ROUTE},
     },
     runner::WXMode,
-    timeout_duration,
 };
 
 use super::runtime::{WXRuntimeError, WXRuntimeMessage};
@@ -104,15 +103,29 @@ impl WXServer {
 
     async fn run_async(&mut self, running: Arc<AtomicBool>) -> WXFailable<()> {
         let listener = tokio::net::TcpListener::bind(&self.addrs()[..]).await?;
-        let svc = WXSvc::new(self.mode, self.runtime_tx.clone());
         self.log_startup();
+        self.run_with_listener(listener, running).await
+    }
+
+    /// Serve an already-bound listener (including an OS-assigned test port).
+    pub(crate) async fn run_with_listener(
+        &self,
+        listener: tokio::net::TcpListener,
+        running: Arc<AtomicBool>,
+    ) -> WXFailable<()> {
+        let svc = WXSvc::new(self.mode, self.runtime_tx.clone());
+        let mut connections = tokio::task::JoinSet::new();
         loop {
             if !running.load(Ordering::SeqCst) {
                 // println!("Shutting down web server...");
-                return Ok(()); // Shutdown the server.
+                connections.shutdown().await;
+                return Ok(());
             }
-            let (stream, addr) = match timeout(timeout_duration(self.mode), listener.accept()).await
-            {
+            let accepted = tokio::select! {
+                accepted = timeout(std::time::Duration::from_millis(50), listener.accept()) => accepted,
+                _ = connections.join_next(), if !connections.is_empty() => continue,
+            };
+            let (stream, addr) = match accepted {
                 Ok(Ok((stream, addr))) => (stream, addr),
                 Ok(Err(err)) => {
                     eprintln!("Failed to accept connection: {}", err);
@@ -120,7 +133,7 @@ impl WXServer {
                 }
                 Err(_) => continue,
             };
-            tokio::spawn(Self::serve(
+            connections.spawn(Self::serve(
                 TokioIo::new(stream),
                 svc.clone_with_address(addr),
             ));
