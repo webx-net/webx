@@ -508,6 +508,7 @@ impl WXRouteMap {
 
 /// Channel message for the runtime.
 pub enum WXRuntimeMessage {
+    Shutdown,
     New(WXModule),
     Swap(WXModule),
     Remove(WXModulePath),
@@ -700,6 +701,7 @@ impl WXRuntime {
             }
             if let Ok(msg) = self.messages.recv_timeout(timeout_duration(self.mode)) {
                 match msg {
+                    WXRuntimeMessage::Shutdown => break,
                     WXRuntimeMessage::New(module) => {
                         info(
                             self.mode,
@@ -730,7 +732,10 @@ impl WXRuntime {
                         request,
                         addr,
                         respond_to,
-                    } => respond_to.send(self.execute_route(request, addr)).unwrap(),
+                    } => {
+                        // A disconnected client must not stop the runtime.
+                        let _ = respond_to.send(self.execute_route(request, addr));
+                    }
                 }
             }
         }
