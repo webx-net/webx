@@ -189,8 +189,7 @@ impl WXRouteHandlerCall {
 #[derive(Debug, Clone, PartialEq)]
 pub enum WXPathResolution {
     None,
-    Perfect(WXRTContext),
-    Partial(WXRTContext),
+    Perfect(HashMap<String, String>),
 }
 
 impl WXUrlPath {
@@ -202,56 +201,33 @@ impl WXUrlPath {
             .collect::<Vec<_>>()
     }
 
-    pub fn matches<'a, 'b: 'a>(&self, url: &hyper::Uri) -> WXPathResolution {
-        let url = WXUrlPath::get_url_segments(url);
-        let url_count = url.len();
-        // dbg!(url.clone().collect::<Vec<_>>(), url_count, self.segments());
-        let mut bindings = WXRTContext::new();
-        let mut isolate = v8::Isolate::new(Default::default());
-        let mut scope = v8::HandleScope::new(&mut isolate);
-
-        let match_segment = |(pattern, part): (&WXUrlPathSegment, &&str)| -> bool {
-            match pattern {
-                WXUrlPathSegment::Literal(literal) => literal.as_str() == *part,
-                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, type_: _ }) => {
-                    // TODO: Check type.
-                    let js_value: Local<'_, Value> =
-                        v8::String::new(&mut scope, part).unwrap().into();
-                    let js_value: Global<v8::Value> = Global::new(&mut scope, js_value);
-                    bindings.bind(name, js_value);
-                    true
-                }
-                WXUrlPathSegment::Regex(regex_name, regex) => {
-                    let re = regex::Regex::new(regex).unwrap();
-                    if re.is_match(part) {
-                        let js_value: Local<'_, Value> =
-                            v8::String::new(&mut scope, part).unwrap().into();
-                        let js_value: Global<v8::Value> = Global::new(&mut scope, js_value);
-                        bindings.bind(regex_name, js_value);
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
-        };
-
-        if self.segments() == url_count {
-            if self.0.iter().zip(&url).all(match_segment) {
-                return WXPathResolution::Perfect(bindings);
-            }
-        } else if self.segments() > url_count
-            && self
-                .0
-                .iter()
-                .zip(url.iter().chain(std::iter::repeat(&"")))
-                .all(match_segment)
-            && url_count == self.segments() - 1
-        {
-            return WXPathResolution::Partial(bindings);
+    pub fn matches(&self, url: &hyper::Uri) -> WXPathResolution {
+        let parts = WXUrlPath::get_url_segments(url);
+        if self.segments() != parts.len() {
+            return WXPathResolution::None;
         }
-
-        WXPathResolution::None
+        let mut bindings = HashMap::new();
+        for (pattern, part) in self.0.iter().zip(parts) {
+            match pattern {
+                WXUrlPathSegment::Literal(literal) if literal != part => {
+                    return WXPathResolution::None
+                }
+                WXUrlPathSegment::Parameter(WXTypedIdentifier { name, .. }) => {
+                    bindings.insert(name.clone(), part.to_owned());
+                }
+                WXUrlPathSegment::Regex(name, pattern) => {
+                    if pattern != "*"
+                        && !regex::Regex::new(&format!("^(?:{})$", pattern))
+                            .is_ok_and(|re| re.is_match(part))
+                    {
+                        return WXPathResolution::None;
+                    }
+                    bindings.insert(name.clone(), part.to_owned());
+                }
+                _ => {}
+            }
+        }
+        WXPathResolution::Perfect(bindings)
     }
 }
 
@@ -438,7 +414,7 @@ impl WXRTRoute {
     }
 }
 
-type WXMethodMapInner = HashMap<WXUrlPath, WXRTRoute>;
+type WXMethodMapInner = Vec<(WXUrlPath, WXRTRoute)>;
 type WXRouteMapInner = HashMap<hyper::Method, WXMethodMapInner>;
 
 /// This is a map of all routes in the project.
@@ -458,8 +434,8 @@ impl WXRouteMap {
         let routes: FlatRoutes = verify_model_routes(modules)?;
         let mut route_map: WXRouteMapInner = HashMap::new();
         // Insert all routes into each method map category.
-        for ((route, path), _) in routes {
-            route_map.entry(route.method.clone()).or_default().insert(
+        for (route, path) in routes {
+            route_map.entry(route.method.clone()).or_default().push((
                 path.clone(),
                 WXRTRoute {
                     module_path: route.info.path,
@@ -467,7 +443,7 @@ impl WXRouteMap {
                     pre_handlers: route.pre_handlers,
                     post_handlers: route.post_handlers,
                 },
-            );
+            ));
         }
         Ok(WXRouteMap(route_map))
     }
@@ -482,27 +458,14 @@ impl WXRouteMap {
         &self,
         method: &hyper::Method,
         path: &hyper::Uri,
-    ) -> Option<(&WXUrlPath, WXRTContext, &WXRTRoute)> {
-        let routes = self.0.get(method)?;
-        // Sort all routes by path length in descending order.
-        // This is required to ensure that the most specific routes are matched first.
-        let mut routes: Vec<(&WXUrlPath, &WXRTRoute)> = routes.iter().collect();
-        routes.sort_by(|(a, _), (b, _)| b.segments().cmp(&a.segments()));
-        // Go through all routes and try to match the path.
-        let mut best_match = None;
-        for (route_path, route) in routes {
-            match route_path.matches(path) {
-                WXPathResolution::None => continue,
-                WXPathResolution::Perfect(bindings) => {
-                    best_match = Some((route_path, bindings, route));
-                    break;
-                }
-                WXPathResolution::Partial(bindings) => {
-                    best_match = Some((route_path, bindings, route));
-                }
+    ) -> Option<(&WXUrlPath, HashMap<String, String>, &WXRTRoute)> {
+        // The table is sorted once at compilation, independently of hash iteration.
+        for (route_path, route) in self.0.get(method)? {
+            if let WXPathResolution::Perfect(bindings) = route_path.matches(path) {
+                return Some((route_path, bindings, route));
             }
         }
-        best_match
+        None
     }
 }
 
@@ -746,8 +709,17 @@ impl WXRuntime {
         req: hyper::Request<hyper::body::Incoming>,
         addr: SocketAddr,
     ) -> Result<hyper::Response<http_body_util::Full<Bytes>>, WXRuntimeError> {
-        if let Some((_path, mut ctx, route)) = self.routes.resolve(req.method(), req.uri()) {
+        if let Some((_path, bindings, route)) = self.routes.resolve(req.method(), req.uri()) {
             let module_runtime = self.modules.get_mut(&route.module_path).unwrap();
+            // V8 handles must be allocated in the runtime that will consume them.
+            let mut ctx = WXRTContext::new();
+            {
+                let scope = &mut module_runtime.handle_scope();
+                for (name, value) in bindings {
+                    let value: Local<Value> = v8::String::new(scope, &value).unwrap().into();
+                    ctx.bind(&name, Global::new(scope, value));
+                }
+            }
             let route_result = route.execute(&mut ctx, module_runtime, &self.info, self.mode);
             let response = match route_result {
                 Ok(response) => response,

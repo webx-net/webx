@@ -213,3 +213,97 @@ async fn serves_static_files_and_handler_errors_over_http() {
     assert!(error.body.contains("failed to read file"));
     assert_eq!(server.request("GET", "/").await.status, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn route_specificity_is_independent_of_declaration_and_module_order() {
+    for reverse in [false, true] {
+        let routes = [
+            "get /path/(anything: String)/here (<p>generic</p>)",
+            "get /path/to/here (<p>literal</p>)",
+            "get /path/*/here (<p>wildcard</p>)",
+            "location /nested { get /(id: String) (<p>nested generic</p>) get /fixed (<p>nested literal</p>) }",
+            "get /other/* (<p>fallback</p>)",
+            "delete /path/to/here (<p>deleted</p>)",
+        ];
+        let source = if reverse {
+            routes.into_iter().rev().collect::<Vec<_>>()
+        } else {
+            routes.to_vec()
+        }
+        .join("\n");
+        let files = if reverse {
+            vec![
+                ("specific.wx", "get /other/fixed (<p>other literal</p>)\n"),
+                ("generic.wx", source.as_str()),
+            ]
+        } else {
+            vec![
+                ("generic.wx", source.as_str()),
+                ("specific.wx", "get /other/fixed (<p>other literal</p>)\n"),
+            ]
+        };
+        let server = TestServer::start(&files);
+        for _ in 0..4 {
+            for (path, expected) in [
+                ("/path/to/here", "<p>literal</p>"),
+                ("/path/else/here", "<p>generic</p>"),
+                ("/nested/fixed", "<p>nested literal</p>"),
+                ("/nested/123", "<p>nested generic</p>"),
+                ("/other/fixed", "<p>other literal</p>"),
+                ("/other/anything", "<p>fallback</p>"),
+            ] {
+                let response = server.request("GET", path).await;
+                assert_eq!(response.status, StatusCode::OK);
+                assert_eq!(response.body, expected, "{path}");
+            }
+        }
+        assert_eq!(
+            server.request("GET", "/path/to/here/extra").await.status,
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            server.request("GET", "/nested").await.status,
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            server.request("DELETE", "/path/to/here").await.body,
+            "<p>deleted</p>"
+        );
+    }
+}
+
+#[test]
+fn duplicate_and_ambiguous_routes_report_both_locations() {
+    use crate::analysis::routes::{
+        ambiguous_route_warnings, analyze_duplicate_routes, analyze_invalid_routes,
+        extract_flat_routes,
+    };
+    for (a, b) in [
+        ("get /same (<p>a</p>)", "get /same (<p>b</p>)"),
+        (
+            "get /item/(a: String) (<p>a</p>)",
+            "get /item/(b: Int) (<p>b</p>)",
+        ),
+        (
+            "get /nested/same (<p>a</p>)",
+            "location /nested { get /same (<p>b</p>) }",
+        ),
+    ] {
+        let project = TestProject::new(&[("a.wx", a), ("b.wx", b)]);
+        let modules = ["a.wx", "b.wx"].map(|name| parse_webx_file(&project.0.join(name)).unwrap());
+        let err = analyze_duplicate_routes(&modules).unwrap_err();
+        assert!(err.message.contains("Duplicate/ambiguous"));
+        assert!(err.message.contains("a line"), "{}", err.message);
+        assert!(err.message.contains("b line"), "{}", err.message);
+    }
+    let project = TestProject::new(&[(
+        "cross.wx",
+        "get /fixed/(x: String) (a)\nget /(y: String)/fixed (b)\npost /empty (ok)\n",
+    )]);
+    let modules = [parse_webx_file(&project.0.join("cross.wx")).unwrap()];
+    assert_eq!(
+        ambiguous_route_warnings(&extract_flat_routes(&modules)).len(),
+        1
+    );
+    analyze_invalid_routes(&modules).unwrap();
+}
