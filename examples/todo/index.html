@@ -1,71 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-	<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-	<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-	<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
-	<meta name="msapplication-TileColor" content="#ffffff">
-	<meta name="theme-color" content="#ffffff">
-	<title>Document</title>
-	<script src="https://unpkg.com/htmx.org@1.9.4"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebX todos with HTMX</title>
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js"
+          integrity="sha384-/TgkGk7p307TH7EXJDuUlgG3Ce1UVolAOFopFekQkkXihi5u/6OCvVKyz1W+idaz"
+          crossorigin="anonymous" defer></script>
+  <style>
+    body { font: 1rem system-ui, sans-serif; max-width: 48rem; margin: 3rem auto; padding: 0 1rem; }
+    form, li { display: flex; gap: .5rem; margin: 1rem 0; align-items: center; flex-wrap: wrap; }
+    input, button { font: inherit; padding: .5rem; }
+    input[type=text], .todo-title { flex: 1; min-width: 8rem; }
+    ul { list-style: none; padding: 0; }
+    #status { min-height: 1.5rem; }
+  </style>
 </head>
-
 <body>
-	<div class="container">
-		<h1>A Web<font color="#2262dc">X</font> todo list</h1>
-		<p>Welcome! Here is a list of things to do:</p>
-		<ul id="todo-list" hx-get="/todos/list" hx-trigger="load" hx-swap="outerHTML">Loading...</ul>
-
-		<form hx-post="/todos/add" hx-target="#todo-list" hx-swap="afterend">
-			<input name="title" placeholder="Add a new item" type="text" required>
-			<button>Add</button>
-		</form>
-	</div>
+  <main id="todo-app" hx-target="#todo-panel" hx-swap="outerHTML" hx-disabled-elt="#todo-app button">
+    <h1>WebX todos with HTMX</h1>
+    <p>Add a todo, edit its title or completion state, save it, or delete it.</p>
+    <section id="todo-panel" hx-get="/todos" hx-trigger="load">Loading todos…</section>
+    <noscript>Enable JavaScript to use this HTMX example.</noscript>
+    <p>This demo keeps data in memory. Restarting or editing the global code resets it.</p>
+  </main>
+  <script>
+    // POST keeps its URL parameter; PUT submits the edit form body normally.
+    document.body.addEventListener('htmx:configRequest', event => {
+      const form = event.detail.elt;
+      if (!form.matches('form[data-title-route]')) return;
+      event.detail.path += '/' + encodeURIComponent(form.elements.title.value);
+    });
+  </script>
 </body>
-<style>
-	body {
-		font-family: Roboto, sans-serif;
-		margin: 0;
-		height: 100vh;
-		background: #f9f9f9;
-	}
-
-	.container {
-		padding: 1em 4em;
-		max-width: 30em;
-		margin: 0 auto;
-		height: 100%;
-		box-sizing: border-box;
-		border: 1px solid #ccc;
-		background: white;
-	}
-
-	ul {
-		list-style: none;
-		padding: 0;
-	}
-
-	li {
-		padding: 0.5em;
-		border-bottom: 1px solid #ccc;
-	}
-
-	input {
-		padding: 0.5em;
-		border: 1px solid #ccc;
-		border-radius: 0.25em;
-	}
-
-	button {
-		padding: 0.5em;
-		border: 1px solid #ccc;
-		border-radius: 0.25em;
-		background: #eee;
-	}
-</style>
-
 </html>

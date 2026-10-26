@@ -1,121 +1,79 @@
-/* import { Todo, renderAllTodos, renderTodo } from "./todos"; */
-
-get /public/(asset: String) -> static("assets/" + asset)
-
-get / (
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8"/>
-		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-		<meta name="description" content="A Web X demo site"/>
-		<title>Web X Demo</title>
-	</head>
-	<body>
-		<h1>Hello from WebX!</h1>
-		<p>
-			This is an example index page.
-		</p>
-		<a href="/about">About</a>
-		<a href="/todos">Todos</a>
-	</body>
-</html>)
-
-get /about (<div>
-    <h1>About</h1>
-    <p>This is an example WebX project.</p>
-    <a href="/">Home</a>
-</div>)
-
-post /about/(id: number) form(text: string) -> renderAllTodos(a, b): c {
-    const a = [5];
-    if true { console.log(text); }
-} -> renderAllTodos(a, b, c)
-
-post list/all/(data : number)/data json(a: T, b : U) -> renderAllTodos(todos, test): out, hc() : u
-
-// This is an example WebX todo app project.
+// HTMX CRUD: endpoint blocks return HTML fragments.
+// PUT receives named form fields in the request body; POST uses a URL segment.
 global {
-    // Global in-memory database of todos for this example.
-    const todos = [
-        { title: "Example Item", completed: true, createdAt: new Date().setMinutes(new Date().getMinutes() - 1) },
-        { title: "Example Item", completed: false, createdAt: new Date().setMinutes(new Date().getMinutes() - 3) },
-        { title: "Example Item", completed: false, createdAt: new Date().setMinutes(new Date().getMinutes() - 10) },
-    ];
-    function test() { return todos[2]; }
-    let a = test();
-    console.log(a);
-}
+    let todos = [];
+    let nextId = 1;
 
-model Todo {
-    title: string,
-    completed: bool,
-    createdAt: Date,
-}
-
-handler renderTodo(todo: Todo) (<li>
-    <h4>
-        <input type="checkbox" checked={todo.completed} />
-        {todo.title} - {getTimeDiff(todo.createdAt)}
-    </h4>
-</li>)
-
-handler renderAllTodos(todos: Todo) (
-    <ul class="test">{todos.map(renderTodo)}</ul>
-)
-
-handler authenticate(user_id: Number) {
-    if (user_id === 1) {
-        return Guard::Allow;
-    } else {
-        return Guard::Deny;
+    function escapeHtml(value) {
+        return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+    }
+    function renderTodo(todo, editingId) {
+        if (String(todo.id) === editingId) {
+            return `<li id="todo-${todo.id}">
+                <form hx-put="/todos/${todo.id}">
+                    <label for="edit-title-${todo.id}">Title</label>
+                    <input id="edit-title-${todo.id}" name="title" type="text" value="${escapeHtml(todo.title)}" maxlength="120" required>
+                    <label><input name="completed" type="checkbox" value="true" ${todo.completed ? "checked" : ""}> Completed</label>
+                    <button type="submit">Save</button>
+                    <button type="button" hx-get="/todos">Cancel</button>
+                </form>
+            </li>`;
+        }
+        return `<li id="todo-${todo.id}">
+            <span class="todo-title">${escapeHtml(todo.title)}</span>
+            <span class="todo-state">${todo.completed ? "Completed" : "Pending"}</span>
+            <button type="button" hx-get="/todos/${todo.id}">Edit</button>
+            <button type="button" hx-delete="/todos/${todo.id}">Delete</button>
+        </li>`;
+    }
+    function renderTodos(message, editingId) {
+        const rows = todos.map(todo => renderTodo(todo, editingId)).join("");
+        return `<section id="todo-panel">
+            <p id="status" role="status">${escapeHtml(message || "")}</p>
+            <ul id="todos">${rows || '<li class="empty">No todos yet.</li>'}</ul>
+            <form id="create" hx-post="/todos" hx-params="none" data-title-route>
+                <label for="new-title">New todo</label>
+                <input id="new-title" name="title" type="text" placeholder="What needs doing?" maxlength="120" required>
+                <button type="submit">Add todo</button>
+            </form>
+        </section>`;
     }
 }
 
-location todos {
-    // The main todo app page.
-    get / -> static("index.html")
+get / -> static("index.html")
 
-    get /list (<ul id="todo-list">
-        <li>
-            <h4>
-                <input type="checkbox" checked="true" />
-                Example Item - 1 minute ago
-            </h4>
-        </li>
-        <li>
-            <h4>
-                <input type="checkbox" />
-                Example Item - 2 minutes ago
-            </h4>
-        </li>
-    </ul>)
+get /todos {
+    return renderTodos("");
+}
 
-    // Display the global list of todos as HTML.
-    get list/all/(data : Int)/data -> renderAllTodos(todos)
+get /todos/(id: String) {
+    const todo = todos.find(item => String(item.id) === id);
+    return todo ? renderTodos("", id) : renderTodos("Todo not found");
+}
 
-    // Add a new todo to the list with the given title.
-    // { title: "My Todo" }
-    // returns HTML
-    post add/ json(title: String) {
-        let newTodo = {
-            title,
-            completed: false,
-            createdAt: new Date()
-        };
-        todos.push(newTodo);
-    } -> renderTodo(newTodo)
+post /todos/(encodedTitle: String) {
+    let title;
+    try { title = decodeURIComponent(encodedTitle).trim(); }
+    catch (error) { return renderTodos("Title must contain 1-120 characters"); }
+    if (!title || title.length > 120) return renderTodos("Title must contain 1-120 characters");
+    todos.push({ id: nextId++, title, completed: false });
+    return renderTodos("Todo added");
+}
 
-    // Toggle the completed status of the todo with the given id.
-    // { id: 0 }
-    // returns HTML
-    post /toggle json(id: Int) {
-        const todo = todos.find(t => t.id === id);
-        if (todo) {
-            todo.completed = !todo.completed;
-            return renderTodo(todo);
-        } else {
-            return error("Todo not found.");
-        }
-    } -> renderTodo(todo)
+put /todos/(id: String) form(title: String, completed: Boolean) {
+    const todo = todos.find(item => String(item.id) === id);
+    if (!todo) return renderTodos("Todo not found");
+    const cleanedTitle = title.trim();
+    if (!cleanedTitle || cleanedTitle.length > 120) return renderTodos("Title must contain 1-120 characters", id);
+    todo.title = cleanedTitle;
+    todo.completed = completed;
+    return renderTodos("Todo updated");
+}
+
+delete /todos/(id: String) {
+    const todo = todos.find(item => String(item.id) === id);
+    if (!todo) return renderTodos("Todo not found");
+    todos = todos.filter(item => String(item.id) !== id);
+    return renderTodos("Todo deleted");
 }

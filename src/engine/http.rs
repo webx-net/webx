@@ -24,7 +24,7 @@ pub mod responses {
     use deno_core::v8::{self, Global, HandleScope, Local, Value};
     use hyper::{body::Bytes, Method, Response};
 
-    use crate::runner::WXMode;
+    use crate::{engine::runtime::WXRuntimeError, runner::WXMode};
 
     pub fn server_header(mode: WXMode) -> String {
         if mode.is_dev() {
@@ -72,12 +72,25 @@ pub mod responses {
             .unwrap()
     }
 
-    pub fn ok_json(body: &Global<Value>, scope: &mut HandleScope, mode: WXMode) -> Response<Bytes> {
+    pub fn ok_json(
+        body: &Global<Value>,
+        scope: &mut HandleScope,
+        mode: WXMode,
+    ) -> Result<Response<Bytes>, WXRuntimeError> {
+        let scope = &mut v8::TryCatch::new(scope);
         let local = Local::new(scope, body);
-        let value = v8::json::stringify(scope, local).expect("Failed to serialize JSON value");
-        let json = value.to_rust_string_lossy(scope);
+        let json = if local.is_undefined() {
+            "null".to_string()
+        } else {
+            v8::json::stringify(scope, local)
+                .ok_or_else(|| WXRuntimeError {
+                    code: 500,
+                    message: "Response is not JSON-serializable".into(),
+                })?
+                .to_rust_string_lossy(scope)
+        };
         let bytes = Bytes::from(json);
-        Response::builder()
+        Ok(Response::builder()
             .status(hyper::StatusCode::OK)
             // .header("Access-Control-Allow-Origin", "*")
             .header("Content-Type", "application/json")
@@ -89,6 +102,26 @@ pub mod responses {
             // .header("Pragma", "no-cache")
             // .header("Expires", "0")
             .body(bytes)
+            .unwrap())
+    }
+
+    pub fn request_error(mode: WXMode, status: u16, message: String) -> Response<Bytes> {
+        Response::builder()
+            .status(status)
+            .header("Content-Type", "text/plain; charset=utf-8")
+            .header("Connection", "close")
+            .header("Server", server_header(mode))
+            .body(Bytes::from(message))
+            .unwrap()
+    }
+
+    pub fn not_implemented(mode: WXMode, message: String) -> Response<Bytes> {
+        Response::builder()
+            .status(hyper::StatusCode::NOT_IMPLEMENTED)
+            .header("Content-Type", "text/plain; charset=utf-8")
+            .header("Connection", "close")
+            .header("Server", server_header(mode))
+            .body(Bytes::from(message))
             .unwrap()
     }
 
