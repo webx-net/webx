@@ -25,15 +25,11 @@
     <p>This demo keeps data in memory. Restarting or editing the global code resets it.</p>
   </main>
   <script>
-    // Adapt form values to WebX's supported URL parameters. HTMX sends the
-    // requests and swaps the HTML; form-body decoding is not implemented yet.
+    // POST keeps its URL parameter; PUT submits the edit form body normally.
     document.body.addEventListener('htmx:configRequest', event => {
       const form = event.detail.elt;
       if (!form.matches('form[data-title-route]')) return;
       event.detail.path += '/' + encodeURIComponent(form.elements.title.value);
-      if (event.detail.verb === 'put') {
-        event.detail.path += '/' + form.elements.completed.checked;
-      }
     });
   </script>
 </body>

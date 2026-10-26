@@ -1,5 +1,5 @@
 // HTMX CRUD: endpoint blocks return HTML fragments.
-// Request body decoding is not implemented; titles travel as encoded URL segments.
+// PUT receives named form fields in the request body; POST uses a URL segment.
 global {
     let todos = [];
     let nextId = 1;
@@ -11,10 +11,10 @@ global {
     function renderTodo(todo, editingId) {
         if (String(todo.id) === editingId) {
             return `<li id="todo-${todo.id}">
-                <form hx-put="/todos/${todo.id}" hx-params="none" data-title-route>
+                <form hx-put="/todos/${todo.id}">
                     <label for="edit-title-${todo.id}">Title</label>
                     <input id="edit-title-${todo.id}" name="title" type="text" value="${escapeHtml(todo.title)}" maxlength="120" required>
-                    <label><input name="completed" type="checkbox" ${todo.completed ? "checked" : ""}> Completed</label>
+                    <label><input name="completed" type="checkbox" value="true" ${todo.completed ? "checked" : ""}> Completed</label>
                     <button type="submit">Save</button>
                     <button type="button" hx-get="/todos">Cancel</button>
                 </form>
@@ -61,16 +61,13 @@ post /todos/(encodedTitle: String) {
     return renderTodos("Todo added");
 }
 
-put /todos/(id: String)/(encodedTitle: String)/(completed: String) {
+put /todos/(id: String) form(title: String, completed: Boolean) {
     const todo = todos.find(item => String(item.id) === id);
     if (!todo) return renderTodos("Todo not found");
-    let title;
-    try { title = decodeURIComponent(encodedTitle).trim(); }
-    catch (error) { return renderTodos("Title must contain 1-120 characters", id); }
-    if (!title || title.length > 120) return renderTodos("Title must contain 1-120 characters", id);
-    if (completed !== "true" && completed !== "false") return renderTodos("Invalid completion state", id);
-    todo.title = title;
-    todo.completed = completed === "true";
+    const cleanedTitle = title.trim();
+    if (!cleanedTitle || cleanedTitle.length > 120) return renderTodos("Title must contain 1-120 characters", id);
+    todo.title = cleanedTitle;
+    todo.completed = completed;
     return renderTodos("Todo updated");
 }
 

@@ -137,6 +137,16 @@ async fn request(addr: SocketAddr, method: &str, path: &str) -> TestResponse {
 }
 
 async fn request_body(addr: SocketAddr, method: &str, path: &str, body: &str) -> TestResponse {
+    request_typed(addr, method, path, body, "").await
+}
+
+async fn request_typed(
+    addr: SocketAddr,
+    method: &str,
+    path: &str,
+    body: &str,
+    content_type: &str,
+) -> TestResponse {
     tokio::time::timeout(Duration::from_secs(5), async {
         let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
         let (mut client, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
@@ -150,6 +160,7 @@ async fn request_body(addr: SocketAddr, method: &str, path: &str, body: &str) ->
                     .uri(path)
                     .header("Host", "localhost")
                     .header("Connection", "close")
+                    .header("Content-Type", content_type)
                     .body(Full::new(Bytes::copy_from_slice(body.as_bytes())))
                     .unwrap(),
             )
@@ -528,6 +539,20 @@ async fn todo_fragment(server: &TestServer, method: &str, path: &str) -> String 
     response.body
 }
 
+async fn todo_put(server: &TestServer, path: &str, body: &str) -> String {
+    let response = request_typed(
+        server.addr,
+        "PUT",
+        path,
+        body,
+        "application/x-www-form-urlencoded",
+    )
+    .await;
+    assert_eq!(response.status, StatusCode::OK, "{}", response.body);
+    assert_eq!(response.headers["content-type"], "text/html; charset=utf-8");
+    response.body
+}
+
 #[tokio::test]
 async fn todo_example_completes_a_crud_lifecycle() {
     let server = todo_server();
@@ -551,11 +576,11 @@ async fn todo_example_completes_a_crud_lifecycle() {
     assert!(!created.contains("No todos yet."));
 
     let edit = todo_fragment(&server, "GET", "/todos/1").await;
-    assert!(edit.contains(r#"hx-put="/todos/1" hx-params="none""#));
+    assert!(edit.contains(r#"<form hx-put="/todos/1">"#));
     assert!(edit.contains(r#"value="First task""#));
     assert!(!edit.contains("checked"));
 
-    let updated = todo_fragment(&server, "PUT", "/todos/1/Edited%2Ftask/true").await;
+    let updated = todo_put(&server, "/todos/1", "title=Edited%2Ftask&completed=true").await;
     assert!(updated.contains("Todo updated"));
     assert!(updated.contains("Edited/task"));
     assert!(updated.contains(">Completed</span>"));
@@ -565,7 +590,7 @@ async fn todo_example_completes_a_crud_lifecycle() {
     assert!(todo_fragment(&server, "GET", "/todos/1")
         .await
         .contains("checked"));
-    let unchecked = todo_fragment(&server, "PUT", "/todos/1/Edited%2Ftask/false").await;
+    let unchecked = todo_put(&server, "/todos/1", "title=Edited%2Ftask").await;
     assert!(unchecked.contains(">Pending</span>"));
 
     let deleted = todo_fragment(&server, "DELETE", "/todos/1").await;
@@ -597,17 +622,6 @@ async fn todo_example_escapes_titles_and_rejects_invalid_changes() {
     for (method, path, message) in [
         ("POST", "/todos/%20", "Title must contain 1-120 characters"),
         ("POST", "/todos/%FF", "Title must contain 1-120 characters"),
-        (
-            "PUT",
-            "/todos/1/%20/true",
-            "Title must contain 1-120 characters",
-        ),
-        (
-            "PUT",
-            "/todos/1/Changed/notabool",
-            "Invalid completion state",
-        ),
-        ("PUT", "/todos/999/Changed/true", "Todo not found"),
         ("DELETE", "/todos/999", "Todo not found"),
     ] {
         assert!(todo_fragment(&server, method, path).await.contains(message));
@@ -615,6 +629,24 @@ async fn todo_example_escapes_titles_and_rejects_invalid_changes() {
         assert!(stored.contains(escaped));
         assert!(stored.contains(">Pending</span>"));
     }
+    assert!(todo_put(&server, "/todos/1", "title=%20&completed=true")
+        .await
+        .contains("Title must contain 1-120 characters"));
+    assert!(todo_put(&server, "/todos/999", "title=Changed")
+        .await
+        .contains("Todo not found"));
+    let rejected = request_typed(
+        server.addr,
+        "PUT",
+        "/todos/1",
+        "title=Changed&completed=notabool",
+        "application/x-www-form-urlencoded",
+    )
+    .await;
+    assert_eq!(rejected.status, StatusCode::BAD_REQUEST);
+    assert!(todo_fragment(&server, "GET", "/todos")
+        .await
+        .contains(escaped));
     let long_title = format!("/todos/{}", "x".repeat(121));
     assert!(todo_fragment(&server, "POST", &long_title)
         .await
@@ -672,4 +704,153 @@ get /probe { return [typeof local, typeof temporary, typeof before, typeof out];
         serde_json::from_str::<serde_json::Value>(&reloaded.body).unwrap(),
         serde_json::json!({"id":"mine edited","call":3})
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn put_form_bodies_decode_validate_and_remain_request_local() {
+    let server = TestServer::start(&[(
+        "index.wx",
+        r#"
+global { let calls = 0; function echo(value) { return value; } }
+put /form/(id: String) form(title: String, completed: Boolean) -> echo(title): before {
+    calls++;
+    return { id, title, before, completed };
+}
+get /probe { return { calls, title: typeof title, completed: typeof completed }; }
+post /form form(title: String) { return title; }
+patch /form form(title: String) { return title; }
+put /collision/(id: String) form(id: String) { return id; }
+put /unsupported form(count: Number) { return count; }
+"#,
+    )]);
+    let response = request_typed(
+        server.addr,
+        "PUT",
+        "/form/1",
+        "title=hello+%26+%2B+%2520+%F0%9F%8C%8D&completed=on&ignored=x",
+        "application/x-www-form-urlencoded; charset=UTF-8",
+    )
+    .await;
+    assert_eq!(response.status, StatusCode::OK);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&response.body).unwrap(),
+        serde_json::json!({"id":"1","title":"hello & + %20 🌍","before":"hello & + %20 🌍","completed":true})
+    );
+    for (body, media, expected) in [
+        ("title=ok", "text/plain", 415),
+        ("title=ok", "multipart/form-data; boundary=test", 415),
+        (
+            "title=ok",
+            "application/x-www-form-urlencoded; charset=latin1",
+            415,
+        ),
+        ("title=ok", "", 415),
+        ("", "application/x-www-form-urlencoded", 400),
+        ("title=%GG", "application/x-www-form-urlencoded", 400),
+        ("title=%FF", "application/x-www-form-urlencoded", 400),
+        ("title=a&title=b", "application/x-www-form-urlencoded", 400),
+        (
+            "title=a&completed=maybe",
+            "application/x-www-form-urlencoded",
+            400,
+        ),
+    ] {
+        assert_eq!(
+            request_typed(server.addr, "PUT", "/form/1", body, media)
+                .await
+                .status
+                .as_u16(),
+            expected
+        );
+    }
+    for method in ["POST", "PATCH"] {
+        let response = request_typed(
+            server.addr,
+            method,
+            "/form",
+            "title=body+value",
+            "application/x-www-form-urlencoded",
+        )
+        .await;
+        assert_eq!(response.status, StatusCode::OK);
+        assert_eq!(response.body, "body value");
+    }
+    assert_eq!(
+        request_typed(
+            server.addr,
+            "PUT",
+            "/collision/path",
+            "id=body",
+            "application/x-www-form-urlencoded"
+        )
+        .await
+        .status,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        request_typed(
+            server.addr,
+            "PUT",
+            "/unsupported",
+            "count=3",
+            "application/x-www-form-urlencoded"
+        )
+        .await
+        .status,
+        StatusCode::NOT_IMPLEMENTED
+    );
+    let large = format!("title={}", "x".repeat(65536));
+    assert_eq!(
+        request_typed(
+            server.addr,
+            "PUT",
+            "/form/1",
+            &large,
+            "application/x-www-form-urlencoded"
+        )
+        .await
+        .status,
+        StatusCode::PAYLOAD_TOO_LARGE
+    );
+    let mut jobs = tokio::task::JoinSet::new();
+    let barrier = Arc::new(tokio::sync::Barrier::new(17));
+    for i in 0..16 {
+        let addr = server.addr;
+        let barrier = barrier.clone();
+        jobs.spawn(async move {
+            barrier.wait().await;
+            let response = request_typed(addr, "PUT", &format!("/form/{i}"), &format!("title=client{i}"), "application/x-www-form-urlencoded").await;
+            assert_eq!(response.status, StatusCode::OK);
+            assert_eq!(serde_json::from_str::<serde_json::Value>(&response.body).unwrap(), serde_json::json!({"id":i.to_string(),"title":format!("client{i}"),"before":format!("client{i}"),"completed":false}));
+        });
+    }
+    barrier.wait().await;
+    while let Some(result) = jobs.join_next().await {
+        result.unwrap();
+    }
+    let probe = server.request("GET", "/probe").await;
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&probe.body).unwrap(),
+        serde_json::json!({"calls":17,"title":"undefined","completed":"undefined"})
+    );
+}
+
+#[tokio::test]
+async fn chunked_form_upload_does_not_block_other_requests() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let server = TestServer::start(&[(
+        "index.wx",
+        "put /form form(title: String) { return title; }\nget /ready (ready)\n",
+    )]);
+    let mut stream = tokio::net::TcpStream::connect(server.addr).await.unwrap();
+    stream.write_all(b"PUT /form HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/x-www-form-urlencoded\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\ntitle\r\n").await.unwrap();
+    assert_eq!(server.request("GET", "/ready").await.body, "ready");
+    stream.write_all(b"3\r\n=ok\r\n0\r\n\r\n").await.unwrap();
+    let mut response = String::new();
+    tokio::time::timeout(Duration::from_secs(5), stream.read_to_string(&mut response))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    assert!(response.ends_with("ok"), "{response}");
 }

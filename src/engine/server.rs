@@ -9,7 +9,7 @@ use std::{
     },
 };
 
-use http_body_util::Full;
+use http_body_util::{BodyExt, Full, Limited};
 use hyper::{
     body::{Bytes, Incoming},
     server::conn::http1,
@@ -222,35 +222,56 @@ impl Service<Request<Incoming>> for WXSvc {
             );
         }
         let date_spec = self.mode.date_specifier();
-        // Send the actor RPC request via channels to the runtime.
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        if let Err(err) = self.runtime_tx.send(WXRuntimeMessage::ExecuteRoute {
-            request: req,
-            addr: self.address.unwrap(),
-            respond_to: tx,
-        }) {
-            let error_msg = format!("Failed to execute route due to: {}", err);
-            error_code(error_msg.clone(), ERROR_EXEC_ROUTE, date_spec);
-            Box::pin(async move {
-                Err(WXRuntimeError {
-                    code: 500,
-                    message: error_msg,
-                })
-            })
-        } else {
-            Box::pin(async move {
-                match rx.await {
-                    Ok(value) => value,
-                    Err(err) => {
-                        let error_msg = format!("Failed to execute route due to: {}", err);
-                        error_code(error_msg.clone(), ERROR_EXEC_ROUTE, date_spec);
-                        Err(WXRuntimeError {
-                            code: 500,
-                            message: error_msg,
-                        })
-                    }
+        let mode = self.mode;
+        let runtime_tx = self.runtime_tx.clone();
+        let addr = self.address.unwrap();
+        Box::pin(async move {
+            // Read on the HTTP task, never on the single JavaScript actor thread.
+            let (parts, incoming) = req.into_parts();
+            let collected = timeout(
+                std::time::Duration::from_secs(10),
+                Limited::new(incoming, 64 * 1024).collect(),
+            )
+            .await;
+            let body = match collected {
+                Ok(Ok(body)) => body.to_bytes(),
+                result => {
+                    let (code, message) = match result {
+                        Err(_) => (408, "Timed out reading request body"),
+                        Ok(Err(err)) if err.is::<http_body_util::LengthLimitError>() => {
+                            (413, "Request body exceeds 64 KiB")
+                        }
+                        _ => (400, "Failed to read request body"),
+                    };
+                    return Ok(
+                        super::http::responses::request_error(mode, code, message.into())
+                            .map(Full::new),
+                    );
                 }
-            })
-        }
+            };
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            if let Err(err) = runtime_tx.send(WXRuntimeMessage::ExecuteRoute {
+                request: Request::from_parts(parts, body),
+                addr,
+                respond_to: tx,
+            }) {
+                error_code(err.to_string(), ERROR_EXEC_ROUTE, date_spec);
+                return Ok(super::http::responses::request_error(
+                    mode,
+                    500,
+                    "Runtime unavailable".into(),
+                )
+                .map(Full::new));
+            }
+            match rx.await {
+                Ok(value) => value,
+                Err(_) => Ok(super::http::responses::request_error(
+                    mode,
+                    500,
+                    "Runtime unavailable".into(),
+                )
+                .map(Full::new)),
+            }
+        })
     }
 }

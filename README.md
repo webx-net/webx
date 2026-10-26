@@ -286,8 +286,8 @@ cargo run --locked -- run examples/todo
 
 Open <http://localhost:8080>. HTMX sends CRUD requests and swaps server-rendered
 HTML fragments. The example uses inline JavaScript endpoint blocks, path parameters,
-and `static("index.html")`; it loads pinned HTMX 2.0.8 from jsDelivr. No database,
-frontend build step, request-body decoding, or JSX rendering is required.
+URL-encoded PUT form bodies, and `static("index.html")`; it loads pinned HTMX
+2.0.8 from jsDelivr. No database, frontend build step, or JSX rendering is required.
 
 See [Runtime behavior](docs/runtime.md) for the implemented routing, reload,
 request-state, and body-handling contract. The roadmap above includes planned

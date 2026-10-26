@@ -21,8 +21,8 @@ use crate::{
     analysis::routes::{verify_model_routes, FlatRoutes},
     file::parser::parse_webx_source,
     file::webx::{
-        WXBody, WXBodyType, WXModule, WXModulePath, WXRouteHandlerCall, WXTypedIdentifier,
-        WXUrlPath, WXUrlPathSegment,
+        WXBody, WXBodyType, WXModule, WXModulePath, WXRouteHandlerCall, WXRouteReqBody,
+        WXTypedIdentifier, WXUrlPath, WXUrlPathSegment,
     },
     reporting::{debug::info, error::error_code, route::print_route, warning::warning},
     runner::WXMode,
@@ -204,7 +204,7 @@ pub enum WXRouteResult {
 #[derive(Debug, Clone)]
 pub struct WXRTRoute {
     module_path: WXModulePath,
-    declares_body: bool,
+    body_format: Option<WXRouteReqBody>,
     body: Option<WXBody>,
     pre_handlers: Vec<WXRouteHandlerCall>,
     post_handlers: Vec<WXRouteHandlerCall>,
@@ -302,12 +302,6 @@ impl WXRTRoute {
         info: &WXRuntimeInfo,
         mode: WXMode,
     ) -> Result<hyper::Response<hyper::body::Bytes>, WXRuntimeError> {
-        if self.declares_body {
-            return Err(WXRuntimeError {
-                code: 501,
-                message: "Request body decoding (json/form/models) is not supported".into(),
-            });
-        }
         let mut result = self.execute_handlers(&self.pre_handlers, ctx, rt, info)?;
         if self.body.is_some() {
             let body = self.execute_body(ctx, rt, info)?;
@@ -350,7 +344,7 @@ impl WXRouteMap {
                 path.clone(),
                 WXRTRoute {
                     module_path: route.info.path,
-                    declares_body: route.body_format.is_some(),
+                    body_format: route.body_format,
                     body: route.body,
                     pre_handlers: route.pre_handlers,
                     post_handlers: route.post_handlers,
@@ -386,7 +380,7 @@ pub enum WXRuntimeMessage {
     Shutdown,
     Reload,
     ExecuteRoute {
-        request: hyper::Request<hyper::body::Incoming>,
+        request: hyper::Request<Bytes>,
         addr: SocketAddr,
         respond_to: tokio::sync::oneshot::Sender<
             Result<hyper::Response<http_body_util::Full<hyper::body::Bytes>>, WXRuntimeError>,
@@ -631,7 +625,7 @@ impl WXRuntime {
 
     fn execute_route(
         &mut self,
-        req: hyper::Request<hyper::body::Incoming>,
+        req: hyper::Request<Bytes>,
         addr: SocketAddr,
     ) -> Result<hyper::Response<http_body_util::Full<Bytes>>, WXRuntimeError> {
         if self.mode.is_dev() {
@@ -650,7 +644,26 @@ impl WXRuntime {
                     ctx.bind(&name, Global::new(scope, value));
                 }
             }
-            let route_result = route.execute(&mut ctx, module_runtime, &self.info, self.mode);
+            let route_result = (|| {
+                let fields = super::form::bindings(&req, route.body_format.as_ref())?;
+                let scope = &mut module_runtime.handle_scope();
+                for (name, value) in fields {
+                    if ctx.values.contains_key(&name) {
+                        return Err(WXRuntimeError {
+                            code: 400,
+                            message: format!("Form field conflicts with path parameter: {}", name),
+                        });
+                    }
+                    let value =
+                        deno_core::serde_v8::to_v8(scope, value).map_err(|err| WXRuntimeError {
+                            code: 500,
+                            message: err.to_string(),
+                        })?;
+                    ctx.bind(&name, Global::new(scope, value));
+                }
+                Ok(())
+            })()
+            .and_then(|_| route.execute(&mut ctx, module_runtime, &self.info, self.mode));
             let response = match route_result {
                 Ok(response) => response,
                 Err(err) => {
@@ -659,7 +672,9 @@ impl WXRuntime {
                         err.code,
                         self.mode.date_specifier(),
                     );
-                    if err.code == 501 {
+                    if (400..500).contains(&err.code) {
+                        responses::request_error(self.mode, err.code as u16, err.message)
+                    } else if err.code == 501 {
                         responses::not_implemented(self.mode, err.message)
                     } else {
                         responses::internal_server_error_default_webx(self.mode, err.message)

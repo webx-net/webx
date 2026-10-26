@@ -61,13 +61,27 @@ are serialized but not transactional: a later handler failure does not undo them
 - Methods are matched exactly (GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS,
   CONNECT, TRACE where supported by the HTTP/1 transport). Bodyless POST/PUT/PATCH
   routes are valid. GET/HEAD/DELETE body declarations are rejected during analysis.
-- Route parameters are strings. Request headers, query parameters, and body fields
-  are not exposed as JavaScript bindings. There is no request object or middleware
-  context API.
-- `json(...)`, `form(...)`, and model body declarations are parsed but **not
-  decoded or validated**. Invoking a route with such a declaration returns **501**
-  before any handler executes. On routes without a body declaration, incoming
-  body bytes are ignored. Sending JSON does not bind its properties.
+- Route parameters are strings. Request headers and query parameters are not
+  exposed as JavaScript bindings. There is no request object or middleware API.
+- `form(title: String, completed: Boolean)` declares URL-encoded request fields,
+  following the syntax in [the parser documentation](../src/file/parser.rs).
+  Send `Content-Type: application/x-www-form-urlencoded` (optionally
+  `charset=UTF-8`). Fields are decoded once (`+` means space; `%HH` represents
+  UTF-8 bytes) and are available to pre-handlers and endpoint blocks as local
+  variables. This works for POST, PUT, and PATCH.
+- String fields are required; empty strings are allowed for application validation.
+  Boolean/Bool fields accept `true/on/1` and `false/off/0`; an omitted boolean is
+  false, matching an unchecked HTML checkbox. Type names are case-insensitive.
+  Other field types return 501. Undeclared fields are ignored. Duplicate field
+  names, malformed escapes/UTF-8, missing string fields, invalid booleans, and
+  collisions with path parameters return 400 before any handler runs. A duplicate
+  field declaration is a configuration error (500).
+- Missing/wrong Content-Type, non-UTF-8 charsets, and multipart form uploads return
+  415 for form routes. `json(...)` and model-body decoding remain unsupported
+  (501). On routes without a body declaration, body contents are ignored.
+- HTTP tasks collect bodies asynchronously before dispatch, including chunked
+  uploads, so a slow upload does not block the JavaScript actor. All request
+  bodies are limited to 64 KiB and ten seconds (413/408); read failures return 400.
 - Calls to synchronous functions in a module's root `global` block and the native
   `static(path)` handler work. `static` reads a UTF-8 text file relative to the
   project root on every call; it is not a binary asset server or MIME detector.

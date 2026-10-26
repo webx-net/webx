@@ -105,6 +105,16 @@ pub mod responses {
             .unwrap())
     }
 
+    pub fn request_error(mode: WXMode, status: u16, message: String) -> Response<Bytes> {
+        Response::builder()
+            .status(status)
+            .header("Content-Type", "text/plain; charset=utf-8")
+            .header("Connection", "close")
+            .header("Server", server_header(mode))
+            .body(Bytes::from(message))
+            .unwrap()
+    }
+
     pub fn not_implemented(mode: WXMode, message: String) -> Response<Bytes> {
         Response::builder()
             .status(hyper::StatusCode::NOT_IMPLEMENTED)
