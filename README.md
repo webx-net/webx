@@ -18,6 +18,7 @@ A framework for building minimal but powerful **web app backends**, **REST APIs*
 ▸ [Get started](#getting-started) or [read more](#why-webx) about the project below.
 
 > **⚠️ WebX is still in early development and not ready for production use.**
+> See [current runtime support and limitations](docs/runtime.md).
 
 <br>
 
@@ -276,58 +277,24 @@ It also disables hot reloading and response-logging to reduce sensitive debug in
 
 ## Examples
 
-The following is an example of a simple WebX to-do list application.
+The [todo CRUD example](examples/todo/README.md) is a runnable HTMX browser UI
+with an in-memory backend, covered by HTTP integration tests. From this repository:
 
-```typescript
-include "../common.webx"
-
-global {
-  const db = new Database("sqlite://db.sqlite");
-}
-
-model User {
-  id: number;
-  name: string[maxLength(50))]
-  email: string?;
-  isAdmin: boolean;
-}
-
-model Todo {
-  id: number;
-  task: string;
-  userId: number;
-}
-
-handler initServices() {
-  return {
-    userService: new UserService(db),
-    todoService: new TodoService(db)
-  };
-}
-
-handler auth(userService: UserService, id: number) {
-  const user = userService.getCurrentUser(id);
-  if (!user) error("User not found.");
-  return { user };
-}
-
-handler isAdmin(user: User) {
-  if (!user.isAdmin()) error("User is not an admin.");
-}
-
-handler renderTodos(todos: Todo[], user: User): HTML {
-  return (<div>
-      <h1>Welcome, {user.name}!</h1>
-      <ul>
-        {todos.map(todo => <li>{todo.task}</li>)}
-      </ul>
-    </div>);
-}
-
-get /todos/(id: number) -> initServices:s, auth(s.userService, id):a, isAdmin(a.user) {
-    const todos = s.todoService.getAllTodosForUser(a.user.id);
-} -> renderTodos(todos, a.user)
+```sh
+cargo run --locked -- run examples/todo
 ```
+
+Open <http://localhost:8080>. HTMX sends CRUD requests and swaps server-rendered
+HTML fragments. The example uses `global` JavaScript functions, path parameters,
+and `static("index.html")`; it loads pinned HTMX 2.0.8 from jsDelivr. No database,
+frontend build step, request-body decoding, or JSX rendering is required.
+
+See [Runtime behavior](docs/runtime.md) for the implemented routing, reload,
+request-state, and body-handling contract. The roadmap above includes planned
+features; it is not a statement of current runtime support.
+
+Run the tests with `cargo test --locked`. They assert actual HTTP responses and
+join the server/runtime workers without terminating the test process.
 
 <br>
 

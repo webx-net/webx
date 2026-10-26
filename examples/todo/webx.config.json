@@ -1,12 +1,7 @@
 {
-	"$schema": "https://raw.githubusercontent.com/webx-net/webx/main/schemas/webx.config.schema.json",
-	"name": "My todo WebX Project",
-	"description": "An example WebX project.",
-	"version": "1.0.0",
-	"port": 8080,
-	"tls": {
-		"key": "path/to/key.pem",
-		"cert": "path/to/cert.pem"
-	},
-	"cors": { "allowOrigin": "*" }
+  "$schema": "https://raw.githubusercontent.com/webx-net/webx/main/schemas/webx.config.schema.json",
+  "name": "WebX todo CRUD example",
+  "description": "An in-memory CRUD API and browser UI using supported runtime facilities.",
+  "version": "1.0.0",
+  "port": 8080
 }

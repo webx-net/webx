@@ -133,6 +133,10 @@ impl TestServer {
 }
 
 async fn request(addr: SocketAddr, method: &str, path: &str) -> TestResponse {
+    request_body(addr, method, path, "").await
+}
+
+async fn request_body(addr: SocketAddr, method: &str, path: &str, body: &str) -> TestResponse {
     tokio::time::timeout(Duration::from_secs(5), async {
         let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
         let (mut client, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
@@ -146,7 +150,7 @@ async fn request(addr: SocketAddr, method: &str, path: &str) -> TestResponse {
                     .uri(path)
                     .header("Host", "localhost")
                     .header("Connection", "close")
-                    .body(Full::new(Bytes::new()))
+                    .body(Full::new(Bytes::copy_from_slice(body.as_bytes())))
                     .unwrap(),
             )
             .await
@@ -346,6 +350,7 @@ async fn reload_adds_removes_and_renames_modules_and_keeps_last_good_snapshot() 
     assert_eq!(server.request("GET", "/").await.body, "7");
     for bad in [
         "get / (unfinished",
+        "post / json(title: String,",
         "get / (a)\nget / (b)\n",
         "global { this is invalid JS; }\nget / (broken)\n",
     ] {
@@ -399,4 +404,220 @@ async fn production_does_not_reload_modules_but_static_files_are_read_each_time(
     server.project.write("page.html", "after");
     assert_eq!(server.request("GET", "/").await.body, "before");
     assert_eq!(server.request("GET", "/file").await.body, "after");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_requests_isolate_parameters_outputs_and_failures() {
+    let source = r#"
+global {
+    let calls = 0;
+    function echo(value) { return value; }
+    function pack(token, before, middle, rendered) { return { token, before, middle, rendered, call: ++calls }; }
+    function fail(value) { throw new Error(value); }
+}
+get /work/(token: String) -> echo(token): before, echo(before): middle (body) -> echo(out): rendered, pack(token, before, middle, rendered)
+get /fail/(token: String) -> echo(token): before, fail(before) (must not run)
+get /probe -> echo([typeof token, typeof before, typeof middle, typeof out, typeof rendered])
+"#;
+    for mode in [WXMode::Dev(DebugLevel::Low), WXMode::Prod] {
+        let server = TestServer::start_mode(&[("index.wx", source)], mode);
+        let barrier = Arc::new(tokio::sync::Barrier::new(33));
+        let mut requests = tokio::task::JoinSet::new();
+        for i in 0..32 {
+            let barrier = barrier.clone();
+            let addr = server.addr;
+            requests.spawn(async move {
+                barrier.wait().await;
+                let token = format!("request{i}");
+                let response = request(addr, "GET", &format!("/work/{token}")).await;
+                assert_eq!(response.status, StatusCode::OK);
+                assert_eq!(response.headers["content-type"], "application/json");
+                let json: serde_json::Value = serde_json::from_str(&response.body).unwrap();
+                for name in ["token", "before", "middle"] {
+                    assert_eq!(json[name], token);
+                }
+                assert_eq!(json["rendered"], "body");
+                let failed = request(addr, "GET", &format!("/fail/{token}")).await;
+                assert_eq!(failed.status, StatusCode::INTERNAL_SERVER_ERROR);
+                assert!(failed.body.contains(&token));
+                json["call"].as_u64().unwrap()
+            });
+        }
+        barrier.wait().await;
+        let mut calls = Vec::new();
+        while let Some(result) = requests.join_next().await {
+            calls.push(result.unwrap());
+        }
+        calls.sort();
+        // Explicit module state is shared and serialized; request bindings are not.
+        assert_eq!(calls, (1..=32).collect::<Vec<_>>());
+        let probe = server.request("GET", "/probe").await;
+        assert_eq!(
+            probe.body,
+            r#"["undefined","undefined","undefined","undefined","undefined"]"#
+        );
+    }
+}
+
+#[tokio::test]
+async fn handler_arguments_run_once_and_failed_or_unsupported_work_does_not_crash() {
+    let source = r#"
+global {
+    let count = 0;
+    function echo(value) { return value; }
+    function bad() { const value = {}; value.self = value; return value; }
+    function nothing() {}
+    function later() { return Promise.resolve(1); }
+}
+get /once -> echo(++count)
+get /bad -> bad()
+get /nothing -> nothing()
+get /async -> later()
+get /code { return 1; }
+post /body json(title: String) -> echo(title)
+get /post (body) -> echo(out): first, echo(first): second, echo(second)
+get /raw/(value: Int) -> echo(value)
+post /ignored -> echo(typeof title)
+"#;
+    let server = TestServer::start(&[("index.wx", source)]);
+    assert_eq!(server.request("GET", "/once").await.body, "1");
+    assert_eq!(server.request("GET", "/once").await.body, "2");
+    assert_eq!(
+        server.request("GET", "/bad").await.status,
+        StatusCode::INTERNAL_SERVER_ERROR
+    );
+    assert_eq!(server.request("GET", "/nothing").await.body, "null");
+    for path in ["/async", "/code"] {
+        assert_eq!(
+            server.request("GET", path).await.status,
+            StatusCode::NOT_IMPLEMENTED
+        );
+    }
+    assert_eq!(
+        server.request("POST", "/body").await.status,
+        StatusCode::NOT_IMPLEMENTED
+    );
+    let unsupported = request_body(server.addr, "POST", "/body", r#"{"title":"body value"}"#).await;
+    assert_eq!(unsupported.status, StatusCode::NOT_IMPLEMENTED);
+    let ignored = request_body(server.addr, "POST", "/ignored", r#"{"title":"body value"}"#).await;
+    assert_eq!(ignored.status, StatusCode::OK);
+    assert_eq!(ignored.body, "undefined");
+    assert_eq!(server.request("GET", "/post").await.body, "body");
+    assert_eq!(
+        server
+            .request("GET", "/raw/hello%20world?unused=true")
+            .await
+            .body,
+        "hello%20world"
+    );
+    assert_eq!(server.request("GET", "/once").await.body, "3");
+}
+
+fn todo_server() -> TestServer {
+    TestServer::start(&[
+        ("index.wx", include_str!("../../examples/todo/index.wx")),
+        ("index.html", include_str!("../../examples/todo/index.html")),
+    ])
+}
+
+async fn todo_fragment(server: &TestServer, method: &str, path: &str) -> String {
+    let response = server.request(method, path).await;
+    assert_eq!(response.status, StatusCode::OK, "{}", response.body);
+    assert_eq!(response.headers["content-type"], "text/html; charset=utf-8");
+    assert!(response.body.starts_with(r#"<section id="todo-panel">"#));
+    assert!(response.body.contains(r#"role="status""#));
+    response.body
+}
+
+#[tokio::test]
+async fn todo_example_completes_a_crud_lifecycle() {
+    let server = todo_server();
+    let page = server.request("GET", "/").await;
+    assert_eq!(page.status, StatusCode::OK);
+    assert!(page.body.contains("htmx.org@2.0.8"));
+    assert!(page.body.contains(r#"hx-get="/todos" hx-trigger="load""#));
+    assert!(page
+        .body
+        .contains(r##"hx-target="#todo-panel" hx-swap="outerHTML""##));
+
+    let empty = todo_fragment(&server, "GET", "/todos").await;
+    assert!(empty.contains("No todos yet."));
+    assert!(empty.contains(r#"hx-post="/todos" hx-params="none""#));
+
+    let created = todo_fragment(&server, "POST", "/todos/First%20task").await;
+    assert!(created.contains("Todo added"));
+    assert!(created.contains("First task"));
+    assert!(created.contains(r#"hx-get="/todos/1""#));
+    assert!(created.contains(r#"hx-delete="/todos/1""#));
+    assert!(!created.contains("No todos yet."));
+
+    let edit = todo_fragment(&server, "GET", "/todos/1").await;
+    assert!(edit.contains(r#"hx-put="/todos/1" hx-params="none""#));
+    assert!(edit.contains(r#"value="First task""#));
+    assert!(!edit.contains("checked"));
+
+    let updated = todo_fragment(&server, "PUT", "/todos/1/Edited%2Ftask/true").await;
+    assert!(updated.contains("Todo updated"));
+    assert!(updated.contains("Edited/task"));
+    assert!(updated.contains(">Completed</span>"));
+    assert!(!updated.contains("First task"));
+    let listed = todo_fragment(&server, "GET", "/todos").await;
+    assert!(listed.contains("Edited/task"));
+    assert!(todo_fragment(&server, "GET", "/todos/1")
+        .await
+        .contains("checked"));
+    let unchecked = todo_fragment(&server, "PUT", "/todos/1/Edited%2Ftask/false").await;
+    assert!(unchecked.contains(">Pending</span>"));
+
+    let deleted = todo_fragment(&server, "DELETE", "/todos/1").await;
+    assert!(deleted.contains("Todo deleted"));
+    assert!(deleted.contains("No todos yet."));
+    assert!(!deleted.contains("Edited/task"));
+    assert!(todo_fragment(&server, "GET", "/todos/1")
+        .await
+        .contains("Todo not found"));
+    assert!(todo_fragment(&server, "GET", "/todos")
+        .await
+        .contains("No todos yet."));
+}
+
+#[tokio::test]
+async fn todo_example_escapes_titles_and_rejects_invalid_changes() {
+    let server = todo_server();
+    let escaped = "&lt;img src=x onerror=alert(1)&gt;&amp;&quot;&#39; / 🌍";
+    let created = todo_fragment(
+        &server,
+        "POST",
+        "/todos/%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E%26%22%27%20%2F%20%F0%9F%8C%8D",
+    )
+    .await;
+    assert!(created.contains(escaped));
+    assert!(!created.contains("<img"));
+    let edit = todo_fragment(&server, "GET", "/todos/1").await;
+    assert!(edit.contains(&format!("value=\"{}\"", escaped)));
+    for (method, path, message) in [
+        ("POST", "/todos/%20", "Title must contain 1-120 characters"),
+        ("POST", "/todos/%FF", "Title must contain 1-120 characters"),
+        (
+            "PUT",
+            "/todos/1/%20/true",
+            "Title must contain 1-120 characters",
+        ),
+        (
+            "PUT",
+            "/todos/1/Changed/notabool",
+            "Invalid completion state",
+        ),
+        ("PUT", "/todos/999/Changed/true", "Todo not found"),
+        ("DELETE", "/todos/999", "Todo not found"),
+    ] {
+        assert!(todo_fragment(&server, method, path).await.contains(message));
+        let stored = todo_fragment(&server, "GET", "/todos").await;
+        assert!(stored.contains(escaped));
+        assert!(stored.contains(">Pending</span>"));
+    }
+    let long_title = format!("/todos/{}", "x".repeat(121));
+    assert!(todo_fragment(&server, "POST", &long_title)
+        .await
+        .contains("Title must contain 1-120 characters"));
 }

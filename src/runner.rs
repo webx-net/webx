@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use crate::analysis::{dependencies::analyze_module_deps, routes::analyze_module_routes};
 use crate::engine::filewatcher::WXFileWatcher;
-use crate::engine::runtime::{WXRuntime, WXRuntimeInfo};
+use crate::engine::runtime::{WXRuntime, WXRuntimeInfo, WXRuntimeMessage};
 use crate::engine::server::WXServer;
 use crate::file::project::{load_modules, load_project_config, ProjectConfig};
 use crate::file::webx::WXModule;
@@ -233,6 +233,7 @@ pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
         let sv_rt_tx = rt_tx.clone();
         let mut server = WXServer::new(mode, config, sv_rt_tx);
         server.run(running).expect("Failed to run server");
+        let _ = rt_tx.send(WXRuntimeMessage::Shutdown);
         if runtime_hnd.join().is_err() {
             warning(mode, "Failed to stop runtime".into());
         }
@@ -250,6 +251,7 @@ pub fn run(root: &Path, mode: WXMode, running: Arc<AtomicBool>) {
         let sv_rt_tx = rt_tx.clone();
         let mut server = WXServer::new(mode, config, sv_rt_tx);
         server.run(running).expect("Failed to run server");
+        let _ = rt_tx.send(WXRuntimeMessage::Shutdown);
         if runtime_hnd.join().is_err() {
             warning(mode, "Failed to stop runtime".into())
         }
