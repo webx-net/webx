@@ -213,8 +213,8 @@ pub struct WXRTRoute {
 impl WXRTRoute {
     fn execute_body(
         &self,
-        _ctx: &mut WXRTContext,
-        _rt: &mut JsRuntime,
+        ctx: &mut WXRTContext,
+        rt: &mut JsRuntime,
         _info: &WXRuntimeInfo,
     ) -> Result<WXRouteResult, WXRuntimeError> {
         let Some(body) = &self.body else {
@@ -224,12 +224,12 @@ impl WXRTRoute {
             });
         };
         match body.body_type {
-            WXBodyType::Ts => Err(WXRuntimeError {
-                code: 501,
-                message:
-                    "Route code blocks are not supported; call a function defined in global instead"
-                        .into(),
-            }),
+            // Each invocation gets its own lexical scope. Only the returned value
+            // is exposed to post-handlers through `out`.
+            WXBodyType::Ts => {
+                eval_js_expression(format!("(() => {{\n{}\n}})()", body.body), rt, ctx)
+                    .map(WXRouteResult::Js)
+            }
             // TODO: - Resolve bindings, render and execute JSX (dynamic)
             // TODO: - Use JSX runtime to render JSX
             WXBodyType::Tsx => Ok(WXRouteResult::Html(body.body.clone())),

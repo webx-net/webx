@@ -415,9 +415,9 @@ global {
     function pack(token, before, middle, rendered) { return { token, before, middle, rendered, call: ++calls }; }
     function fail(value) { throw new Error(value); }
 }
-get /work/(token: String) -> echo(token): before, echo(before): middle (body) -> echo(out): rendered, pack(token, before, middle, rendered)
+get /work/(token: String) -> echo(token): before, echo(before): middle { const local = middle; return local; } -> echo(out): rendered, pack(token, before, middle, rendered)
 get /fail/(token: String) -> echo(token): before, fail(before) (must not run)
-get /probe -> echo([typeof token, typeof before, typeof middle, typeof out, typeof rendered])
+get /probe -> echo([typeof token, typeof before, typeof middle, typeof out, typeof rendered, typeof local])
 "#;
     for mode in [WXMode::Dev(DebugLevel::Low), WXMode::Prod] {
         let server = TestServer::start_mode(&[("index.wx", source)], mode);
@@ -436,7 +436,7 @@ get /probe -> echo([typeof token, typeof before, typeof middle, typeof out, type
                 for name in ["token", "before", "middle"] {
                     assert_eq!(json[name], token);
                 }
-                assert_eq!(json["rendered"], "body");
+                assert_eq!(json["rendered"], token);
                 let failed = request(addr, "GET", &format!("/fail/{token}")).await;
                 assert_eq!(failed.status, StatusCode::INTERNAL_SERVER_ERROR);
                 assert!(failed.body.contains(&token));
@@ -454,7 +454,7 @@ get /probe -> echo([typeof token, typeof before, typeof middle, typeof out, type
         let probe = server.request("GET", "/probe").await;
         assert_eq!(
             probe.body,
-            r#"["undefined","undefined","undefined","undefined","undefined"]"#
+            r#"["undefined","undefined","undefined","undefined","undefined","undefined"]"#
         );
     }
 }
@@ -487,16 +487,15 @@ post /ignored -> echo(typeof title)
         StatusCode::INTERNAL_SERVER_ERROR
     );
     assert_eq!(server.request("GET", "/nothing").await.body, "null");
-    for path in ["/async", "/code"] {
-        assert_eq!(
-            server.request("GET", path).await.status,
-            StatusCode::NOT_IMPLEMENTED
-        );
-    }
+    assert_eq!(
+        server.request("GET", "/async").await.status,
+        StatusCode::NOT_IMPLEMENTED
+    );
     assert_eq!(
         server.request("POST", "/body").await.status,
         StatusCode::NOT_IMPLEMENTED
     );
+    assert_eq!(server.request("GET", "/code").await.body, "1");
     let unsupported = request_body(server.addr, "POST", "/body", r#"{"title":"body value"}"#).await;
     assert_eq!(unsupported.status, StatusCode::NOT_IMPLEMENTED);
     let ignored = request_body(server.addr, "POST", "/ignored", r#"{"title":"body value"}"#).await;
@@ -620,4 +619,57 @@ async fn todo_example_escapes_titles_and_rejects_invalid_changes() {
     assert!(todo_fragment(&server, "POST", &long_title)
         .await
         .contains("Title must contain 1-120 characters"));
+}
+
+#[tokio::test]
+async fn inline_endpoint_blocks_return_values_and_isolate_locals_after_errors() {
+    let server = TestServer::start(&[(
+        "index.wx",
+        r#"
+global { let calls = 0; function echo(value) { return value; } }
+get /item/(id: String) -> echo(id): before {
+    const local = before;
+    var temporary = ++calls;
+    return { id: local, call: temporary };
+} -> echo(out)
+get /fail { const local = "secret"; throw new Error("inline failure"); } -> echo("must not run")
+get /syntax { return invalid syntax; }
+get /async { return Promise.resolve(1); }
+get /empty { const local = "private"; }
+get /probe { return [typeof local, typeof temporary, typeof before, typeof out]; }
+"#,
+    )]);
+    for i in 1..=2 {
+        let response = server.request("GET", "/item/mine").await;
+        assert_eq!(response.status, StatusCode::OK);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&response.body).unwrap(),
+            serde_json::json!({"id":"mine","call":i})
+        );
+    }
+    for path in ["/fail", "/syntax"] {
+        assert_eq!(
+            server.request("GET", path).await.status,
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+    assert_eq!(
+        server.request("GET", "/async").await.status,
+        StatusCode::NOT_IMPLEMENTED
+    );
+    assert_eq!(server.request("GET", "/empty").await.body, "null");
+    assert_eq!(
+        server.request("GET", "/probe").await.body,
+        r#"["undefined","undefined","undefined","undefined"]"#
+    );
+    let source = fs::read_to_string(server.project.0.join("index.wx")).unwrap();
+    server.project.write(
+        "index.wx",
+        &source.replace("const local = before;", "const local = before + ' edited';"),
+    );
+    let reloaded = server.request("GET", "/item/mine").await;
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&reloaded.body).unwrap(),
+        serde_json::json!({"id":"mine edited","call":3})
+    );
 }

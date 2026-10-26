@@ -31,7 +31,7 @@ mode; no browser auto-refresh is provided.
 
 Parsing, route validation, and changed global-block initialization must all
 succeed before the new module set and route table become active. A failed edit
-reports a diagnostic and retains the complete last good snapshot. HTML/route-only
+reports a diagnostic and retains the complete last good snapshot. HTML/endpoint-code-only
 edits preserve module globals. Changing a module's `global` block resets that
 module's state; removal discards it. Development checks read the source tree on
 each request and are intended for correctness and convenience, not throughput.
@@ -43,7 +43,7 @@ through Hyper, but JavaScript runs synchronously, one request at a time. No V8
 handle crosses threads or isolates.
 
 Path parameters, named handler outputs (`-> fn(...): name`), and `out` (the route
-HTML body, available to post-handlers) belong to a single request. Expressions
+body result, available to post-handlers) belong to a single request. Expressions
 receive these values as function arguments. They are never installed on the
 module's global object and are released after success or failure. Every handler
 argument is evaluated once; each named output, including the last in a chain,
@@ -77,9 +77,15 @@ are serialized but not transactional: a later handler failure does not undo them
   `null`. Cyclic/nonserializable results and thrown exceptions return 500 without
   stopping the runtime. Successful results use 200; custom response statuses and
   headers are not yet supported.
-- Route `{ ... }` code blocks and Promise/async results return 501. Use synchronous
-  JavaScript functions inside `global` instead. TypeScript transpilation, `.wx`
-  `handler` declarations, model validation, includes/import execution, and nested
+- Route `{ ... }` blocks execute synchronous JavaScript in a fresh lexical scope
+  for each request. Path parameters and pre-handler outputs are available inside;
+  `return` supplies the response (or `out` for post-handlers). Without a return,
+  the result is `null`. Local declarations do not persist or become post-handler
+  bindings; explicitly return values needed by post-handlers. Global application
+  state is accessible and remains shared. Syntax/runtime errors return 500 and
+  stop the handler chain. Promise/async results still return 501.
+- TypeScript transpilation, `.wx` `handler` declarations, model validation,
+  includes/import execution, and nested
   location globals/handlers are not implemented. Nested locations do support
   routing with the module's root global functions.
 

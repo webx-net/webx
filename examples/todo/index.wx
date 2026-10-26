@@ -1,4 +1,4 @@
-// HTMX CRUD: return HTML fragments using existing synchronous global functions.
+// HTMX CRUD: endpoint blocks return HTML fragments.
 // Request body decoding is not implemented; titles travel as encoded URL segments.
 global {
     let todos = [];
@@ -8,13 +8,6 @@ global {
         return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;")
             .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
     }
-    function titleFromPath(encoded) {
-        try {
-            const title = decodeURIComponent(encoded).trim();
-            return title.length > 0 && title.length <= 120 ? title : null;
-        } catch (error) { return null; }
-    }
-    function findTodo(id) { return todos.find(item => String(item.id) === id); }
     function renderTodo(todo, editingId) {
         if (String(todo.id) === editingId) {
             return `<li id="todo-${todo.id}">
@@ -46,36 +39,44 @@ global {
             </form>
         </section>`;
     }
-    function listTodos() { return renderTodos(""); }
-    function readTodo(id) {
-        return findTodo(id) ? renderTodos("", id) : renderTodos("Todo not found");
-    }
-    function createTodo(encoded) {
-        const title = titleFromPath(encoded);
-        if (!title) return renderTodos("Title must contain 1-120 characters");
-        todos.push({ id: nextId++, title, completed: false });
-        return renderTodos("Todo added");
-    }
-    function updateTodo(id, encoded, completed) {
-        const todo = findTodo(id);
-        if (!todo) return renderTodos("Todo not found");
-        const title = titleFromPath(encoded);
-        if (!title) return renderTodos("Title must contain 1-120 characters", id);
-        if (completed !== "true" && completed !== "false") return renderTodos("Invalid completion state", id);
-        todo.title = title;
-        todo.completed = completed === "true";
-        return renderTodos("Todo updated");
-    }
-    function deleteTodo(id) {
-        if (!findTodo(id)) return renderTodos("Todo not found");
-        todos = todos.filter(item => String(item.id) !== id);
-        return renderTodos("Todo deleted");
-    }
 }
 
 get / -> static("index.html")
-get /todos -> listTodos()
-get /todos/(id: String) -> readTodo(id)
-post /todos/(title: String) -> createTodo(title)
-put /todos/(id: String)/(title: String)/(completed: String) -> updateTodo(id, title, completed)
-delete /todos/(id: String) -> deleteTodo(id)
+
+get /todos {
+    return renderTodos("");
+}
+
+get /todos/(id: String) {
+    const todo = todos.find(item => String(item.id) === id);
+    return todo ? renderTodos("", id) : renderTodos("Todo not found");
+}
+
+post /todos/(encodedTitle: String) {
+    let title;
+    try { title = decodeURIComponent(encodedTitle).trim(); }
+    catch (error) { return renderTodos("Title must contain 1-120 characters"); }
+    if (!title || title.length > 120) return renderTodos("Title must contain 1-120 characters");
+    todos.push({ id: nextId++, title, completed: false });
+    return renderTodos("Todo added");
+}
+
+put /todos/(id: String)/(encodedTitle: String)/(completed: String) {
+    const todo = todos.find(item => String(item.id) === id);
+    if (!todo) return renderTodos("Todo not found");
+    let title;
+    try { title = decodeURIComponent(encodedTitle).trim(); }
+    catch (error) { return renderTodos("Title must contain 1-120 characters", id); }
+    if (!title || title.length > 120) return renderTodos("Title must contain 1-120 characters", id);
+    if (completed !== "true" && completed !== "false") return renderTodos("Invalid completion state", id);
+    todo.title = title;
+    todo.completed = completed === "true";
+    return renderTodos("Todo updated");
+}
+
+delete /todos/(id: String) {
+    const todo = todos.find(item => String(item.id) === id);
+    if (!todo) return renderTodos("Todo not found");
+    todos = todos.filter(item => String(item.id) !== id);
+    return renderTodos("Todo deleted");
+}

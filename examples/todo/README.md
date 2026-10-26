@@ -13,10 +13,15 @@ required.
 
 HTMX owns all client/server interaction: `hx-get` loads the list and edit form,
 `hx-post` creates a todo, `hx-put` saves it, and `hx-delete` removes it. Every
-endpoint returns a server-rendered `#todo-panel` HTML fragment, which HTMX swaps
+endpoint uses an inline JavaScript `{ ... }` block and returns a server-rendered `#todo-panel` HTML fragment, which HTMX swaps
 with `hx-target` and `hx-swap="outerHTML"`. Titles are escaped on the server in
 both text and input-value attributes. Validation messages appear in the returned
 fragment's status region; the browser does not render JSON or construct list rows.
+
+CRUD logic lives directly in the `get`, `post`, `put`, and `delete` endpoint
+blocks. `global` holds only the shared todo state and reusable HTML rendering
+and escaping helpers. Endpoint locals are isolated per request; editing an
+endpoint block preserves the shared state.
 
 A small `htmx:configRequest` hook encodes form values into URL segments because
 WebX does not yet decode form/JSON bodies. `hx-params="none"` prevents HTMX from
